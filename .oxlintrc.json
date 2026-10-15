@@ -6,6 +6,7 @@
     "react/only-export-components": "off",
     "react/purity": "off",
     "react/set-state-in-effect": "off",
-    "react-hooks/exhaustive-deps": "off"
+    "react-hooks/exhaustive-deps": "off",
+    "no-unused-vars": "off"
   }
 }

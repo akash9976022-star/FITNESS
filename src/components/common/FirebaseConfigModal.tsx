@@ -8,8 +8,6 @@ interface FirebaseConfigModalProps {
 }
 
 export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
-
   const existing = getStoredFirebaseConfig() || {
     apiKey: '',
     authDomain: '',
@@ -27,6 +25,8 @@ export const FirebaseConfigModal: React.FC<FirebaseConfigModalProps> = ({ isOpen
   const [appId, setAppId] = useState(existing.appId || '');
   const [jsonPaste, setJsonPaste] = useState('');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  if (!isOpen) return null;
 
   const handleJsonPaste = (text: string) => {
     setJsonPaste(text);
