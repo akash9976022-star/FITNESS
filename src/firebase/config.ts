@@ -29,7 +29,15 @@ export const getStoredFirebaseConfig = () => {
     };
   }
 
-  return null;
+  // Standard client fallback for APK and production web builds
+  return {
+    apiKey: 'AIzaSyCnF6sIo_iRdgZWuhqM-3-7AL2cjK47R6o',
+    authDomain: 'fitmaintenance-ai.firebaseapp.com',
+    projectId: 'fitmaintenance-ai',
+    storageBucket: 'fitmaintenance-ai.firebasestorage.app',
+    messagingSenderId: '421324524046',
+    appId: '1:421324524046:web:408140d2abbede33fd8a5f',
+  };
 };
 
 const activeConfig = getStoredFirebaseConfig();

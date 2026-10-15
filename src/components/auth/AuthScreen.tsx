@@ -15,6 +15,7 @@ import {
   Zap,
   Settings,
 } from 'lucide-react';
+import { isNativePlatform } from '../../services/nativeMobileService';
 
 interface AuthScreenProps {
   onOpenFirebaseConfig?: () => void;
@@ -79,6 +80,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onOpenFirebaseConfig }) 
   const handleGoogleSignIn = async () => {
     setLocalValidation(null);
     clearError();
+
+    if (isNativePlatform()) {
+      setLocalValidation('Google popups are blocked by Android WebViews. Please sign in with your email/password above or use the Instant 1-Click Demo below!');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await loginWithGoogle();
@@ -103,7 +110,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onOpenFirebaseConfig }) 
   const activeError = localValidation || error;
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+    <div className="min-h-[100dvh] w-full bg-slate-950 text-slate-100 flex flex-col justify-start sm:justify-center items-center px-4 py-8 relative overflow-y-auto">
       {/* Dynamic ambient lighting & grid glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-brand-500/15 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-teal-500/15 rounded-full blur-[140px] pointer-events-none" />

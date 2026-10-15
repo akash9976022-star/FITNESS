@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute, PublicOnlyRoute } from './components/routes/ProtectedRoute';
 import { AuthScreen } from './components/auth/AuthScreen';
@@ -15,7 +16,8 @@ export const App: React.FC = () => {
   const [firebaseModalOpen, setFirebaseModalOpen] = useState(false);
 
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <Router>
         <Routes>
           {/* Public Authentication Route */}
@@ -55,6 +57,7 @@ export const App: React.FC = () => {
         />
       </Router>
     </AuthProvider>
+    </ThemeProvider>
   );
 };
 
