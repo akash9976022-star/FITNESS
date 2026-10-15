@@ -1,0 +1,47 @@
+{
+  "name": "fitness",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "cap:build": "npm run build && npx cap sync",
+    "cap:sync": "npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "cap:run:android": "npx cap run android",
+    "build:apk": "build-apk.bat",
+    "build:zip": "powershell -Command \"Compress-Archive -Path dist/* -DestinationPath web-build.zip -Force\"",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/camera": "^8.2.5",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.4",
+    "@google/genai": "^2.29.1",
+    "firebase": "^13.0.0",
+    "lucide-react": "^1.57.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
+    "@oxlint/binding-win32-x64-msvc": "^1.88.0",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.6.1",
+    "oxlint": "^1.81.0",
+    "postcss": "^8.5.30",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~6.0.2",
+    "vite": "^6.2.0"
+  }
+}
