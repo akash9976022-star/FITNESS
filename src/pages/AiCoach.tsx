@@ -7,6 +7,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { askFitMaintenanceAI, isGeminiConfigured } from '../services/geminiService';
 
 interface Message {
   id: string;
@@ -24,7 +25,9 @@ export const AiCoach: React.FC = () => {
       sender: 'ai',
       text: `Hello ${
         currentUser?.displayName?.split(' ')[0] || 'Athlete'
-      }! I am your FitMaintenance AI Coach. I continuously evaluate your workout load, body composition, and caloric expenditure to keep your maintenance phase accurate and fatigue-free. What can I help you optimize today?`,
+      }! I am your FitMaintenance AI Coach${
+        isGeminiConfigured ? ' (powered by Google Gemini)' : ''
+      }. I continuously analyze your training load, body composition, and caloric expenditure to keep your maintenance phase accurate and fatigue-free. What would you like to optimize today?`,
       timestamp: 'Just now',
     },
   ]);
@@ -37,9 +40,9 @@ export const AiCoach: React.FC = () => {
     'How to prevent metabolic adaptation after a long diet?',
   ];
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const prompt = textToSend || input;
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || isTyping) return;
 
     const userMsg: Message = {
       id: `u-${Date.now()}`,
@@ -52,22 +55,8 @@ export const AiCoach: React.FC = () => {
     if (!textToSend) setInput('');
     setIsTyping(true);
 
-    // Contextual AI fitness response
-    setTimeout(() => {
-      let reply =
-        "To dial in your true maintenance calories, track your body weight average across 14 consecutive days while consuming the calculated baseline. If your 7-day rolling weight average fluctuates by less than 0.3%, you have nailed your exact maintenance intake!";
-      const lower = prompt.toLowerCase();
-      if (lower.includes('leg') || lower.includes('heavy')) {
-        reply =
-          "Calorie cycling is a great approach! On heavy compound leg days, consider shifting 30–40g of carbohydrates from your rest days into your pre- and post-workout meals while keeping weekly average calories at maintenance.";
-      } else if (lower.includes('macro') || lower.includes('muscle')) {
-        reply =
-          "For muscle preservation at maintenance: Aim for 1.8–2.2g of protein per kg of body weight, 20–25% total calories from healthy fats (hormonal support), and the remaining calories from complex carbohydrates to maximize glycogen re-synthesis.";
-      } else if (lower.includes('metabolic') || lower.includes('adaptation')) {
-        reply =
-          "After prolonged dieting, reverse diet by increasing calories by +100 to +150 kcal per week until reaching your calculated maintenance. This restores thyroid hormones (T3/T4) and leptin while avoiding sudden visceral fat accumulation.";
-      }
-
+    try {
+      const reply = await askFitMaintenanceAI(prompt);
       const aiMsg: Message = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
@@ -75,8 +64,18 @@ export const AiCoach: React.FC = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, aiMsg]);
+    } catch (err) {
+      console.error('Failed to get AI response:', err);
+      const errorMsg: Message = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: 'I could not process that question right now. Please try again.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
       setIsTyping(false);
-    }, 700);
+    }
   };
 
   return (
@@ -90,9 +89,15 @@ export const AiCoach: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-white">FitMaintenance AI Assistant</h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                ACTIVE
-              </span>
+              {isGeminiConfigured ? (
+                <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30">
+                  Google Gemini Live
+                </span>
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                  ACTIVE
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-400">Metabolic & Hypertrophy Specialist</p>
           </div>
@@ -123,7 +128,7 @@ export const AiCoach: React.FC = () => {
                   : 'bg-slate-950/80 border border-slate-800 text-slate-200 rounded-tl-none'
               }`}
             >
-              <p>{m.text}</p>
+              <div className="whitespace-pre-line">{m.text}</div>
               <span className="text-[10px] text-slate-400 block mt-1.5 text-right opacity-80">
                 {m.timestamp}
               </span>
@@ -171,7 +176,7 @@ export const AiCoach: React.FC = () => {
           />
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() || isTyping}
             className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold transition disabled:opacity-40"
           >
             <Send className="w-4 h-4" />
@@ -183,4 +188,3 @@ export const AiCoach: React.FC = () => {
 };
 
 export default AiCoach;
-
