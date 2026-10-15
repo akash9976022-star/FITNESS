@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FitMaintenance AI</string>
+    <string name="title_activity_main">FitMaintenance AI</string>
+    <string name="package_name">com.fitmaintenance.ai</string>
+    <string name="custom_url_scheme">com.fitmaintenance.ai</string>
+</resources>
