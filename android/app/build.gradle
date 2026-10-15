@@ -30,6 +30,13 @@ repositories {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        force "androidx.core:core:1.15.0"
+        force "androidx.core:core-ktx:1.15.0"
+    }
+}
+
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
