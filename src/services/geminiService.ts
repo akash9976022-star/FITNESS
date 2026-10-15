@@ -55,3 +55,4 @@ export async function askFitMaintenanceAI(prompt: string): Promise<string> {
     return fallbackFitnessAnswer(prompt);
   }
 }
+
