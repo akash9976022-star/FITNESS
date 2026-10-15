@@ -4,8 +4,8 @@ export interface ExerciseSetItem {
   id: string;
   setNumber: number;
   type?: SetType;
-  weight: string; // e.g. "25" or "25 kg"
-  reps: string;   // e.g. "10" or "8-10"
+  weight: string | number; // e.g. "25" or "25 kg"
+  reps: string | number;   // e.g. "10" or "8-10"
   completed: boolean;
   previous?: string; // e.g. "22.5 kg × 10"
   rpe?: number;
@@ -14,17 +14,18 @@ export interface ExerciseSetItem {
 export interface WorkoutExerciseItem {
   id: string;
   name: string;
-  targetMuscle: string;
-  category: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Cardio';
-  equipmentRequired: string[]; // List of equipment IDs required, e.g. ['dumbbells', 'adjustable_bench']
-  equipmentLabel: string;      // Human-readable, e.g. 'Dumbbells & Bench'
+  targetMuscle?: string;
+  category?: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Cardio' | string;
+  equipmentRequired?: string[]; // List of equipment IDs required, e.g. ['dumbbells', 'adjustable_bench']
+  equipmentLabel?: string;      // Human-readable, e.g. 'Dumbbells & Bench'
   sets: number;
-  reps: string;
-  weight: string;
+  reps: string | number;
+  weight: string | number;
   completedSets: number;
-  completed: boolean;
+  completed?: boolean;
   notes?: string;
   tempo?: string;
+  restSeconds?: number;
   replacedReason?: string;
   setList?: ExerciseSetItem[]; // Hevy-style individual set tracking
 }

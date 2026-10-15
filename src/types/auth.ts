@@ -1,3 +1,5 @@
+import type { WorkoutExerciseItem, WorkoutSessionItem, ExerciseSetItem } from './workout';
+
 export interface AppUser {
   uid: string;
   email: string | null;
@@ -12,6 +14,16 @@ export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very_active';
 export type MaintenanceGoal = 'maintenance' | 'recomp' | 'lean_bulk';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'pro';
 export type ReadinessLevel = 'low' | 'moderate' | 'high';
+
+export type BmiCategory =
+  | 'underweight'
+  | 'normal'
+  | 'overweight'
+  | 'obese'
+  | 'Underweight'
+  | 'Normal'
+  | 'Overweight'
+  | 'Obese';
 
 export interface EquipmentItemDefinition {
   id: string;
@@ -36,8 +48,22 @@ export interface UserProfileData {
   targetCarbs: number;   // in grams
   targetFats: number;    // in grams
   waterGoalMl: number;
+  stepGoal?: number;
   createdAt?: any;
   updatedAt?: any;
+}
+
+export interface AiPhysiqueAnalysis {
+  maintenanceRating?: string;
+  perceivedDefinition?: string;
+  postureAlignment?: string;
+  recommendedAction?: string;
+  rawJson?: any;
+  estimatedBodyFat?: string | number;
+  muscleMassRating?: string;
+  keyStrengths?: string[];
+  areasToTarget?: string[];
+  [key: string]: any;
 }
 
 export interface DailyCheckInItem {
@@ -48,14 +74,23 @@ export interface DailyCheckInItem {
   photo_url?: string;
   experience_level: ExperienceLevel;
   notes?: string;
+  aiPhysiqueAnalysis?: AiPhysiqueAnalysis;
   createdAt?: any;
   updatedAt?: any;
 }
 
-export type MealCategory = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type MealCategory =
+  | 'breakfast'
+  | 'lunch'
+  | 'dinner'
+  | 'snack'
+  | 'Breakfast'
+  | 'Lunch'
+  | 'Dinner'
+  | 'Snacks';
 
 export interface NutritionLogItem {
-  id: string;
+  id?: string;
   date: string;
   food_name: string;
   calories: number;
@@ -70,29 +105,6 @@ export interface NutritionLogItem {
   updatedAt?: any;
 }
 
-export interface WorkoutExercise {
-  name: string;
-  sets: number;
-  reps: number;
-  weight: number;
-  completedSets: number;
-  restSeconds?: number;
-  notes?: string;
-}
+export type { WorkoutExerciseItem, ExerciseSetItem, WorkoutSessionItem };
+export type WorkoutExercise = WorkoutExerciseItem;
 
-export interface WorkoutSessionItem {
-  id: string;
-  name: string;
-  routineName: string;
-  routine: string;
-  durationMinutes: number;
-  completed: boolean;
-  exercises: WorkoutExercise[];
-  sets: number;
-  completedSets: number;
-  date: string;
-  notes: string;
-  equipmentUsed: string[];
-  createdAt?: any;
-  updatedAt?: any;
-}

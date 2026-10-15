@@ -449,11 +449,12 @@ export const DashboardPage: React.FC = () => {
 
     const updatedExercises = currentWorkout.exercises.map((ex) => {
       if (ex.id === exerciseId) {
-        const match = ex.weight.match(/(\d+(\.\d+)?)/);
+        const weightStr = String(ex.weight);
+        const match = weightStr.match(/(\d+(\.\d+)?)/);
         if (match) {
           const currentKg = parseFloat(match[1]);
           const newKg = Math.max(0, currentKg + deltaKg);
-          const newWeightStr = ex.weight.replace(match[1], newKg.toFixed(1).replace('.0', ''));
+          const newWeightStr = weightStr.replace(match[1], newKg.toFixed(1).replace('.0', ''));
           return { ...ex, weight: newWeightStr };
         }
       }
@@ -543,8 +544,8 @@ export const DashboardPage: React.FC = () => {
     setEditingExerciseId(ex.id);
     setEditName(ex.name);
     setEditSets(ex.sets);
-    setEditReps(ex.reps);
-    setEditWeight(ex.weight);
+    setEditReps(String(ex.reps));
+    setEditWeight(String(ex.weight));
   };
 
   // Save inline edit

@@ -395,6 +395,11 @@ export const WorkoutsPage: React.FC = () => {
     );
   };
 
+  // Generate AI workout handler for empty state
+  const handleGenerateAiWorkout = () => {
+    handleRegenerateRoutine('Full Body');
+  };
+
   // Finish Workout (Hevy celebration modal & persist to Firestore)
   const handleFinishWorkout = async () => {
     if (!currentWorkout) return;

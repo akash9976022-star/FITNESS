@@ -222,14 +222,14 @@ export const evaluateMilestones = (params: {
             if (ex.setList && ex.setList.length > 0) {
               ex.setList.forEach((s) => {
                 if (s.completed) {
-                  const wNum = parseFloat(s.weight) || 0;
-                  const rNum = parseInt(s.reps, 10) || 0;
+                  const wNum = parseFloat(String(s.weight)) || 0;
+                  const rNum = parseInt(String(s.reps), 10) || 0;
                   totalVol += wNum * rNum;
                 }
               });
             } else if (ex.completed) {
-              const wNum = parseFloat(ex.weight) || 0;
-              const rNum = parseInt(ex.reps, 10) || 10;
+              const wNum = parseFloat(String(ex.weight)) || 0;
+              const rNum = parseInt(String(ex.reps), 10) || 10;
               totalVol += wNum * rNum * (ex.completedSets || ex.sets || 1);
             }
           });

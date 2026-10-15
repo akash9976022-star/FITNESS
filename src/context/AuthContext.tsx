@@ -21,6 +21,9 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, googleProvider, db, storage, isFirebaseConfigured } from '../firebase/config';
 import type { AppUser, UserProfileData, DailyCheckInItem, ExperienceLevel, NutritionLogItem, WorkoutSessionItem } from '../types/auth';
+import type { NotificationSettings } from '../types/notifications';
+import { DEFAULT_NOTIFICATION_SETTINGS } from '../types/notifications';
+import type { StreakData, CustomFestival } from '../types/calendar';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -49,9 +52,17 @@ interface AuthContextType {
   fetchWorkouts: () => Promise<WorkoutSessionItem[]>;
   // Nutrition methods
   nutritionLogs: NutritionLogItem[];
-  saveNutritionLog: (log: NutritionLogItem) => Promise<void>;
+  saveNutritionLog: (log: NutritionLogItem, photoBlob?: Blob | File) => Promise<void>;
   deleteNutritionLog: (logId: string) => Promise<void>;
-  fetchNutritionLogs: () => Promise<NutritionLogItem[]>;
+  fetchNutritionLogs: (date?: string) => Promise<NutritionLogItem[]>;
+  // Notifications
+  notificationSettings: NotificationSettings;
+  updateNotificationSettings: (settings: Partial<NotificationSettings>) => Promise<void>;
+  // Streak & Calendar Events
+  streakData: StreakData;
+  customFestivals: CustomFestival[];
+  addCustomFestival: (fest: Omit<CustomFestival, 'id'>) => Promise<CustomFestival>;
+  deleteCustomFestival: (id: string) => Promise<void>;
 }
 
 export const defaultProfile: UserProfileData = {
@@ -582,25 +593,134 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // ==================== NUTRITION LOG FUNCTIONS ====================
-  const saveNutritionLog = async (log: NutritionLogItem) => {
-    if (!user || user.isDemo) return;
-    if (!db) return;
-    try {
-      const logRef = doc(db, 'users', user.uid, 'nutrition_logs', log.id);
-      await setDoc(logRef, { ...log, updatedAt: serverTimestamp() }, { merge: true });
-      setNutritionLogs((prev) => {
-        const idx = prev.findIndex((p) => p.id === log.id);
-        if (idx >= 0) {
-          const copy = [...prev];
-          copy[idx] = log;
-          return copy;
-        }
-        return [log, ...prev];
-      });
-    } catch (err: any) {
-      console.error('Error saving nutrition log:', err);
+  // ==================== NOTIFICATIONS & SETTINGS ====================
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
+    const saved = localStorage.getItem('fitmaintenance_notifications');
+    if (saved) {
+      try {
+        return { ...DEFAULT_NOTIFICATION_SETTINGS, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error('Error parsing notification settings:', e);
+      }
     }
+    return DEFAULT_NOTIFICATION_SETTINGS;
+  });
+
+  const updateNotificationSettings = async (settings: Partial<NotificationSettings>) => {
+    const updated = { ...notificationSettings, ...settings };
+    setNotificationSettings(updated);
+    localStorage.setItem('fitmaintenance_notifications', JSON.stringify(updated));
+    if (user && !user.isDemo && db) {
+      try {
+        const docRef = doc(db, 'users', user.uid, 'settings', 'notifications');
+        await setDoc(docRef, { ...updated, updatedAt: serverTimestamp() }, { merge: true });
+      } catch (e) {
+        console.error('Error saving notification settings:', e);
+      }
+    }
+  };
+
+  // ==================== CALENDAR & STREAKS ====================
+  const [customFestivals, setCustomFestivals] = useState<CustomFestival[]>(() => {
+    const saved = localStorage.getItem('fitmaintenance_custom_festivals');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing custom festivals:', e);
+      }
+    }
+    return [];
+  });
+
+  const [streakData] = useState<StreakData>(() => {
+    const saved = localStorage.getItem('fitmaintenance_streak_data');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing streak data:', e);
+      }
+    }
+    return {
+      currentStreak: 5,
+      longestStreak: 14,
+      lastActiveDate: new Date().toISOString().split('T')[0],
+      totalActiveDays: 28,
+      weeklyActivity: [true, true, true, true, true, false, false],
+      level: 'Consistent Practitioner',
+      nextMilestone: 7,
+    };
+  });
+
+  const addCustomFestival = async (fest: Omit<CustomFestival, 'id'>): Promise<CustomFestival> => {
+    const newFest: CustomFestival = {
+      ...fest,
+      id: `custom_fest_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [newFest, ...customFestivals];
+    setCustomFestivals(updated);
+    localStorage.setItem('fitmaintenance_custom_festivals', JSON.stringify(updated));
+    if (user && !user.isDemo && db) {
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'custom_festivals', newFest.id), newFest, { merge: true });
+      } catch (e) {
+        console.error('Error saving custom festival:', e);
+      }
+    }
+    return newFest;
+  };
+
+  const deleteCustomFestival = async (id: string) => {
+    const updated = customFestivals.filter((f) => f.id !== id);
+    setCustomFestivals(updated);
+    localStorage.setItem('fitmaintenance_custom_festivals', JSON.stringify(updated));
+    if (user && !user.isDemo && db) {
+      try {
+        const { deleteDoc } = await import('firebase/firestore');
+        await deleteDoc(doc(db, 'users', user.uid, 'custom_festivals', id));
+      } catch (e) {
+        console.error('Error deleting custom festival:', e);
+      }
+    }
+  };
+
+  // ==================== NUTRITION LOG FUNCTIONS ====================
+  const saveNutritionLog = async (log: NutritionLogItem, photoBlob?: Blob | File) => {
+    const logId = log.id || `nutrition_${Date.now()}`;
+    let photoUrl = log.photo_url;
+    if (photoBlob && storage && user && !user.isDemo) {
+      try {
+        const photoRef = ref(storage, `users/${user.uid}/nutrition/${logId}.jpg`);
+        await uploadBytes(photoRef, photoBlob);
+        photoUrl = await getDownloadURL(photoRef);
+      } catch (e) {
+        console.warn('Error uploading nutrition photo:', e);
+      }
+    }
+    const fullLog: NutritionLogItem = {
+      ...log,
+      id: logId,
+      photo_url: photoUrl,
+    };
+    if (user && !user.isDemo && db) {
+      try {
+        const logRef = doc(db, 'users', user.uid, 'nutrition_logs', logId);
+        await setDoc(logRef, { ...fullLog, updatedAt: serverTimestamp() }, { merge: true });
+      } catch (err: any) {
+        console.error('Error saving nutrition log:', err);
+      }
+    }
+    setNutritionLogs((prev) => {
+      const idx = prev.findIndex((p) => p.id === logId);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = fullLog;
+        return copy;
+      }
+      return [fullLog, ...prev];
+    });
   };
 
   const deleteNutritionLog = async (logId: string) => {
@@ -615,14 +735,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchNutritionLogs = async (): Promise<NutritionLogItem[]> => {
+  const fetchNutritionLogs = async (dateFilter?: string): Promise<NutritionLogItem[]> => {
     if (!user || user.isDemo || !db) return [];
     try {
       const q = query(collection(db, 'users', user.uid, 'nutrition_logs'), orderBy('date', 'desc'));
       const snap = await getDocs(q);
       const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as NutritionLogItem));
       setNutritionLogs(items);
-      return items;
+      return dateFilter ? items.filter((i) => i.date === dateFilter) : items;
     } catch (err: any) {
       console.error('Error fetching nutrition logs:', err);
       return [];
@@ -655,8 +775,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveNutritionLog,
       deleteNutritionLog,
       fetchNutritionLogs,
+      notificationSettings,
+      updateNotificationSettings,
+      streakData,
+      customFestivals,
+      addCustomFestival,
+      deleteCustomFestival,
     }),
-    [user, loading, error, userProfile, checkIns, currentWorkout, nutritionLogs]
+    [user, loading, error, userProfile, checkIns, currentWorkout, nutritionLogs, notificationSettings, streakData, customFestivals]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
