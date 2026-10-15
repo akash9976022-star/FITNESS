@@ -1,66 +1,44 @@
-import React, { useState } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
-import { AlarmBriefingProvider } from './context/AlarmBriefingContext';
-import { ProtectedRoute, PublicOnlyRoute } from './components/routes/ProtectedRoute';
-import { AuthScreen } from './components/auth/AuthScreen';
-import { AppLayout } from './components/layout/AppLayout';
-import { DashboardPage } from './pages/DashboardPage';
-import { NutritionPage } from './pages/NutritionPage';
-import { WorkoutsPage } from './pages/WorkoutsPage';
-import { ProgressPage } from './pages/ProgressPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { FirebaseConfigModal } from './components/common/FirebaseConfigModal';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Workouts from './pages/Workouts';
+import Nutrition from './pages/Nutrition';
+import AiCoach from './pages/AiCoach';
+import Settings from './pages/Settings';
 
 export const App: React.FC = () => {
-  const [firebaseModalOpen, setFirebaseModalOpen] = useState(false);
+  const { currentUser } = useAuth();
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AlarmBriefingProvider>
-          <Router>
-        <Routes>
-          {/* Public Authentication Route */}
-          <Route
-            path="/login"
-            element={
-              <PublicOnlyRoute>
-                <AuthScreen onOpenFirebaseConfig={() => setFirebaseModalOpen(true)} />
-              </PublicOnlyRoute>
-            }
-          />
+    <Routes>
+      {/* Public Login Route - Redirects to dashboard if already authenticated */}
+      <Route
+        path="/login"
+        element={currentUser ? <Navigate to="/" replace /> : <Login />}
+      />
 
-          {/* Protected Routes inside Responsive Layout Shell */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/nutrition" element={<NutritionPage />} />
-            <Route path="/workouts" element={<WorkoutsPage />} />
-            <Route path="/progress" element={<ProgressPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-          </Route>
+      {/* Protected Routes using HashRouter and Responsive AppLayout */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="workouts" element={<Workouts />} />
+        <Route path="nutrition" element={<Nutrition />} />
+        <Route path="ai-coach" element={<AiCoach />} />
+        <Route path="settings" element={<Settings />} />
+      </Route>
 
-          {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-
-        {/* Global Firebase Configuration Modal accessible anywhere */}
-        <FirebaseConfigModal
-          isOpen={firebaseModalOpen}
-          onClose={() => setFirebaseModalOpen(false)}
-        />
-          </Router>
-        </AlarmBriefingProvider>
-      </AuthProvider>
-    </ThemeProvider>
+      {/* Fallback route - Redirect unknown paths to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

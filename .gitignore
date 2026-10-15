@@ -7,20 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Node modules and build output
 node_modules
 dist
 dist-ssr
-.vite
-*.tsbuildinfo
-web-build.zip
-
-# Environment / Secret files
+*.local
 .env
-.env*.local
-test_*.mjs
+.env.*.local
 
-# Editor / IDE
+# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -30,7 +24,3 @@ test_*.mjs
 *.njsproj
 *.sln
 *.sw?
-
-# Mobile build artifacts
-*.apk
-*.aab
