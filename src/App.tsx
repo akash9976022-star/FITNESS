@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { AlarmBriefingProvider } from './context/AlarmBriefingContext';
 import { ProtectedRoute, PublicOnlyRoute } from './components/routes/ProtectedRoute';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { AppLayout } from './components/layout/AppLayout';
@@ -18,7 +19,8 @@ export const App: React.FC = () => {
   return (
     <ThemeProvider>
       <AuthProvider>
-      <Router>
+        <AlarmBriefingProvider>
+          <Router>
         <Routes>
           {/* Public Authentication Route */}
           <Route
@@ -55,8 +57,9 @@ export const App: React.FC = () => {
           isOpen={firebaseModalOpen}
           onClose={() => setFirebaseModalOpen(false)}
         />
-      </Router>
-    </AuthProvider>
+          </Router>
+        </AlarmBriefingProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 };

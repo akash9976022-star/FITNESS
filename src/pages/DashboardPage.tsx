@@ -42,6 +42,8 @@ import {
   EXERCISE_DATABASE,
   isExerciseAvailable,
 } from '../services/aiWorkoutCoach';
+import { calculateConsistencyStreak } from '../utils/streakCalculator';
+import { evaluateMilestones } from '../utils/rewardsEngine';
 import type { DailyCheckInItem } from '../types/auth';
 import type { WorkoutSessionItem, WorkoutExerciseItem } from '../types/workout';
 
@@ -51,15 +53,12 @@ export const DashboardPage: React.FC = () => {
     userProfile,
     fetchCheckIns,
     checkIns,
-    todaysCaloriesConsumed,
     nutritionLogs,
     fetchNutritionLogs,
     currentWorkout,
     setCurrentWorkout,
     saveWorkout,
     fetchWorkouts,
-    rewards,
-    rewardsSummary,
   } = useAuth();
   const { triggerAlarmTest } = useAlarmBriefing();
 
@@ -169,14 +168,39 @@ export const DashboardPage: React.FC = () => {
   // -------------------------------------------------------------------------
   // NUTRITION & CALORIE STATS
   // -------------------------------------------------------------------------
-  const caloriesConsumed = todaysCaloriesConsumed;
+  const caloriesConsumed = useMemo(() => {
+    return (nutritionLogs || [])
+      .filter((l) => l.date === todayStr)
+      .reduce((sum, l) => sum + (l.calories || 0), 0);
+  }, [nutritionLogs, todayStr]);
+
+  const streakData = useMemo(() => {
+    return calculateConsistencyStreak(checkIns || [], []);
+  }, [checkIns]);
+
+  const rewardsData = useMemo(() => {
+    return evaluateMilestones({
+      checkIns: checkIns || [],
+      streakData,
+      nutritionLogs: nutritionLogs || [],
+      workoutsHistory: [],
+      targetCalories: userProfile.targetCalories || 2450,
+    });
+  }, [checkIns, streakData, nutritionLogs, userProfile.targetCalories]);
+
+  const rewards = rewardsData.badges;
+  const rewardsSummary = {
+    totalPoints: rewardsData.totalPoints,
+    unlockedCount: rewardsData.unlockedCount,
+  };
+
   const targetCalories = userProfile.targetCalories || 2450;
   const calorieDiff = caloriesConsumed - targetCalories;
   const calorieDeviationRatio = targetCalories > 0 ? calorieDiff / targetCalories : 0;
   const calorieDeviationPercent = Math.round(calorieDeviationRatio * 100);
 
   const todaysProtein = useMemo(() => {
-    return nutritionLogs
+    return (nutritionLogs || [])
       .filter((l) => l.date === todayStr)
       .reduce((sum, l) => sum + (l.protein_g || 0), 0);
   }, [nutritionLogs, todayStr]);
