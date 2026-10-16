@@ -10,7 +10,6 @@ import {
   Clock,
   CheckCircle2,
   Calendar,
-  AlertTriangle,
   Play,
   Wrench,
   Layers,
@@ -219,17 +218,17 @@ export const Dashboard: React.FC = () => {
               Welcome, {currentUser?.displayName?.split(' ')[0] || 'Athlete'}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-xl">
-              {userProfile?.onboardingCompleted
-                ? `Tuned for ${userProfile.experienceLevel.toUpperCase()} training intensity with ${userProfile.equipment?.length || 0} registered gym machines.`
-                : 'Complete the baseline profile & machine inventory to customize your training volume and TDEE.'}
+              {userProfile?.equipment?.length
+                ? `Tuned for ${userProfile.experienceLevel ? userProfile.experienceLevel.toUpperCase() : 'INTERMEDIATE'} training intensity with ${userProfile.equipment.length} registered gym machines.`
+                : 'Track your real-time nutrition balance, maintenance calories, and equipment workouts.'}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(userProfile?.onboardingCompleted ? '/profile' : '/onboarding')}
+              onClick={() => navigate('/profile')}
               className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition"
             >
-              <span>{userProfile?.onboardingCompleted ? 'Edit Inventory & Profile' : 'Start Onboarding'}</span>
+              <span>Edit Inventory & Profile</span>
               <ArrowUpRight className="w-4 h-4" />
             </button>
           </div>
@@ -428,25 +427,6 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Onboarding Callout if incomplete */}
-      {!userProfile?.onboardingCompleted && (
-        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/30 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-200">
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <span className="font-bold block text-sm">Gym Machine Inventory & Experience Level Not Set</span>
-            <p className="mt-0.5 text-amber-700 dark:text-amber-300">
-              Set your target maintenance weight, select your gym machines (Cables, Pulleys, Free Weights), and pick your experience level for tailored AI advice.
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/onboarding')}
-            className="px-3.5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-sm hover:bg-amber-400 whitespace-nowrap transition"
-          >
-            Launch Onboarding
-          </button>
-        </div>
-      )}
-
       {/* Real Dynamic Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Metric 1: Real Target Maintenance Calories with warm amber alerts */}
@@ -536,7 +516,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Split Dashboard View: Active Session / Schedule & Macro Split */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (2 Cols): Live Workout Stream & Onboarding Summary */}
+        {/* Left Column (2 Cols): Live Workout Stream & Routine Summary */}
         <div className="lg:col-span-2 space-y-4">
           <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex items-center justify-between mb-4">
