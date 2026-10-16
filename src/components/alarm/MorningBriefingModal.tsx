@@ -39,6 +39,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   // Speech State
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [activeLanguage, setActiveLanguage] = useState<'en' | 'ta'>('en');
+  const [activeSegment, setActiveSegment] = useState<'english' | 'tamil'>('english');
   const [isSpeechSpeaking, setIsSpeechSpeaking] = useState(false);
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
   const [speechCompleted, setSpeechCompleted] = useState(false);
@@ -68,18 +69,20 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
 
     setActiveSectionIndex(0);
     setActiveLanguage('en');
+    setActiveSegment('english');
     setSpeechCompleted(false);
     setIsSpeechSpeaking(true);
     setIsSpeechPaused(false);
     setActiveTab('briefing');
 
     speechBriefingEngine.startBriefing(sections, {
-      onSectionStart: (idx, lang) => {
+      onSectionStart: (idx, lang, segment) => {
         setActiveSectionIndex(idx);
         setActiveLanguage(lang);
+        if (segment) setActiveSegment(segment);
       },
-      onSectionComplete: (idx) => {
-        setActiveSectionIndex(Math.min(sections.length - 1, idx + 1));
+      onSectionComplete: () => {
+        // Progressively highlight completion
       },
       onAllComplete: () => {
         setIsSpeechSpeaking(false);
@@ -98,7 +101,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
     return () => {
       speechBriefingEngine.stop();
     };
-  }, [isOpen, sections, autoStartDevotionals]);
+  }, [isOpen, sections, autoStartDevotionals, volume]);
 
   if (!isOpen) return null;
 
@@ -245,6 +248,43 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
               {/* Live Speech Voice Indicator & Subtitles Card */}
               {activeSection && (
                 <div className="p-5 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm relative overflow-hidden">
+                  {/* Segment Phase Notification Banner */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition ${
+                          activeSegment === 'english'
+                            ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500/50'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {activeSegment === 'english' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        )}
+                        Phase 1: English (Greeting & Quote)
+                      </span>
+
+                      <span
+                        className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition ${
+                          activeSegment === 'tamil'
+                            ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500/50'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {activeSegment === 'tamil' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        )}
+                        Phase 2: தமிழ் வழிகாட்டல் (Core Details)
+                      </span>
+                    </div>
+
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                      {activeLanguage === 'en'
+                        ? 'Natural English (en-IN / en-US)'
+                        : 'இயற்கையான தமிழ் குரல் (ta-IN)'}
+                    </span>
+                  </div>
+
                   <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950">
@@ -261,10 +301,12 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                         Speaking:{' '}
                         <span className="text-emerald-600 dark:text-emerald-400 font-black">
-                          {activeLanguage === 'en' ? 'English (1st)' : 'தமிழ் Translation (2nd)'}
+                          {activeLanguage === 'en'
+                            ? 'English Segment (1st)'
+                            : 'தமிழ் வழிகாட்டல் (2nd)'}
                         </span>
                       </span>
                     </div>
@@ -276,13 +318,13 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                     <div
                       className={`p-3.5 rounded-2xl border transition ${
                         activeLanguage === 'en'
-                          ? 'bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
+                          ? 'bg-white dark:bg-slate-900 border-blue-500 shadow-md ring-1 ring-blue-500/30'
                           : 'bg-white/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-70'
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                      <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase text-blue-600 dark:text-blue-400">
                         <span>English Broadcast</span>
-                        {activeLanguage === 'en' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />}
+                        {activeLanguage === 'en' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />}
                       </div>
                       <p className="text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
                         {activeSection.textEn}
@@ -293,13 +335,13 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                     <div
                       className={`p-3.5 rounded-2xl border transition ${
                         activeLanguage === 'ta'
-                          ? 'bg-white dark:bg-slate-900 border-teal-500 shadow-md ring-1 ring-teal-500/30'
+                          ? 'bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
                           : 'bg-white/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-70'
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase text-teal-600 dark:text-teal-400">
-                        <span>தமிழ் நேரடி மொழிபெயர்ப்பு</span>
-                        {activeLanguage === 'ta' && <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-ping" />}
+                      <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                        <span>தமிழ் நேரடி மொழிபெயர்ப்பு & விவரம்</span>
+                        {activeLanguage === 'ta' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />}
                       </div>
                       <p className="text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
                         {activeSection.textTa}
@@ -310,7 +352,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                   {/* Soft Background Ambient Notice */}
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
                     <Music className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Soft instrumental Tanpura ambience playing at 15% volume during speech.</span>
+                    <span>Soft instrumental Tanpura ambience playing at 20% volume underneath speech.</span>
                   </div>
                 </div>
               )}

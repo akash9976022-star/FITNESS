@@ -27,6 +27,9 @@ import {
 import PanchangamCard from '../components/calendar/PanchangamCard';
 import RasipalanCard from '../components/calendar/RasipalanCard';
 import CustomFestivalModal from '../components/calendar/CustomFestivalModal';
+import CalendarDayThumbnail, {
+  getCalendarDayThumbnail,
+} from '../components/calendar/CalendarDayThumbnail';
 
 export const CalendarPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -341,6 +344,7 @@ export const CalendarPage: React.FC = () => {
                 );
                 const hasFasting = dayInfo.isFastingDay;
                 const hasCustom = dayInfo.festivals.some((f) => f.isCustom);
+                const thumbnail = getCalendarDayThumbnail(dayInfo);
 
                 return (
                   <button
@@ -377,6 +381,13 @@ export const CalendarPage: React.FC = () => {
                         {dayInfo.tamilMonthName.slice(0, 3)} {dayInfo.tamilDate}
                       </span>
                     </div>
+
+                    {/* Sacred Day Deity / Occasion Visual Thumbnail */}
+                    {thumbnail && (
+                      <div className="w-full flex items-center justify-center my-0.5">
+                        <CalendarDayThumbnail info={thumbnail} size="sm" />
+                      </div>
+                    )}
 
                     {/* Festival / Fasting Indicators */}
                     <div className="w-full space-y-0.5 mt-1">

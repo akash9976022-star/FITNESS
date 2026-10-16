@@ -8,6 +8,9 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import type { TamilDateInfo } from '../../utils/tamilCalendar';
+import CalendarDayThumbnail, {
+  getCalendarDayThumbnail,
+} from './CalendarDayThumbnail';
 
 interface PanchangamCardProps {
   dayInfo: TamilDateInfo;
@@ -16,6 +19,7 @@ interface PanchangamCardProps {
 
 export const PanchangamCard: React.FC<PanchangamCardProps> = ({ dayInfo, className = '' }) => {
   const { panchangam } = dayInfo;
+  const thumbnail = getCalendarDayThumbnail(dayInfo);
 
   return (
     <div
@@ -55,6 +59,31 @@ export const PanchangamCard: React.FC<PanchangamCardProps> = ({ dayInfo, classNa
           </div>
         </div>
       </div>
+
+      {/* Sacred Day Deity / Occasion Highlight Card */}
+      {thumbnail && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-300 dark:border-amber-500/30 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <CalendarDayThumbnail info={thumbnail} size="md" />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200">
+                  {thumbnail.titleTamil}
+                </span>
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                  • {thumbnail.titleEnglish}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-0.5">
+                {thumbnail.reason}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 shadow-xs flex-shrink-0">
+            புனித நாள்
+          </span>
+        </div>
+      )}
 
       {/* Auspicious & Inauspicious Timings Split View */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

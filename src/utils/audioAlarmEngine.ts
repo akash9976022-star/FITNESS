@@ -308,7 +308,7 @@ class AmbientBackgroundMusicEngine {
    * Generates a warm, meditative morning Tanpura / drone chord (C# - G# - C# - F)
    * filtered with gentle resonance to accompany speech briefing without overwhelming it.
    */
-  public start(volume: number = 0.15) {
+  public start(volume: number = 0.20) {
     if (this.isPlaying) return;
     try {
       const ctx = this.getAudioContext();
@@ -316,8 +316,8 @@ class AmbientBackgroundMusicEngine {
 
       this.masterGain = ctx.createGain();
       this.masterGain.gain.setValueAtTime(0.0001, now);
-      // Gentle 2-second fade-in
-      this.masterGain.gain.linearRampToValueAtTime(Math.min(0.3, volume), now + 2.0);
+      // Gentle 2-second fade-in to soft background volume (0.20)
+      this.masterGain.gain.linearRampToValueAtTime(Math.min(0.35, volume), now + 2.0);
       this.masterGain.connect(ctx.destination);
 
       // Low pass filter to keep sound soft and soothing under speech
@@ -582,7 +582,7 @@ export const buildMorningBriefingContent = ({
 /* ==================== 6. DUAL-LANGUAGE SPEECH SYNTHESIS ENGINE ==================== */
 
 export interface SpeechBriefingCallbacks {
-  onSectionStart?: (sectionIndex: number, language: 'en' | 'ta') => void;
+  onSectionStart?: (sectionIndex: number, language: 'en' | 'ta', segment?: 'english' | 'tamil') => void;
   onSectionComplete?: (sectionIndex: number) => void;
   onAllComplete?: () => void;
   onError?: (err: unknown) => void;
@@ -593,9 +593,10 @@ class SpeechBriefingEngine {
   private isCancelled: boolean = false;
   private currentSectionIndex: number = 0;
   private currentLang: 'en' | 'ta' = 'en';
+  private currentSegment: 'english' | 'tamil' = 'english';
 
   /**
-   * Finds the best matching voice for English or Tamil
+   * Finds the best matching voice for English (en-IN or en-US) or Tamil (ta-IN)
    */
   private getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
@@ -605,16 +606,32 @@ class SpeechBriefingEngine {
     if (lang === 'ta') {
       // Prioritize Tamil (India) voice
       const taVoice = voices.find(
-        (v) => v.lang === 'ta-IN' || v.lang.toLowerCase().startsWith('ta') || v.name.toLowerCase().includes('tamil')
+        (v) =>
+          v.lang === 'ta-IN' ||
+          v.lang.toLowerCase() === 'ta_in' ||
+          v.lang.toLowerCase().startsWith('ta') ||
+          v.name.toLowerCase().includes('tamil')
       );
       if (taVoice) return taVoice;
-      // Fallback: any Indian English or fallback voice
+      // Fallback
       return voices.find((v) => v.lang === 'en-IN') || voices[0] || null;
     } else {
-      // Prioritize Indian English for natural regional cadence, or natural English
-      const enVoice = voices.find(
-        (v) => v.lang === 'en-IN' || v.name.toLowerCase().includes('india') || v.lang.startsWith('en')
-      );
+      // Prioritize natural English: Indian English (en-IN) or natural US English (en-US)
+      const enVoice =
+        voices.find(
+          (v) =>
+            v.lang === 'en-IN' ||
+            v.lang.toLowerCase() === 'en_in' ||
+            v.name.toLowerCase().includes('india')
+        ) ||
+        voices.find(
+          (v) =>
+            v.lang === 'en-US' ||
+            v.lang.toLowerCase() === 'en_us' ||
+            v.name.toLowerCase().includes('natural') ||
+            v.name.toLowerCase().includes('google')
+        ) ||
+        voices.find((v) => v.lang.startsWith('en'));
       return enVoice || voices[0] || null;
     }
   }
@@ -655,9 +672,14 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Starts sequential Dual-Language Speech Briefing:
-   * Speaks every single section completely in English first,
-   * followed immediately by the exact translation in Tamil!
+   * Refined Bilingual Voice Briefing Structure:
+   * 1. English Segment: Speaks ONLY the warm greeting of the day, date/day,
+   *    and the daily motivational quote using natural English (en-IN or en-US).
+   * 2. Tamil Segment: Immediately follows by speaking all remaining core details—
+   *    Panchangam timings (Nalla Neram, Ragukalam), Rasipalan, fasting/festivals,
+   *    and fitness/water intake goals—completely in a smooth natural Tamil voice (ta-IN).
+   * Accompanied by soft instrumental background music (volume = 0.20),
+   * seamlessly followed by continuous devotional playback.
    */
   public async startBriefing(
     sections: BriefingSection[],
@@ -672,33 +694,110 @@ class SpeechBriefingEngine {
     this.isSpeaking = true;
     this.isCancelled = false;
 
-    // Start soothing background ambient music during speech briefing
-    ambientMusicEngine.start(0.15);
+    // Start soothing background ambient Tanpura drone at volume 0.20
+    ambientMusicEngine.start(0.20);
 
     try {
-      for (let i = 0; i < sections.length; i++) {
-        if (this.isCancelled) break;
-        const section = sections[i];
-        this.currentSectionIndex = i;
+      interface SpeechStep {
+        sectionIndex: number;
+        category: BriefingSection['category'];
+        lang: 'en' | 'ta';
+        text: string;
+        segment: 'english' | 'tamil';
+      }
 
-        // Step A: English Speech
-        this.currentLang = 'en';
-        if (callbacks?.onSectionStart) callbacks.onSectionStart(i, 'en');
-        await this.speakUtterance(section.textEn, 'en');
+      const steps: SpeechStep[] = [];
+
+      // Phase 1: English Segment (Greeting & Motivational Quote ONLY)
+      const greetingIdx = sections.findIndex((s) => s.category === 'greeting');
+      if (greetingIdx !== -1) {
+        steps.push({
+          sectionIndex: greetingIdx,
+          category: 'greeting',
+          lang: 'en',
+          text: sections[greetingIdx].textEn,
+          segment: 'english',
+        });
+      }
+
+      const quoteIdx = sections.findIndex((s) => s.category === 'quote');
+      if (quoteIdx !== -1) {
+        steps.push({
+          sectionIndex: quoteIdx,
+          category: 'quote',
+          lang: 'en',
+          text: sections[quoteIdx].textEn,
+          segment: 'english',
+        });
+      }
+
+      // Phase 2: Tamil Segment (All remaining core details: Panchangam, Rasipalan, Fitness)
+      const panchangamIdx = sections.findIndex((s) => s.category === 'panchangam');
+      if (panchangamIdx !== -1) {
+        steps.push({
+          sectionIndex: panchangamIdx,
+          category: 'panchangam',
+          lang: 'ta',
+          text: sections[panchangamIdx].textTa,
+          segment: 'tamil',
+        });
+      }
+
+      const rasiIdx = sections.findIndex((s) => s.category === 'rasipalan');
+      if (rasiIdx !== -1) {
+        steps.push({
+          sectionIndex: rasiIdx,
+          category: 'rasipalan',
+          lang: 'ta',
+          text: sections[rasiIdx].textTa,
+          segment: 'tamil',
+        });
+      }
+
+      const fitnessIdx = sections.findIndex((s) => s.category === 'fitness');
+      if (fitnessIdx !== -1) {
+        steps.push({
+          sectionIndex: fitnessIdx,
+          category: 'fitness',
+          lang: 'ta',
+          text: sections[fitnessIdx].textTa,
+          segment: 'tamil',
+        });
+      }
+
+      // Fallback: any other unhandled sections spoken in Tamil
+      sections.forEach((sec, idx) => {
+        if (!['greeting', 'quote', 'panchangam', 'rasipalan', 'fitness'].includes(sec.category)) {
+          steps.push({
+            sectionIndex: idx,
+            category: sec.category,
+            lang: 'ta',
+            text: sec.textTa,
+            segment: 'tamil',
+          });
+        }
+      });
+
+      for (let i = 0; i < steps.length; i++) {
+        if (this.isCancelled) break;
+        const step = steps[i];
+        this.currentSectionIndex = step.sectionIndex;
+        this.currentLang = step.lang;
+        this.currentSegment = step.segment;
+
+        if (callbacks?.onSectionStart) {
+          callbacks.onSectionStart(step.sectionIndex, step.lang, step.segment);
+        }
+
+        await this.speakUtterance(step.text, step.lang);
         if (this.isCancelled) break;
 
-        // Brief natural breath pause
-        await new Promise((r) => setTimeout(r, 450));
-        if (this.isCancelled) break;
+        if (callbacks?.onSectionComplete) {
+          callbacks.onSectionComplete(step.sectionIndex);
+        }
 
-        // Step B: Tamil Speech
-        this.currentLang = 'ta';
-        if (callbacks?.onSectionStart) callbacks.onSectionStart(i, 'ta');
-        await this.speakUtterance(section.textTa, 'ta');
-        if (this.isCancelled) break;
-
-        if (callbacks?.onSectionComplete) callbacks.onSectionComplete(i);
-        await new Promise((r) => setTimeout(r, 600));
+        // Natural breath pause between steps (500ms)
+        await new Promise((r) => setTimeout(r, 500));
       }
     } catch (err) {
       console.error('Speech briefing sequence error:', err);
@@ -740,6 +839,7 @@ class SpeechBriefingEngine {
       isSpeaking: this.isSpeaking,
       currentSectionIndex: this.currentSectionIndex,
       currentLang: this.currentLang,
+      currentSegment: this.currentSegment,
     };
   }
 }
