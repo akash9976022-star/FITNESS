@@ -105,6 +105,7 @@ export const CheckIn: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const inFlightAnalysisRef = React.useRef<Promise<AiPhysiqueAnalysis | null> | null>(null);
 
   // End-of-Day Review & Steps Form State
   const [endOfDayDate, setEndOfDayDate] = useState<string>(getTodayDateString());
@@ -205,21 +206,28 @@ export const CheckIn: React.FC = () => {
 
       // 2. Immediately send to Gemini AI vision model
       if (runAiAnalysis && isGeminiConfigured) {
-        try {
-          const analysis = await analyzePhysiqueImage(
-            compressedDataUrl,
-            Number(morningWeight) || 70,
-            experienceLevel
-          );
-          setAiAnalysisPreview(analysis);
-          setStatusMessage('Gemini AI body type analysis ready & attached!');
-          setTimeout(() => setStatusMessage(null), 3500);
-        } catch (aiErr) {
-          const friendlyMessage = formatGeminiErrorMessage(aiErr);
-          console.warn('Immediate Gemini AI analysis notice (fallback enabled):', friendlyMessage);
-          setStatusMessage(`AI notice: ${friendlyMessage}. You can still save your check-in.`);
-          setTimeout(() => setStatusMessage(null), 4000);
-        }
+        const analysisPromise = (async () => {
+          try {
+            const analysis = await analyzePhysiqueImage(
+              compressedDataUrl,
+              Number(morningWeight) || 70,
+              experienceLevel
+            );
+            setAiAnalysisPreview(analysis);
+            setStatusMessage('Gemini AI body type analysis ready & attached!');
+            setTimeout(() => setStatusMessage(null), 3500);
+            return analysis;
+          } catch (aiErr) {
+            const friendlyMessage = formatGeminiErrorMessage(aiErr);
+            console.warn('Immediate Gemini AI analysis notice (fallback enabled):', friendlyMessage);
+            setStatusMessage(`AI notice: ${friendlyMessage}. You can still save your check-in.`);
+            setTimeout(() => setStatusMessage(null), 4000);
+            return null;
+          }
+        })();
+
+        inFlightAnalysisRef.current = analysisPromise;
+        await analysisPromise;
       } else {
         setStatusMessage('Photo uploaded & compressed successfully.');
         setTimeout(() => setStatusMessage(null), 2500);
@@ -249,35 +257,45 @@ export const CheckIn: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    setStatusMessage('Saving check-in and uploading photo...');
+    setStatusMessage('Uploading photo & saving check-in...');
 
     try {
-      // 1. Upload photo to Firebase Storage
-      const photoUrl = await uploadCheckInPhoto(
-        currentUser.uid,
-        checkInPhotoBlob,
-        `${checkInDate}_checkin.jpg`
-      );
+      // 1 & 2. Concurrently run Photo Upload AND finalize AI analysis in parallel!
+      const [photoUrl, aiAnalysisResult] = await Promise.all([
+        uploadCheckInPhoto(
+          currentUser.uid,
+          checkInPhotoBlob,
+          `${checkInDate}_checkin.jpg`
+        ),
+        (async (): Promise<AiPhysiqueAnalysis | undefined> => {
+          if (aiAnalysisPreview) return aiAnalysisPreview;
+          if (inFlightAnalysisRef.current) {
+            try {
+              const inFlight = await inFlightAnalysisRef.current;
+              if (inFlight) return inFlight;
+            } catch {
+              // fallback below
+            }
+          }
+          if (runAiAnalysis && isGeminiConfigured) {
+            try {
+              return await analyzePhysiqueImage(
+                checkInPhotoPreview,
+                Number(morningWeight) || 70,
+                experienceLevel
+              );
+            } catch (aiErr) {
+              const friendlyMessage = formatGeminiErrorMessage(aiErr);
+              console.warn('AI analysis notice on submit:', friendlyMessage);
+            }
+          }
+          return undefined;
+        })(),
+      ]);
 
-      // 2. Use the already generated AI insights, or compute if not yet generated
-      let aiAnalysisResult: AiPhysiqueAnalysis | undefined = aiAnalysisPreview || undefined;
-      if (!aiAnalysisResult && runAiAnalysis && isGeminiConfigured) {
-        try {
-          setStatusMessage('Finalizing Gemini AI physique analysis...');
-          aiAnalysisResult = await analyzePhysiqueImage(
-            checkInPhotoPreview,
-            Number(morningWeight) || 70,
-            experienceLevel
-          );
-        } catch (aiErr) {
-          const friendlyMessage = formatGeminiErrorMessage(aiErr);
-          console.warn('AI analysis issue on submit:', friendlyMessage);
-        }
-      }
-
-      // 3. Save to Firestore (users/{userId}/checkins/{date}) - Zero BP
-      setStatusMessage('Saving check-in to Firestore...');
-      await addCheckIn(currentUser.uid, {
+      // 3. Concurrently save to Firestore (CheckIn, Fasting, and Streak) in parallel!
+      setStatusMessage('Updating streak & records...');
+      const checkInPayload = {
         date: checkInDate,
         weightKg: Number(morningWeight),
         fatigueRating: Number(fatigueRating),
@@ -288,54 +306,49 @@ export const CheckIn: React.FC = () => {
         isFasting: observingFast !== 'none',
         fastingType: observingFast,
         fastingNotes: fastingNotes.trim(),
-      });
+      };
 
-      // Also record fasting if fast was selected
-      if (observingFast !== 'none') {
-        await saveDailyFasting(currentUser.uid, checkInDate, observingFast, fastingNotes);
-      }
+      const [_, __, updatedStreak] = await Promise.all([
+        addCheckIn(currentUser.uid, checkInPayload),
+        observingFast !== 'none'
+          ? saveDailyFasting(currentUser.uid, checkInDate, observingFast, fastingNotes)
+          : Promise.resolve(),
+        recordStreakActivity(currentUser.uid, 'checkin', checkInDate),
+      ]);
 
-      // Automatically maintain consistency streak
-      const updatedStreak = await recordStreakActivity(currentUser.uid, 'checkin', checkInDate);
       setUserStreak(updatedStreak);
 
-      // Evaluate and unlock gamified badges
-      const updatedCheckIns: CheckInItem[] = [
-        {
-          id: 'temp',
-          date: checkInDate,
-          weightKg: Number(morningWeight),
-          fatigueRating: Number(fatigueRating),
-          photoUrl,
-          aiPhysiqueAnalysis: aiAnalysisResult,
-          energyLevel,
-          isFasting: observingFast !== 'none',
-          fastingType: observingFast,
-          fastingNotes: fastingNotes.trim(),
-        },
-        ...checkIns,
-      ];
-
-      const unlocked = await evaluateAndUnlockBadges(
-        currentUser.uid,
-        updatedCheckIns,
-        rewards,
-        userProfile?.targetWeightKg
-      );
-
-      // Reset modal state
+      // Instant optimistic UI close!
       setShowCheckInModal(false);
       setCheckInPhotoBlob(null);
       setCheckInPhotoPreview(null);
       setAiAnalysisPreview(null);
       setSorenessNotes('');
-
-      if (unlocked.length > 0) {
-        setNewlyUnlockedBadges(unlocked);
-      }
-
-      setStatusMessage('Morning check-in logged & streak updated!');
+      inFlightAnalysisRef.current = null;
+      setStatusMessage('Morning check-in saved! Streak maintained.');
       setTimeout(() => setStatusMessage(null), 3500);
+
+      // Evaluate badges in background (non-blocking)
+      const updatedCheckIns: CheckInItem[] = [
+        {
+          id: 'temp',
+          ...checkInPayload,
+        },
+        ...checkIns,
+      ];
+
+      evaluateAndUnlockBadges(
+        currentUser.uid,
+        updatedCheckIns,
+        rewards,
+        userProfile?.targetWeightKg
+      )
+        .then((unlocked) => {
+          if (unlocked.length > 0) {
+            setNewlyUnlockedBadges(unlocked);
+          }
+        })
+        .catch((badgeErr) => console.warn('Badge check notice:', badgeErr));
     } catch (err) {
       console.error('Failed to submit check-in:', err);
       alert('Failed to save check-in. Please try again.');

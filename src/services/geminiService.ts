@@ -300,7 +300,7 @@ export async function compressImage(
   });
 }
 
-// Reliable image compression and base64 helper
+// Reliable image compression and base64 helper (optimized for rapid upload & Gemini vision inference)
 export function handleImageUploadAndCompression(file: Blob | File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -310,10 +310,10 @@ export function handleImageUploadAndCompression(file: Blob | File): Promise<stri
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800; // Compress down to prevent AI timeouts
-        const scaleSize = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH;
-        canvas.height = img.height * scaleSize;
+        const MAX_WIDTH = 720; // Lightweight & crisp for high-speed AI analysis
+        const scale = img.width > MAX_WIDTH ? MAX_WIDTH / img.width : 1;
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -323,7 +323,7 @@ export function handleImageUploadAndCompression(file: Blob | File): Promise<stri
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         // Return compressed base64 string
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
       };
       img.onerror = (error) => reject(error);
     };
