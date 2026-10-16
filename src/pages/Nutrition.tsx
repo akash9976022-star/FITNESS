@@ -38,6 +38,7 @@ import {
   analyzeFoodImage,
   type FoodAnalysisResult,
   isGeminiConfigured,
+  formatGeminiErrorMessage,
 } from '../services/geminiService';
 import WaterIntakeWidget from '../components/hydration/WaterIntakeWidget';
 
@@ -247,10 +248,7 @@ export const Nutrition: React.FC = () => {
       const result = await analyzeFoodImage(base64Part);
       setScanResult(result);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Food scan failed. Check your network connection or API quota.';
+      const message = formatGeminiErrorMessage(err);
       console.warn('AI Food Scan failed, opening manual Indian food quick-add fallback:', message);
       setScanError(`${message} — Quick-Add Indian staples modal opened below.`);
       setShowQuickAddModal(true);

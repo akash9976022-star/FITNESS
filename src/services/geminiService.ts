@@ -1,17 +1,52 @@
 import { GoogleGenAI } from '@google/genai';
 
-const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY?.trim() || '';
+const getApiKey = (): string => {
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
+  if (envKey) return envKey;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return (
+        localStorage.getItem('VITE_GEMINI_API_KEY')?.trim() ||
+        localStorage.getItem('gemini_api_key')?.trim() ||
+        ''
+      );
+    }
+  } catch {
+    // ignore
+  }
+  return '';
+};
 
 export const isGeminiConfigured = Boolean(getApiKey().length > 0);
 
+/**
+ * Modern Google Gemini models in priority fallback order:
+ * 1. gemini-3.5-flash-lite: Extremely fast, low latency, active for all keys & tiers
+ * 2. gemini-3.5-flash: High intelligence multimodal workhorse
+ * 3. gemini-3-flash-preview: Modern preview fallback
+ * 4. gemini-3.8-flash: Next-gen flagship flash model
+ * 5. gemini-2.5-flash: Legacy fallback
+ * 6. gemini-1.5-flash: Legacy fallback
+ */
+export const GEMINI_CANDIDATE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3-flash-preview',
+  'gemini-3.8-flash',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
+];
+
+let cachedApiKey = '';
 let aiClient: GoogleGenAI | null = null;
 
 export function getAiClient(): GoogleGenAI | null {
   const currentKey = getApiKey();
   if (!currentKey) return null;
-  if (!aiClient) {
+  if (!aiClient || cachedApiKey !== currentKey) {
     try {
       aiClient = new GoogleGenAI({ apiKey: currentKey });
+      cachedApiKey = currentKey;
     } catch (err) {
       console.warn('Failed to initialize GoogleGenAI client:', err);
       return null;
@@ -22,7 +57,9 @@ export function getAiClient(): GoogleGenAI | null {
 
 if (isGeminiConfigured) {
   try {
-    aiClient = new GoogleGenAI({ apiKey: getApiKey() });
+    const key = getApiKey();
+    aiClient = new GoogleGenAI({ apiKey: key });
+    cachedApiKey = key;
   } catch (err) {
     console.warn('Failed to initialize GoogleGenAI client:', err);
   }
@@ -106,35 +143,24 @@ export async function askFitMaintenanceAI(
     return fallbackFitnessAnswer(prompt, profile);
   }
 
-  try {
-    const systemInstruction = buildSystemInstruction(profile);
-    const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
-    });
+  const systemInstruction = buildSystemInstruction(profile);
 
-    if (response?.text) {
-      return response.text;
-    }
-  } catch (error) {
-    console.warn('Gemini 2.5 Flash call failed, trying Gemini 1.5 Flash fallback:', error);
+  for (const model of GEMINI_CANDIDATE_MODELS) {
     try {
-      const systemInstruction = buildSystemInstruction(profile);
-      const fallbackRes = await client.models.generateContent({
-        model: 'gemini-1.5-flash',
+      const response = await client.models.generateContent({
+        model,
         contents: prompt,
         config: {
           systemInstruction,
           temperature: 0.7,
         },
       });
-      if (fallbackRes?.text) return fallbackRes.text;
-    } catch (fbErr) {
-      console.warn('Gemini 1.5 Flash fallback failed:', fbErr);
+
+      if (response?.text) {
+        return response.text;
+      }
+    } catch (error) {
+      console.warn(`Gemini Coach generation with ${model} failed, trying next candidate:`, error);
     }
   }
 
@@ -337,11 +363,32 @@ export function extractBase64Part(dataUrlOrRaw: string): Base64ImagePart {
 }
 
 /**
- * Wraps an async call in a 10-second timeout with an automatic single retry attempt before erroring.
+ * Formats API errors into clean, human-readable strings, extracting the inner message
+ * from raw JSON error payloads (e.g. from Google GenAI ApiError).
+ */
+export function formatGeminiErrorMessage(err: unknown): string {
+  if (!err) return 'An unexpected error occurred during AI analysis.';
+  const rawMsg = err instanceof Error ? err.message : String(err);
+  try {
+    const jsonMatch = rawMsg.match(/\{[\s\S]*"error"[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed?.error?.message) {
+        return parsed.error.message;
+      }
+    }
+  } catch {
+    // ignore parse error and return raw message
+  }
+  return rawMsg;
+}
+
+/**
+ * Wraps an async call in a 25-second timeout with an automatic single retry attempt before erroring.
  */
 export async function withTimeoutAndRetry<T>(
   asyncFn: () => Promise<T>,
-  timeoutMs = 10000,
+  timeoutMs = 25000,
   maxRetries = 1,
   operationName = 'Gemini AI Call'
 ): Promise<T> {
@@ -372,11 +419,17 @@ export async function withTimeoutAndRetry<T>(
 }
 
 /**
- * Safe parsing utility implementing markdown stripping (`replace(/```json|```/g, '')`) before calling JSON.parse().
+ * Safe parsing utility implementing JSON block extraction before calling JSON.parse().
  */
 export function safeParseNutritionJson(rawText: string): FoodAnalysisResult | null {
   try {
-    const cleaned = rawText.replace(/```json|```/g, '').trim();
+    let cleaned = rawText.trim();
+    const jsonBlockMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonBlockMatch) {
+      cleaned = jsonBlockMatch[0];
+    } else {
+      cleaned = cleaned.replace(/```json|```/g, '').trim();
+    }
     const parsed = JSON.parse(cleaned);
 
     if (parsed && typeof parsed === 'object') {
@@ -488,42 +541,33 @@ Return strictly valid JSON adhering to the schema.`;
   };
 
   const runFoodScan = async () => {
-    // Primary model: gemini-2.5-flash
-    try {
-      const response = await client.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents,
-        config,
-      });
-      if (response?.text) {
-        const parsed = safeParseNutritionJson(response.text);
-        if (parsed) return parsed;
+    let lastError: unknown = null;
+
+    for (const model of GEMINI_CANDIDATE_MODELS) {
+      try {
+        const response = await client.models.generateContent({
+          model,
+          contents,
+          config,
+        });
+
+        if (response?.text) {
+          const parsed = safeParseNutritionJson(response.text);
+          if (parsed) return parsed;
+        }
+      } catch (modelErr) {
+        console.warn(`Food scan with ${model} failed, attempting next candidate:`, modelErr);
+        lastError = modelErr;
       }
-    } catch (primaryErr) {
-      console.warn('gemini-2.5-flash scan failed, trying gemini-1.5-flash fallback:', primaryErr);
     }
 
-    // Fallback model: gemini-1.5-flash
-    try {
-      const fallbackResponse = await client.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents,
-        config,
-      });
-
-      if (fallbackResponse?.text) {
-        const parsed = safeParseNutritionJson(fallbackResponse.text);
-        if (parsed) return parsed;
-      }
-    } catch (fallbackErr) {
-      console.warn('gemini-1.5-flash scan also failed:', fallbackErr);
-      throw fallbackErr;
+    if (lastError) {
+      throw lastError;
     }
-
     throw new Error('Unable to extract structured nutritional data from scan response.');
   };
 
-  return await withTimeoutAndRetry(runFoodScan, 10000, 1, 'Gemini Food Scan');
+  return await withTimeoutAndRetry(runFoodScan, 25000, 1, 'Gemini Food Scan');
 }
 
 /* ==================== AI PHYSIQUE & BODY TYPE ANALYSIS ==================== */
@@ -572,7 +616,13 @@ const physiqueAnalysisJsonSchema = {
 
 export function safeParsePhysiqueJson(rawText: string): AiPhysiqueAnalysis | null {
   try {
-    const cleaned = rawText.replace(/```json|```/g, '').trim();
+    let cleaned = rawText.trim();
+    const jsonBlockMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonBlockMatch) {
+      cleaned = jsonBlockMatch[0];
+    } else {
+      cleaned = cleaned.replace(/```json|```/g, '').trim();
+    }
     const parsed = JSON.parse(cleaned);
 
     if (parsed && typeof parsed === 'object') {
@@ -649,40 +699,32 @@ Instructions:
   };
 
   const runPhysiqueAnalysis = async () => {
-    // Primary model: gemini-2.5-flash
-    try {
-      const response = await client.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents,
-        config,
-      });
-      if (response?.text) {
-        const parsed = safeParsePhysiqueJson(response.text);
-        if (parsed) return parsed;
+    let lastError: unknown = null;
+
+    for (const model of GEMINI_CANDIDATE_MODELS) {
+      try {
+        const response = await client.models.generateContent({
+          model,
+          contents,
+          config,
+        });
+
+        if (response?.text) {
+          const parsed = safeParsePhysiqueJson(response.text);
+          if (parsed) return parsed;
+        }
+      } catch (modelErr) {
+        console.warn(`Physique analysis with ${model} failed, attempting next candidate:`, modelErr);
+        lastError = modelErr;
       }
-    } catch (primaryErr) {
-      console.warn('gemini-2.5-flash physique analysis failed, trying gemini-1.5-flash fallback:', primaryErr);
     }
 
-    // Fallback model: gemini-1.5-flash
-    try {
-      const fallbackResponse = await client.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents,
-        config,
-      });
-      if (fallbackResponse?.text) {
-        const parsed = safeParsePhysiqueJson(fallbackResponse.text);
-        if (parsed) return parsed;
-      }
-    } catch (fallbackErr) {
-      console.warn('gemini-1.5-flash physique analysis failed:', fallbackErr);
-      throw fallbackErr;
+    if (lastError) {
+      throw lastError;
     }
-
     throw new Error('Unable to generate structured physique analysis from Gemini response.');
   };
 
-  return await withTimeoutAndRetry(runPhysiqueAnalysis, 10000, 1, 'Gemini Physique Analysis');
+  return await withTimeoutAndRetry(runPhysiqueAnalysis, 25000, 1, 'Gemini Physique Analysis');
 }
 

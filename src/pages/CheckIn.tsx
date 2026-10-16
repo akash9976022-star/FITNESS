@@ -62,6 +62,7 @@ import {
   dataUrlToFile,
   analyzePhysiqueImage,
   isGeminiConfigured,
+  formatGeminiErrorMessage,
 } from '../services/geminiService';
 import GhostOverlayCamera from '../components/camera/GhostOverlayCamera';
 import BadgeUnlockModal from '../components/rewards/BadgeUnlockModal';
@@ -214,9 +215,10 @@ export const CheckIn: React.FC = () => {
           setStatusMessage('Gemini AI body type analysis ready & attached!');
           setTimeout(() => setStatusMessage(null), 3500);
         } catch (aiErr) {
-          console.warn('Immediate Gemini AI analysis notice (fallback enabled):', aiErr);
-          setStatusMessage('Photo compressed. You can save your check-in.');
-          setTimeout(() => setStatusMessage(null), 3500);
+          const friendlyMessage = formatGeminiErrorMessage(aiErr);
+          console.warn('Immediate Gemini AI analysis notice (fallback enabled):', friendlyMessage);
+          setStatusMessage(`AI notice: ${friendlyMessage}. You can still save your check-in.`);
+          setTimeout(() => setStatusMessage(null), 4000);
         }
       } else {
         setStatusMessage('Photo uploaded & compressed successfully.');
@@ -268,7 +270,8 @@ export const CheckIn: React.FC = () => {
             experienceLevel
           );
         } catch (aiErr) {
-          console.warn('AI analysis issue on submit:', aiErr);
+          const friendlyMessage = formatGeminiErrorMessage(aiErr);
+          console.warn('AI analysis issue on submit:', friendlyMessage);
         }
       }
 
