@@ -14,6 +14,7 @@ import {
   Play,
   Wrench,
   Layers,
+  Camera,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -422,12 +423,22 @@ export const Dashboard: React.FC = () => {
           {/* Quick Shortcuts */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Inventory & Config</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <button
+                onClick={() => navigate('/checkin')}
+                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
+              >
+                <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1" />
+                <span className="font-bold block text-slate-800 dark:text-slate-200">Check-In</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Ghost Cam
+                </span>
+              </button>
               <button
                 onClick={() => navigate('/onboarding')}
                 className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
               >
-                <Wrench className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1" />
+                <Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400 mb-1" />
                 <span className="font-bold block text-slate-800 dark:text-slate-200">Machines</span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400">
                   {userProfile?.equipment ? `${userProfile.equipment.length} tools` : 'Setup'}
@@ -437,8 +448,8 @@ export const Dashboard: React.FC = () => {
                 onClick={() => navigate('/onboarding')}
                 className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
               >
-                <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400 mb-1" />
-                <span className="font-bold block text-slate-800 dark:text-slate-200">Experience</span>
+                <Layers className="w-4 h-4 text-amber-500 mb-1" />
+                <span className="font-bold block text-slate-800 dark:text-slate-200">Tier</span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 capitalize">
                   {userProfile?.experienceLevel || 'Beginner'}
                 </span>

@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -23,6 +24,7 @@ export const isFirebaseConfigured = Boolean(
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 let analytics: Analytics | null = null;
 const googleProvider = new GoogleAuthProvider();
 
@@ -36,6 +38,11 @@ if (isFirebaseConfigured) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
+    try {
+      storage = getStorage(app);
+    } catch (storageErr) {
+      console.warn('Firebase Storage initialization notice:', storageErr);
+    }
 
     // Initialize Analytics if supported in this browser environment
     isSupported().then((supported) => {
@@ -55,4 +62,4 @@ if (isFirebaseConfigured) {
   );
 }
 
-export { app, auth, db, analytics, googleProvider, firebaseConfig };
+export { app, auth, db, storage, analytics, googleProvider, firebaseConfig };

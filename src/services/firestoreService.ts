@@ -569,3 +569,243 @@ export const subscribeNutritionLogs = (
   );
 };
 
+/* ==================== DAILY CHECK-INS & REWARDS ==================== */
+export interface AiPhysiqueAnalysis {
+  bodyTypeEstimate: string;
+  physiqueObservations: string[];
+  symmetryNotes: string;
+  recoveryAdjustment: string;
+  volumeRecommendation: string;
+}
+
+export interface CheckInItem {
+  id: string;
+  date: string; // YYYY-MM-DD
+  weightKg: number;
+  fatigueRating: number; // 1 (exhausted) to 5 (peak readiness)
+  sorenessNotes?: string;
+  photoUrl: string;
+  aiPhysiqueAnalysis?: AiPhysiqueAnalysis;
+  createdAt?: unknown;
+}
+
+export interface UserReward {
+  id: string;
+  badgeId: string;
+  title: string;
+  description: string;
+  tier: 'bronze' | 'silver' | 'gold' | 'diamond';
+  icon: string;
+  unlockedAt?: unknown;
+}
+
+export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
+  {
+    badgeId: 'first-step',
+    title: 'First Step',
+    description: 'Logged your very first morning check-in and weight record.',
+    tier: 'bronze',
+    icon: 'Footprints',
+  },
+  {
+    badgeId: 'streak-3',
+    title: 'Consistency Ignition',
+    description: 'Maintained 3 consecutive check-in milestones.',
+    tier: 'silver',
+    icon: 'Flame',
+  },
+  {
+    badgeId: 'streak-7',
+    title: 'Streak Master',
+    description: 'Completed a 7-day uninterrupted check-in streak.',
+    tier: 'gold',
+    icon: 'Trophy',
+  },
+  {
+    badgeId: 'maintenance-anchor',
+    title: 'Maintenance Anchor',
+    description: 'Maintained body weight within ±0.75kg target variance over 5 check-ins.',
+    tier: 'gold',
+    icon: 'Anchor',
+  },
+  {
+    badgeId: 'physique-pioneer',
+    title: 'Physique Pioneer',
+    description: 'Unlocked your first Gemini AI vision body type & symmetry analysis.',
+    tier: 'silver',
+    icon: 'Camera',
+  },
+  {
+    badgeId: 'iron-will',
+    title: 'Iron Will & Readiness',
+    description: 'Completed 10 full readiness and recovery fatigue evaluations.',
+    tier: 'diamond',
+    icon: 'Shield',
+  },
+];
+
+export const addCheckIn = async (
+  userId: string,
+  checkIn: Omit<CheckInItem, 'id' | 'createdAt'>
+): Promise<string | null> => {
+  if (!db || !userId) return null;
+  const colRef = collection(db, 'users', userId, 'checkins');
+  const docRef = await addDoc(colRef, {
+    ...checkIn,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+export const deleteCheckIn = async (
+  userId: string,
+  checkInId: string
+): Promise<void> => {
+  if (!db || !userId || !checkInId) return;
+  const docRef = doc(db, 'users', userId, 'checkins', checkInId);
+  await deleteDoc(docRef);
+};
+
+export const subscribeCheckIns = (
+  userId: string,
+  callback: (checkIns: CheckInItem[]) => void,
+  limitCount = 60
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback([]);
+    return () => {};
+  }
+
+  const colRef = collection(db, 'users', userId, 'checkins');
+  const q = query(colRef, orderBy('date', 'desc'), limit(limitCount));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: CheckInItem[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<CheckInItem, 'id'>),
+      }));
+      callback(items);
+    },
+    (error) => {
+      console.warn('Firestore checkins snapshot error:', error);
+      callback([]);
+    }
+  );
+};
+
+export const subscribeRewards = (
+  userId: string,
+  callback: (rewards: UserReward[]) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback([]);
+    return () => {};
+  }
+
+  const colRef = collection(db, 'users', userId, 'rewards');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: UserReward[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<UserReward, 'id'>),
+      }));
+      callback(items);
+    },
+    (error) => {
+      console.warn('Firestore rewards snapshot error:', error);
+      callback([]);
+    }
+  );
+};
+
+export const unlockReward = async (
+  userId: string,
+  badge: Omit<UserReward, 'id' | 'unlockedAt'>
+): Promise<void> => {
+  if (!db || !userId) return;
+  const docRef = doc(db, 'users', userId, 'rewards', badge.badgeId);
+  await setDoc(
+    docRef,
+    {
+      ...badge,
+      unlockedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+/**
+ * Evaluates user progress and automatically unlocks newly earned badges in Firestore.
+ * Returns any newly unlocked rewards to trigger the celebration animation.
+ */
+export const evaluateAndUnlockBadges = async (
+  userId: string,
+  checkIns: CheckInItem[],
+  currentRewards: UserReward[],
+  targetWeightKg?: number
+): Promise<UserReward[]> => {
+  if (!userId || checkIns.length === 0) return [];
+
+  const existingBadgeIds = new Set(currentRewards.map((r) => r.badgeId));
+  const newlyUnlocked: UserReward[] = [];
+
+  const checkAndUnlock = async (badgeDef: Omit<UserReward, 'id' | 'unlockedAt'>) => {
+    if (!existingBadgeIds.has(badgeDef.badgeId)) {
+      await unlockReward(userId, badgeDef);
+      newlyUnlocked.push({
+        id: badgeDef.badgeId,
+        ...badgeDef,
+        unlockedAt: new Date(),
+      });
+      existingBadgeIds.add(badgeDef.badgeId);
+    }
+  };
+
+  // 1. First Step (1 checkin)
+  if (checkIns.length >= 1) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'first-step');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 2. Consistency Ignition (3 checkins)
+  if (checkIns.length >= 3) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-3');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 3. Streak Master (7 checkins)
+  if (checkIns.length >= 7) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-7');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 4. Physique Pioneer (has at least 1 checkin with aiPhysiqueAnalysis)
+  if (checkIns.some((c) => Boolean(c.aiPhysiqueAnalysis))) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'physique-pioneer');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 5. Maintenance Anchor (within ±0.75kg target for at least 3 checkins)
+  if (targetWeightKg && checkIns.length >= 3) {
+    const withinMaintenance = checkIns.filter(
+      (c) => Math.abs(c.weightKg - targetWeightKg) <= 0.75
+    ).length;
+    if (withinMaintenance >= 3) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'maintenance-anchor');
+      if (b) await checkAndUnlock(b);
+    }
+  }
+
+  // 6. Iron Will (10 checkins)
+  if (checkIns.length >= 10) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'iron-will');
+    if (b) await checkAndUnlock(b);
+  }
+
+  return newlyUnlocked;
+};
+
+

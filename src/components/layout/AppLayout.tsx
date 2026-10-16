@@ -17,6 +17,7 @@ import {
   Sun,
   Moon,
   User,
+  Camera,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -32,6 +33,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Check-In', path: '/checkin', icon: Camera },
   { name: 'Workouts', path: '/workouts', icon: Dumbbell },
   { name: 'Nutrition', path: '/nutrition', icon: UtensilsCrossed },
   { name: 'AI Coach', path: '/ai-coach', icon: Sparkles, badge: 'AI' },

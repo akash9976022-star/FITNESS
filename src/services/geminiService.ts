@@ -315,3 +315,157 @@ Return strictly valid JSON adhering to the schema.`;
 
   throw new Error('Unable to extract structured nutritional data from scan response.');
 }
+
+/* ==================== AI PHYSIQUE & BODY TYPE ANALYSIS ==================== */
+
+export interface AiPhysiqueAnalysis {
+  bodyTypeEstimate: string;
+  physiqueObservations: string[];
+  symmetryNotes: string;
+  recoveryAdjustment: string;
+  volumeRecommendation: string;
+}
+
+const physiqueAnalysisJsonSchema = {
+  type: 'object',
+  properties: {
+    body_type_estimate: {
+      type: 'string',
+      description: 'Estimated structural body type and frame (e.g. Mesomorphic Athletic, Balanced Ecto-Meso, Endomorphic Strength Frame)',
+    },
+    physique_observations: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '3-4 scientific, constructive observations on muscle balance, posture, shoulder alignment, and frame development',
+    },
+    symmetry_notes: {
+      type: 'string',
+      description: 'Specific notes on shoulder-to-waist ratio, left/right symmetry, and postural integrity',
+    },
+    recovery_adjustment: {
+      type: 'string',
+      description: 'Actionable recovery guidance (sleep, hydration, mobility, or nervous system rest)',
+    },
+    volume_recommendation: {
+      type: 'string',
+      description: 'Recommended training intensity or volume modification based on readiness and visual muscle fatigue',
+    },
+  },
+  required: [
+    'body_type_estimate',
+    'physique_observations',
+    'symmetry_notes',
+    'recovery_adjustment',
+    'volume_recommendation',
+  ],
+};
+
+export function safeParsePhysiqueJson(rawText: string): AiPhysiqueAnalysis | null {
+  try {
+    const cleaned = rawText.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (parsed && typeof parsed === 'object') {
+      const obs = Array.isArray(parsed.physique_observations)
+        ? parsed.physique_observations.map((o: unknown) => String(o).trim()).filter(Boolean)
+        : [String(parsed.physique_observations || 'Balanced overall muscular tone and posture.')];
+
+      return {
+        bodyTypeEstimate: String(parsed.body_type_estimate || 'Athletic & Balanced Build').trim(),
+        physiqueObservations:
+          obs.length > 0 ? obs : ['Symmetrical posture', 'Good foundation for progressive overload'],
+        symmetryNotes: String(
+          parsed.symmetry_notes || 'Balanced shoulder-to-hip alignment with consistent postural symmetry.'
+        ).trim(),
+        recoveryAdjustment: String(
+          parsed.recovery_adjustment || 'Maintain 7-8 hours of restorative sleep and consistent hydration.'
+        ).trim(),
+        volumeRecommendation: String(
+          parsed.volume_recommendation || 'Continue standard volume progression within your target training split.'
+        ).trim(),
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to parse Gemini physique JSON:', err, rawText);
+  }
+  return null;
+}
+
+/**
+ * Analyzes a check-in progress photo to generate personalized physique observations,
+ * body type estimation, symmetry notes, and recovery/training volume adjustments.
+ */
+export async function analyzePhysiqueImage(
+  imagePart: Base64ImagePart,
+  weightKg: number,
+  experienceLevel: 'beginner' | 'intermediate' | 'pro' = 'intermediate'
+): Promise<AiPhysiqueAnalysis> {
+  if (!aiClient || !apiKey) {
+    throw new Error('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your environment.');
+  }
+
+  const prompt = `Analyze this morning physique check-in photo as an elite kinesiology biomechanist and physique coach.
+Athlete Context:
+- Current Morning Weight: ${weightKg} kg
+- Experience Level: ${experienceLevel.toUpperCase()}
+
+Instructions:
+1. Estimate body type and structural frame tendencies (e.g., Mesomorphic Athletic, Balanced Ecto-Meso, Compact Power Frame).
+2. Detail 3-4 constructive, scientific physique observations addressing posture (clavicle/scapular positioning), V-taper / proportions, and muscular fullness.
+3. Observe bilateral symmetry (left/right balance, core stability, shoulder balance).
+4. Provide recovery adjustments and volume recommendations calibrated strictly to their experience level:
+   - For BEGINNER: Emphasize fundamental posture, joint mobility, gradual recovery, and foundational linear progression.
+   - For INTERMEDIATE: Emphasize progressive overload pacing, lagging muscle volume redistribution, and RPE management.
+   - For PRO: Emphasize muscular fullness, water retention variance, fatigue autoregulation, and deload scheduling.
+5. Strictly output valid JSON adhering to the specified schema.`;
+
+  const contents = [
+    {
+      inlineData: {
+        mimeType: imagePart.mimeType,
+        data: imagePart.data,
+      },
+    },
+    { text: prompt },
+  ];
+
+  const config = {
+    responseMimeType: 'application/json',
+    responseSchema: physiqueAnalysisJsonSchema,
+    temperature: 0.3,
+  };
+
+  // Primary model: gemini-3.8-flash
+  try {
+    const response = await aiClient.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents,
+      config,
+    });
+    if (response?.text) {
+      const parsed = safeParsePhysiqueJson(response.text);
+      if (parsed) return parsed;
+    }
+  } catch (primaryErr) {
+    console.warn('gemini-3.8-flash physique analysis failed, trying gemini-3.5-flash-lite fallback:', primaryErr);
+  }
+
+  // Fallback model: gemini-3.5-flash-lite
+  try {
+    const fallbackResponse = await aiClient.models.generateContent({
+      model: 'gemini-3.5-flash-lite',
+      contents,
+      config,
+    });
+    if (fallbackResponse?.text) {
+      const parsed = safeParsePhysiqueJson(fallbackResponse.text);
+      if (parsed) return parsed;
+    }
+  } catch (fallbackErr) {
+    console.warn('gemini-3.5-flash-lite physique analysis failed:', fallbackErr);
+    throw fallbackErr;
+  }
+
+  throw new Error('Unable to generate structured physique analysis from Gemini response.');
+}
+

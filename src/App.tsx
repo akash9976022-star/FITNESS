@@ -10,6 +10,7 @@ import Nutrition from './pages/Nutrition';
 import AiCoach from './pages/AiCoach';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import CheckIn from './pages/CheckIn';
 
 export const App: React.FC = () => {
   const { currentUser } = useAuth();
@@ -32,6 +33,7 @@ export const App: React.FC = () => {
       >
         <Route index element={<Dashboard />} />
         <Route path="onboarding" element={<Onboarding />} />
+        <Route path="checkin" element={<CheckIn />} />
         <Route path="workouts" element={<Workouts />} />
         <Route path="nutrition" element={<Nutrition />} />
         <Route path="ai-coach" element={<AiCoach />} />
