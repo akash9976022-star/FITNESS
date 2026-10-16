@@ -39,6 +39,7 @@ import {
   type UserProfile,
   type EquipmentExerciseDef,
 } from '../services/firestoreService';
+import WorkoutTimer from '../components/workout/WorkoutTimer';
 
 export const Workouts: React.FC = () => {
   const { currentUser } = useAuth();
@@ -63,6 +64,9 @@ export const Workouts: React.FC = () => {
   // Inline Custom Movement Inputs (Zero Popups)
   const [inlineExName, setInlineExName] = useState('');
   const [inlineExMuscle, setInlineExMuscle] = useState('');
+
+  // Workout Elapsed Timer State
+  const [workoutElapsedSeconds, setWorkoutElapsedSeconds] = useState(0);
 
   // Feedback Toast
   const [statusToast, setStatusToast] = useState<string | null>(null);
@@ -364,6 +368,42 @@ export const Workouts: React.FC = () => {
     }
   };
 
+  /* ==================== WORKOUT TIMER CONTROLS ==================== */
+  const handleStartWorkoutTimer = async () => {
+    if (!currentUser?.uid) return;
+    const now = Date.now();
+    if (!activeSession) {
+      const equipment = userProfile?.equipment || [];
+      const experience = userProfile?.experienceLevel || 'intermediate';
+      const generated = generateEquipmentAwareRoutine(equipment, experience, 'full_body');
+      generated.startedAt = now;
+      generated.isPaused = false;
+      await saveActiveWorkout(currentUser.uid, generated);
+      await saveWorkoutToCollection(currentUser.uid, generated);
+      showToast('Workout started! Live stopwatch tracking training time.');
+    } else {
+      const updated = {
+        ...activeSession,
+        startedAt: activeSession.startedAt || now,
+        isPaused: false,
+      };
+      await saveActiveWorkout(currentUser.uid, updated);
+      showToast('Workout timer running.');
+    }
+  };
+
+  const handlePauseWorkoutTimer = async () => {
+    if (!currentUser?.uid || !activeSession) return;
+    const updated = { ...activeSession, isPaused: true };
+    await saveActiveWorkout(currentUser.uid, updated);
+  };
+
+  const handleResumeWorkoutTimer = async () => {
+    if (!currentUser?.uid || !activeSession) return;
+    const updated = { ...activeSession, isPaused: false };
+    await saveActiveWorkout(currentUser.uid, updated);
+  };
+
   /* ==================== SESSION FINISH & DISCARD ==================== */
   const handleFinishWorkout = async () => {
     if (!currentUser?.uid || !activeSession) return;
@@ -372,12 +412,14 @@ export const Workouts: React.FC = () => {
         await saveActiveWorkout(currentUser.uid, null);
         return;
       }
-      const durationMinutes = activeSession.startedAt
+      const durationMinutes = workoutElapsedSeconds > 0
+        ? Math.max(1, Math.round(workoutElapsedSeconds / 60))
+        : activeSession.startedAt
         ? Math.max(1, Math.round((Date.now() - activeSession.startedAt) / 60000))
         : 45;
 
       await finishAndSaveWorkout(currentUser.uid, activeSession, durationMinutes);
-      showToast('Workout finished and saved to Firestore history!');
+      showToast(`Workout finished! Logged ${durationMinutes} mins training time to Firestore.`);
     } catch (err) {
       console.error('Failed to finish workout:', err);
       showToast('Error finishing workout.');
@@ -467,32 +509,53 @@ export const Workouts: React.FC = () => {
           </p>
         </div>
 
-        {activeSession && (
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Real-Time Workout Stopwatch Tracker */}
+          <WorkoutTimer
+            startedAt={activeSession?.startedAt}
+            isPausedInitially={activeSession?.isPaused}
+            onTimeUpdate={(seconds) => setWorkoutElapsedSeconds(seconds)}
+            onStart={handleStartWorkoutTimer}
+            onPause={handlePauseWorkoutTimer}
+            onResume={handleResumeWorkoutTimer}
+            onReset={() => setWorkoutElapsedSeconds(0)}
+          />
+
+          {activeSession ? (
+            <>
+              <button
+                onClick={handleSaveAsTemplate}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition"
+                title="Save snapshot to your workouts library"
+              >
+                <BookmarkCheck className="w-3.5 h-3.5 text-teal-500" />
+                <span className="hidden sm:inline">Save Template</span>
+              </button>
+              <button
+                onClick={handleFinishWorkout}
+                className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+              >
+                <CheckCircle className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+                <span>Finish & Save</span>
+              </button>
+              <button
+                onClick={handleDiscardWorkout}
+                className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 transition"
+                title="Discard Session"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
             <button
-              onClick={handleSaveAsTemplate}
-              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition"
-              title="Save snapshot to your workouts library"
+              onClick={handleStartWorkoutTimer}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
             >
-              <BookmarkCheck className="w-3.5 h-3.5 text-teal-500" />
-              <span>Save Template</span>
+              <Play className="w-4 h-4 fill-current" />
+              <span>Start Workout</span>
             </button>
-            <button
-              onClick={handleFinishWorkout}
-              className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
-            >
-              <CheckCircle className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
-              <span>Finish & Save</span>
-            </button>
-            <button
-              onClick={handleDiscardWorkout}
-              className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 transition"
-              title="Discard Session"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* EQUIPMENT-AWARE ROUTINE GENERATOR CARD */}

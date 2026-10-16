@@ -18,6 +18,10 @@ import {
   Zap,
   ArrowRight,
   Loader2,
+  Heart,
+  Moon,
+  BatteryCharging,
+  Timer,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -27,6 +31,9 @@ import {
   subscribeCompletedWorkouts,
   subscribeNutritionLogs,
   subscribeCheckIns,
+  subscribeDailyHydration,
+  subscribeDailyActivity,
+  getTodayDateString,
   calculateBmbScore,
   applyWorkoutVolumeAdjustment,
   isToday,
@@ -36,7 +43,11 @@ import {
   type CompletedWorkout,
   type NutritionLogItem,
   type CheckInItem,
+  type DailyHydration,
+  type DailyActivity,
 } from '../services/firestoreService';
+import WaterIntakeWidget from '../components/hydration/WaterIntakeWidget';
+import StepsCounterWidget from '../components/activity/StepsCounterWidget';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -48,6 +59,8 @@ export const Dashboard: React.FC = () => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [nutritionLogs, setNutritionLogs] = useState<NutritionLogItem[]>([]);
   const [checkIns, setCheckIns] = useState<CheckInItem[]>([]);
+  const [dailyHydration, setDailyHydration] = useState<DailyHydration | null>(null);
+  const [dailyActivity, setDailyActivity] = useState<DailyActivity | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Volume Adjustment Action State
@@ -85,6 +98,15 @@ export const Dashboard: React.FC = () => {
       setCheckIns(items);
     });
 
+    const todayStr = getTodayDateString();
+    const unsubHydration = subscribeDailyHydration(currentUser.uid, todayStr, (data) => {
+      setDailyHydration(data);
+    });
+
+    const unsubActivity = subscribeDailyActivity(currentUser.uid, todayStr, (data) => {
+      setDailyActivity(data);
+    });
+
     return () => {
       unsubBio();
       unsubProfile();
@@ -92,6 +114,8 @@ export const Dashboard: React.FC = () => {
       unsubCompleted();
       unsubNutrition();
       unsubCheckIns();
+      unsubHydration();
+      unsubActivity();
     };
   }, [currentUser?.uid]);
 
@@ -137,6 +161,15 @@ export const Dashboard: React.FC = () => {
   const weeklyWorkoutsCount = (completedWorkouts || []).length;
   const weeklyVolumeKg = (completedWorkouts || []).reduce((acc, w) => acc + (w.totalVolumeKg || 0), 0);
 
+  // Today's completed workout duration tracking
+  const todayWorkoutMinutes = useMemo(() => {
+    const todaysWorkouts = (completedWorkouts || []).filter((w) => isToday(w.completedAt));
+    return todaysWorkouts.reduce(
+      (sum, w) => sum + (w.durationMinutes || w.duration_minutes || 0),
+      0
+    );
+  }, [completedWorkouts]);
+
   // Real today's calories from Firestore nutrition_logs (Zero Mock Data)
   const todaysNutritionLogs = useMemo(() => {
     return (nutritionLogs || []).filter((l) => isToday(l.loggedAt));
@@ -149,15 +182,28 @@ export const Dashboard: React.FC = () => {
   // Latest check-in from Firestore
   const latestCheckIn = (checkIns || [])[0] || null;
 
-  // Real Body Maintenance Balance (BMB) Score
+  // Real Body Maintenance Balance (BMB) Score (5-Pillar Composite)
   const bmbResult = useMemo(() => {
     return calculateBmbScore(
       targetCalories,
       todayCalories,
       latestCheckIn,
-      completedWorkouts || []
+      completedWorkouts || [],
+      dailyHydration?.waterMl || 0,
+      dailyHydration?.targetMl || 3000,
+      dailyActivity?.steps || 0,
+      dailyActivity?.goalSteps || 10000
     );
-  }, [targetCalories, todayCalories, latestCheckIn, completedWorkouts]);
+  }, [
+    targetCalories,
+    todayCalories,
+    latestCheckIn,
+    completedWorkouts,
+    dailyHydration?.waterMl,
+    dailyHydration?.targetMl,
+    dailyActivity?.steps,
+    dailyActivity?.goalSteps,
+  ]);
 
   // Handle Reactive Workout Volume Adjustment
   const handleApplyAdjustment = async () => {
@@ -298,12 +344,12 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Real-time 3-Pillar Breakdown */}
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 w-full lg:w-auto">
+          {/* Right: Real-time 5-Pillar Composite Breakdown */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 w-full lg:w-auto">
             {/* Pillar 1: Caloric Alignment */}
             <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Caloric Adherence
+                Calories
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {todayCalories} / {targetCalories}
@@ -318,14 +364,14 @@ export const Dashboard: React.FC = () => {
                   : `${bmbResult.calorieDeviationPct}%`}
               </span>
               <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-                {bmbResult.breakdown.calorieScore} / 40 pts
+                {bmbResult.breakdown.calorieScore} / 35 pts
               </span>
             </div>
 
             {/* Pillar 2: Recovery / Readiness */}
             <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Readiness Rating
+                Readiness
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {latestCheckIn ? `${latestCheckIn.fatigueRating} / 5` : 'N/A'}
@@ -340,14 +386,14 @@ export const Dashboard: React.FC = () => {
                   : 'Check-In Due'}
               </span>
               <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-                {bmbResult.breakdown.recoveryScore} / 30 pts
+                {bmbResult.breakdown.recoveryScore} / 25 pts
               </span>
             </div>
 
             {/* Pillar 3: Volume Stimulus */}
             <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Volume Stimulus
+                Workouts
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {weeklyWorkoutsCount} sessions
@@ -356,7 +402,43 @@ export const Dashboard: React.FC = () => {
                 {weeklyVolumeKg > 0 ? `${(weeklyVolumeKg / 1000).toFixed(1)}t load` : '0 kg'}
               </span>
               <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-                {bmbResult.breakdown.consistencyScore} / 30 pts
+                {bmbResult.breakdown.consistencyScore} / 20 pts
+              </span>
+            </div>
+
+            {/* Pillar 4: Hydration */}
+            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Hydration
+              </span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
+                {((dailyHydration?.waterMl || 0) / 1000).toFixed(1)}L
+              </span>
+              <span className="text-[11px] font-semibold text-blue-500 block mt-0.5">
+                {dailyHydration && dailyHydration.waterMl >= dailyHydration.targetMl
+                  ? 'Target Hit!'
+                  : `${Math.round(((dailyHydration?.waterMl || 0) / (dailyHydration?.targetMl || 3000)) * 100)}%`}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                {bmbResult.breakdown.hydrationScore} / 10 pts
+              </span>
+            </div>
+
+            {/* Pillar 5: Daily Activity (Steps) */}
+            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Steps
+              </span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
+                {(dailyActivity?.steps || 0).toLocaleString()}
+              </span>
+              <span className="text-[11px] font-semibold text-emerald-500 block mt-0.5">
+                {dailyActivity && dailyActivity.steps >= dailyActivity.goalSteps
+                  ? 'Goal Hit!'
+                  : `${Math.round(((dailyActivity?.steps || 0) / (dailyActivity?.goalSteps || 10000)) * 100)}%`}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                {bmbResult.breakdown.activityScore} / 10 pts
               </span>
             </div>
           </div>
@@ -519,6 +601,110 @@ export const Dashboard: React.FC = () => {
             </div>
             <span className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 block font-semibold">
               {weeklyVolumeKg > 0 ? `${weeklyVolumeKg.toLocaleString()} kg moved` : 'Awaiting first session'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Real-time Hydration & Steps Counter Engine */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <WaterIntakeWidget />
+        <StepsCounterWidget />
+      </div>
+
+      {/* Real-time Vitals & Recovery Monitoring Bar */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md shadow-rose-500/20 flex-shrink-0">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  Vitals & Recovery Monitoring
+                </h3>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-400">
+                  Daily Check-In Sync
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Central nervous system recovery, sleep duration, resting heart rate, and training time.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/checkin')}
+            className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+          >
+            <Camera className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" />
+            <span>{latestCheckIn ? 'Update Check-In' : 'Log Morning Check-In'}</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          {/* Workout Training Duration Today */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Workout Time</span>
+              <Timer className="w-3.5 h-3.5 text-emerald-500" />
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {todayWorkoutMinutes > 0 ? `${todayWorkoutMinutes} mins` : activeSession ? 'In Progress' : '0 mins'}
+            </div>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 block">
+              {todayWorkoutMinutes > 0 ? 'Logged to Firestore' : activeSession ? 'Timer Active' : 'No workout yet'}
+            </span>
+          </div>
+
+          {/* Resting Heart Rate */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Resting HR</span>
+              <Heart className="w-3.5 h-3.5 text-rose-500" />
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {latestCheckIn?.restingHeartRateBpm ? `${latestCheckIn.restingHeartRateBpm} BPM` : 'Unlogged'}
+            </div>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 block">
+              {latestCheckIn?.restingHeartRateBpm
+                ? latestCheckIn.restingHeartRateBpm <= 65
+                  ? 'Excellent Baseline'
+                  : 'Normal Baseline'
+                : '1-tap check-in'}
+            </span>
+          </div>
+
+          {/* Sleep Duration */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Sleep Hours</span>
+              <Moon className="w-3.5 h-3.5 text-indigo-400" />
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {latestCheckIn?.sleepHours ? `${latestCheckIn.sleepHours} hrs` : 'Unlogged'}
+            </div>
+            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-0.5 block">
+              {latestCheckIn?.sleepHours
+                ? latestCheckIn.sleepHours >= 7
+                  ? 'Optimal Recovery'
+                  : 'Sleep Debt Noted'
+                : 'Target: 7-9 hrs'}
+            </span>
+          </div>
+
+          {/* Energy / Fatigue Readiness */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Energy Level</span>
+              <BatteryCharging className="w-3.5 h-3.5 text-amber-500" />
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase">
+              {latestCheckIn?.energyLevel || (latestCheckIn ? `Rating ${latestCheckIn.fatigueRating}/5` : 'Pending')}
+            </div>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5 block">
+              {latestCheckIn ? 'Autoregulated' : 'Log morning check-in'}
             </span>
           </div>
         </div>

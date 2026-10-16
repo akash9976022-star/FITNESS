@@ -16,6 +16,9 @@ import {
   Footprints,
   Anchor,
   Shield,
+  Heart,
+  Moon,
+  BatteryCharging,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -25,6 +28,7 @@ import {
   subscribeRewards,
   evaluateAndUnlockBadges,
   subscribeUserProfile,
+  logDailySteps,
   BADGE_DEFINITIONS,
   type CheckInItem,
   type UserReward,
@@ -61,6 +65,10 @@ export const CheckIn: React.FC = () => {
   const [morningWeight, setMorningWeight] = useState<number>(70);
   const [fatigueRating, setFatigueRating] = useState<number>(4); // 1-5
   const [sorenessNotes, setSorenessNotes] = useState<string>('');
+  const [restingHeartRate, setRestingHeartRate] = useState<number | ''>(68);
+  const [sleepHours, setSleepHours] = useState<number | ''>(7.5);
+  const [energyLevel, setEnergyLevel] = useState<'low' | 'moderate' | 'high'>('moderate');
+  const [dailySteps, setDailySteps] = useState<number | ''>(8000);
   const [checkInPhotoBlob, setCheckInPhotoBlob] = useState<Blob | File | null>(null);
   const [checkInPhotoPreview, setCheckInPhotoPreview] = useState<string | null>(null);
   const [runAiAnalysis, setRunAiAnalysis] = useState<boolean>(true);
@@ -167,7 +175,16 @@ export const CheckIn: React.FC = () => {
         sorenessNotes: sorenessNotes.trim(),
         photoUrl,
         aiPhysiqueAnalysis: aiAnalysisResult,
+        restingHeartRateBpm: restingHeartRate !== '' ? Number(restingHeartRate) : undefined,
+        sleepHours: sleepHours !== '' ? Number(sleepHours) : undefined,
+        energyLevel,
+        steps: dailySteps !== '' ? Number(dailySteps) : undefined,
       });
+
+      // Sync steps with daily activity collection
+      if (dailySteps !== '' && Number(dailySteps) > 0) {
+        await logDailySteps(currentUser.uid, checkInDate, Number(dailySteps));
+      }
 
       // 4. Automatically Evaluate & Unlock Gamified Badges
       const updatedCheckIns: CheckInItem[] = [
@@ -178,6 +195,10 @@ export const CheckIn: React.FC = () => {
           fatigueRating: Number(fatigueRating),
           photoUrl,
           aiPhysiqueAnalysis: aiAnalysisResult,
+          restingHeartRateBpm: restingHeartRate !== '' ? Number(restingHeartRate) : undefined,
+          sleepHours: sleepHours !== '' ? Number(sleepHours) : undefined,
+          energyLevel,
+          steps: dailySteps !== '' ? Number(dailySteps) : undefined,
         },
         ...checkIns,
       ];
@@ -527,6 +548,36 @@ export const CheckIn: React.FC = () => {
                           {item.aiPhysiqueAnalysis.bodyTypeEstimate}:{' '}
                           {item.aiPhysiqueAnalysis.physiqueObservations[0]}
                         </p>
+                      )}
+
+                      {/* Vitals & Movement Pill Row */}
+                      {(item.restingHeartRateBpm || item.sleepHours || item.energyLevel || item.steps) && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {item.restingHeartRateBpm && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
+                              <Heart className="w-2.5 h-2.5" />
+                              <span>{item.restingHeartRateBpm} BPM</span>
+                            </span>
+                          )}
+                          {item.sleepHours && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/40">
+                              <Moon className="w-2.5 h-2.5" />
+                              <span>{item.sleepHours}h sleep</span>
+                            </span>
+                          )}
+                          {item.steps && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-900/40">
+                              <Footprints className="w-2.5 h-2.5" />
+                              <span>{item.steps.toLocaleString()} steps</span>
+                            </span>
+                          )}
+                          {item.energyLevel && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
+                              <BatteryCharging className="w-2.5 h-2.5" />
+                              <span>{item.energyLevel}</span>
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -881,6 +932,109 @@ export const CheckIn: React.FC = () => {
                 />
               </div>
 
+              {/* Vitals & Daily Movement Engine */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                    <Heart className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Daily Vitals & Movement Log</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Recovery Tracking
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Resting Heart Rate */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                      <Heart className="w-3 h-3 text-rose-500" />
+                      <span>Resting HR (BPM)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="35"
+                      max="140"
+                      placeholder="e.g. 64"
+                      value={restingHeartRate}
+                      onChange={(e) =>
+                        setRestingHeartRate(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs"
+                    />
+                  </div>
+
+                  {/* Sleep Duration */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                      <Moon className="w-3 h-3 text-indigo-400" />
+                      <span>Sleep Duration (Hrs)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="24"
+                      placeholder="e.g. 7.5"
+                      value={sleepHours}
+                      onChange={(e) =>
+                        setSleepHours(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  {/* Energy / Fatigue Level */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                      <BatteryCharging className="w-3 h-3 text-amber-500" />
+                      <span>Energy Level</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(['low', 'moderate', 'high'] as const).map((lvl) => (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => setEnergyLevel(lvl)}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold uppercase transition ${
+                            energyLevel === lvl
+                              ? lvl === 'high'
+                                ? 'bg-emerald-600 text-white'
+                                : lvl === 'moderate'
+                                ? 'bg-amber-500 text-slate-950 font-black'
+                                : 'bg-rose-600 text-white'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Daily Steps */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                      <Footprints className="w-3 h-3 text-teal-500" />
+                      <span>Today's Steps</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      placeholder="e.g. 8500"
+                      value={dailySteps}
+                      onChange={(e) =>
+                        setDailySteps(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Ghost Overlay Camera Trigger & Photo Preview */}
               <div className="space-y-2">
                 <label className="block font-bold text-slate-700 dark:text-slate-300">
@@ -1054,6 +1208,53 @@ export const CheckIn: React.FC = () => {
               </div>
             ) : (
               <p className="text-slate-400 italic">No AI physique scan was run on this entry.</p>
+            )}
+
+            {/* Vitals & Movement Log */}
+            {(selectedCheckInForModal.restingHeartRateBpm ||
+              selectedCheckInForModal.sleepHours ||
+              selectedCheckInForModal.energyLevel ||
+              selectedCheckInForModal.steps) && (
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Heart className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Vitals & Daily Movement</span>
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  {selectedCheckInForModal.restingHeartRateBpm && (
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-slate-400 block text-[10px]">Resting HR</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {selectedCheckInForModal.restingHeartRateBpm} BPM
+                      </span>
+                    </div>
+                  )}
+                  {selectedCheckInForModal.sleepHours && (
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-slate-400 block text-[10px]">Sleep</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {selectedCheckInForModal.sleepHours} hrs
+                      </span>
+                    </div>
+                  )}
+                  {selectedCheckInForModal.energyLevel && (
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-slate-400 block text-[10px]">Energy</span>
+                      <span className="font-bold text-slate-900 dark:text-white uppercase">
+                        {selectedCheckInForModal.energyLevel}
+                      </span>
+                    </div>
+                  )}
+                  {selectedCheckInForModal.steps && (
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-slate-400 block text-[10px]">Steps</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {selectedCheckInForModal.steps.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             <button

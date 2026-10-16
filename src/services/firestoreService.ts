@@ -279,6 +279,10 @@ export interface ExerciseItem {
 export interface WorkoutSession {
   routineName: string;
   startedAt?: number;
+  isPaused?: boolean;
+  pausedElapsedMs?: number;
+  durationMinutes?: number;
+  duration_minutes?: number;
   exercises: ExerciseItem[];
 }
 
@@ -289,6 +293,7 @@ export interface CompletedWorkout {
   totalVolumeKg: number;
   totalSets: number;
   durationMinutes: number;
+  duration_minutes?: number;
   exercises: ExerciseItem[];
 }
 
@@ -349,15 +354,32 @@ export const finishAndSaveWorkout = async (
     return acc + ex.sets.filter((s) => s.completed).length;
   }, 0);
 
-  // Add to completed_workouts collection
+  const finalDurationMinutes = Math.max(1, Math.round(durationMinutes));
+
+  // 1. Add to completed_workouts collection
   const completedRef = collection(db, 'users', userId, 'completed_workouts');
   await addDoc(completedRef, {
     routineName: session.routineName || 'Custom Workout',
     completedAt: serverTimestamp(),
     totalVolumeKg,
     totalSets,
-    durationMinutes,
+    durationMinutes: finalDurationMinutes,
+    duration_minutes: finalDurationMinutes,
     exercises: session.exercises,
+  });
+
+  // 2. Also log to workouts collection with duration_minutes
+  const workoutsRef = collection(db, 'users', userId, 'workouts');
+  await addDoc(workoutsRef, {
+    routineName: session.routineName || 'Custom Workout',
+    savedAt: serverTimestamp(),
+    completedAt: serverTimestamp(),
+    totalVolumeKg,
+    totalSets,
+    durationMinutes: finalDurationMinutes,
+    duration_minutes: finalDurationMinutes,
+    exercises: session.exercises,
+    isCompleted: true,
   });
 
   // Clear active workout session
@@ -654,6 +676,10 @@ export interface CheckInItem {
   sorenessNotes?: string;
   photoUrl: string;
   aiPhysiqueAnalysis?: AiPhysiqueAnalysis;
+  restingHeartRateBpm?: number;
+  sleepHours?: number;
+  energyLevel?: 'low' | 'moderate' | 'high';
+  steps?: number;
   createdAt?: unknown;
 }
 
@@ -876,6 +902,14 @@ export const evaluateAndUnlockBadges = async (
 };
 
 /* ==================== DATE UTILITIES ==================== */
+export const getTodayDateString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const isToday = (timestamp: unknown): boolean => {
   if (!timestamp) return false;
   let date: Date;
@@ -898,6 +932,177 @@ export const isToday = (timestamp: unknown): boolean => {
   );
 };
 
+/* ==================== DAILY WATER INTAKE (HYDRATION ENGINE) ==================== */
+export interface DailyHydration {
+  date: string; // YYYY-MM-DD
+  waterMl: number;
+  targetMl: number;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_DAILY_HYDRATION: DailyHydration = {
+  date: getTodayDateString(),
+  waterMl: 0,
+  targetMl: 3000,
+};
+
+export const subscribeDailyHydration = (
+  userId: string,
+  dateStr: string,
+  callback: (hydration: DailyHydration) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback({ ...DEFAULT_DAILY_HYDRATION, date: dateStr });
+    return () => {};
+  }
+
+  const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        callback({
+          date: dateStr,
+          waterMl: Number(data.waterMl) || 0,
+          targetMl: Number(data.targetMl) || 3000,
+          updatedAt: data.updatedAt,
+        });
+      } else {
+        callback({ ...DEFAULT_DAILY_HYDRATION, date: dateStr });
+      }
+    },
+    (err) => {
+      console.warn('Daily hydration snapshot error:', err);
+      callback({ ...DEFAULT_DAILY_HYDRATION, date: dateStr });
+    }
+  );
+};
+
+export const logWaterIntake = async (
+  userId: string,
+  dateStr: string,
+  deltaMl: number,
+  targetMl = 3000
+): Promise<number> => {
+  if (!db || !userId) return 0;
+  const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
+  const snap = await getDoc(docRef);
+  let currentMl = 0;
+  if (snap.exists()) {
+    currentMl = Number(snap.data()?.waterMl) || 0;
+  }
+  const newAmount = Math.max(0, currentMl + deltaMl);
+  await setDoc(
+    docRef,
+    {
+      date: dateStr,
+      waterMl: newAmount,
+      targetMl,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return newAmount;
+};
+
+export const resetWaterIntake = async (
+  userId: string,
+  dateStr: string,
+  targetMl = 3000
+): Promise<void> => {
+  if (!db || !userId) return;
+  const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
+  await setDoc(
+    docRef,
+    {
+      date: dateStr,
+      waterMl: 0,
+      targetMl,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+/* ==================== DAILY STEPS & ACTIVITY TRACKER ==================== */
+export interface DailyActivity {
+  date: string; // YYYY-MM-DD
+  steps: number;
+  goalSteps: number;
+  distanceKm?: number;
+  caloriesBurned?: number;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_DAILY_ACTIVITY: DailyActivity = {
+  date: getTodayDateString(),
+  steps: 0,
+  goalSteps: 10000,
+  distanceKm: 0,
+  caloriesBurned: 0,
+};
+
+export const subscribeDailyActivity = (
+  userId: string,
+  dateStr: string,
+  callback: (activity: DailyActivity) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback({ ...DEFAULT_DAILY_ACTIVITY, date: dateStr });
+    return () => {};
+  }
+
+  const docRef = doc(db, 'users', userId, 'data', `activity_${dateStr}`);
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const steps = Number(data.steps) || 0;
+        const goalSteps = Number(data.goalSteps) || 10000;
+        callback({
+          date: dateStr,
+          steps,
+          goalSteps,
+          distanceKm: parseFloat((steps * 0.00076).toFixed(2)),
+          caloriesBurned: Math.round(steps * 0.04),
+          updatedAt: data.updatedAt,
+        });
+      } else {
+        callback({ ...DEFAULT_DAILY_ACTIVITY, date: dateStr });
+      }
+    },
+    (err) => {
+      console.warn('Daily activity snapshot error:', err);
+      callback({ ...DEFAULT_DAILY_ACTIVITY, date: dateStr });
+    }
+  );
+};
+
+export const logDailySteps = async (
+  userId: string,
+  dateStr: string,
+  steps: number,
+  goalSteps = 10000
+): Promise<void> => {
+  if (!db || !userId) return;
+  const docRef = doc(db, 'users', userId, 'data', `activity_${dateStr}`);
+  const safeSteps = Math.max(0, Math.round(steps));
+  await setDoc(
+    docRef,
+    {
+      date: dateStr,
+      steps: safeSteps,
+      goalSteps,
+      distanceKm: parseFloat((safeSteps * 0.00076).toFixed(2)),
+      caloriesBurned: Math.round(safeSteps * 0.04),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
 /* ==================== BODY MAINTENANCE BALANCE (BMB) SCORE ==================== */
 export interface BmbScoreResult {
   score: number; // 0 - 100
@@ -911,6 +1116,17 @@ export interface BmbScoreResult {
     calorieScore: number;
     recoveryScore: number;
     consistencyScore: number;
+    hydrationScore: number;
+    activityScore: number;
+  };
+  todayWaterMl: number;
+  waterTargetMl: number;
+  todaySteps: number;
+  stepsGoal: number;
+  vitals?: {
+    restingHeartRateBpm?: number;
+    sleepHours?: number;
+    energyLevel?: 'low' | 'moderate' | 'high';
   };
   recommendation: string;
   suggestedAdjustment: {
@@ -926,7 +1142,11 @@ export const calculateBmbScore = (
   targetCalories: number,
   todayCalories: number,
   latestCheckIn?: CheckInItem | null,
-  recentWorkouts?: CompletedWorkout[]
+  recentWorkouts?: CompletedWorkout[],
+  todayWaterMl = 0,
+  waterTargetMl = 3000,
+  todaySteps = 0,
+  stepsGoal = 10000
 ): BmbScoreResult => {
   const safeTarget = Math.max(1200, targetCalories || 2000);
   const calorieDiff = todayCalories - safeTarget;
@@ -935,50 +1155,83 @@ export const calculateBmbScore = (
       ? Math.round(((todayCalories - safeTarget) / safeTarget) * 1000) / 10
       : 0;
 
-  // 1. Caloric Alignment (max 40 pts)
-  let calorieScore = 35; // Neutral default if not logged yet
+  // 1. Caloric Alignment (max 35 pts)
+  let calorieScore = 30; // Neutral baseline
   if (todayCalories > 0) {
     const absDev = Math.abs(calorieDeviationPct);
-    if (absDev <= 5) calorieScore = 40;
-    else if (absDev <= 10) calorieScore = 36;
-    else if (absDev <= 15) calorieScore = 28;
-    else if (absDev <= 25) calorieScore = 18;
-    else calorieScore = 10;
+    if (absDev <= 5) calorieScore = 35;
+    else if (absDev <= 10) calorieScore = 32;
+    else if (absDev <= 15) calorieScore = 25;
+    else if (absDev <= 25) calorieScore = 15;
+    else calorieScore = 8;
   }
 
-  // 2. Recovery & Readiness (max 30 pts)
-  let recoveryScore = 22;
-  if (latestCheckIn?.fatigueRating) {
-    const rating = Math.min(5, Math.max(1, latestCheckIn.fatigueRating));
-    if (rating === 5) recoveryScore = 30;
-    else if (rating === 4) recoveryScore = 26;
-    else if (rating === 3) recoveryScore = 20;
-    else if (rating === 2) recoveryScore = 12;
-    else recoveryScore = 5;
+  // 2. Recovery & Vitals (max 25 pts)
+  let recoveryScore = 18;
+  if (latestCheckIn) {
+    let sub = 0;
+    // Fatigue rating (1-5) -> up to 12 pts
+    const rating = Math.min(5, Math.max(1, latestCheckIn.fatigueRating || 3));
+    sub += rating * 2.4;
+
+    // Sleep hours (optimal: 7-9 hours) -> up to 8 pts
+    if (latestCheckIn.sleepHours) {
+      const s = latestCheckIn.sleepHours;
+      if (s >= 7 && s <= 9) sub += 8;
+      else if (s >= 6) sub += 6;
+      else sub += 3;
+    } else {
+      sub += 5; // Default assumption
+    }
+
+    // Energy level -> up to 5 pts
+    if (latestCheckIn.energyLevel === 'high') sub += 5;
+    else if (latestCheckIn.energyLevel === 'moderate') sub += 4;
+    else if (latestCheckIn.energyLevel === 'low') sub += 1;
+    else sub += 3;
+
+    recoveryScore = Math.min(25, Math.round(sub));
   }
 
-  // 3. Training Consistency & Volume Stimulus (max 30 pts)
+  // 3. Training Consistency & Volume (max 20 pts)
   const workoutsLast7Days = (recentWorkouts || []).length;
-  let consistencyScore = 10;
+  let consistencyScore = 8;
   if (workoutsLast7Days >= 3 && workoutsLast7Days <= 5) {
-    consistencyScore = 30;
+    consistencyScore = 20;
   } else if (workoutsLast7Days === 2) {
-    consistencyScore = 22;
-  } else if (workoutsLast7Days === 1) {
     consistencyScore = 15;
+  } else if (workoutsLast7Days === 1) {
+    consistencyScore = 10;
   } else if (workoutsLast7Days > 5) {
-    consistencyScore = 22;
+    consistencyScore = 16;
   }
 
-  const score = Math.min(100, Math.max(0, calorieScore + recoveryScore + consistencyScore));
+  // 4. Hydration Engine Adherence (max 10 pts)
+  let hydrationScore = 5;
+  if (todayWaterMl > 0) {
+    const hydRatio = Math.min(1.0, todayWaterMl / Math.max(1000, waterTargetMl));
+    hydrationScore = Math.min(10, Math.round(hydRatio * 10));
+  }
 
-  // Determine Status & Reactive Alert Criteria (>15% deviation)
+  // 5. Steps / Active Movement (max 10 pts)
+  let activityScore = 5;
+  if (todaySteps > 0) {
+    const stepRatio = Math.min(1.0, todaySteps / Math.max(5000, stepsGoal));
+    activityScore = Math.min(10, Math.round(stepRatio * 10));
+  }
+
+  const score = Math.min(
+    100,
+    Math.max(0, calorieScore + recoveryScore + consistencyScore + hydrationScore + activityScore)
+  );
+
+  // Determine Status & Reactive Alert Criteria (>15% deviation or high fatigue)
   let status: 'optimal' | 'stable' | 'surplus' | 'deficit' | 'fatigue' = 'stable';
   let statusLabel = 'Stable Maintenance';
 
   const isSurplusAlert = calorieDeviationPct > 15;
   const isDeficitAlert = calorieDeviationPct < -15 && todayCalories > 0;
-  const isFatigueAlert = Boolean(latestCheckIn && latestCheckIn.fatigueRating <= 2);
+  const isFatigueAlert = Boolean(latestCheckIn && (latestCheckIn.fatigueRating <= 2 || latestCheckIn.energyLevel === 'low'));
 
   if (isFatigueAlert) {
     status = 'fatigue';
@@ -1000,7 +1253,7 @@ export const calculateBmbScore = (
     setsDelta: 0,
     badgeTitle: 'Equilibrium Maintained',
     message:
-      'Energy intake and recovery readiness are within nominal maintenance tolerances (±15%). Execute scheduled workout volume as planned.',
+      'Energy balance, hydration, and recovery readiness are within nominal maintenance tolerances (±15%). Execute scheduled workout volume as planned.',
     actionLabel: 'Preserve Routine Volume',
   };
 
@@ -1025,21 +1278,21 @@ export const calculateBmbScore = (
       type: 'reduce_volume',
       setsDelta: -1,
       badgeTitle: 'Fatigue Mitigation Active',
-      message: `Readiness rating is low (${latestCheckIn?.fatigueRating}/5). Reduce training intensity or volume by 1 set to prevent overtraining syndrome.`,
+      message: `Readiness rating or energy indicates elevated fatigue. Reduce training intensity or volume by 1 set to prevent overtraining syndrome.`,
       actionLabel: 'Apply Volume Reduction (-1 Set)',
     };
   }
 
   // Dynamic recommendation text
-  let recommendation = 'Your body composition maintenance balance is stable. Continue consistent training.';
+  let recommendation = 'Your body composition maintenance balance is stable. Continue consistent training, hydration, and recovery.';
   if (isSurplusAlert) {
     recommendation = `Calorie surplus of +${calorieDiff} kcal detected. Tap "Apply Adjustment" to automatically inject +2 volume sets into your workout.`;
   } else if (isDeficitAlert) {
     recommendation = `Calorie deficit of ${Math.abs(calorieDiff)} kcal detected. Tap "Apply Adjustment" to safely scale down volume by -1 set.`;
   } else if (isFatigueAlert) {
-    recommendation = 'Fatigue rating indicates elevated strain. Focus on hydration, 8 hours of sleep, and lighter training loads today.';
+    recommendation = 'Vitals & readiness rating indicate elevated strain. Focus on hydration, 8 hours of restorative sleep, and lighter training loads today.';
   } else if (score >= 85) {
-    recommendation = 'Exceptional maintenance adherence. Both energy intake and movement volume are perfectly synchronized.';
+    recommendation = 'Exceptional maintenance adherence. Energy intake, movement volume, hydration, and recovery vitals are synchronized.';
   }
 
   return {
@@ -1054,7 +1307,20 @@ export const calculateBmbScore = (
       calorieScore,
       recoveryScore,
       consistencyScore,
+      hydrationScore,
+      activityScore,
     },
+    todayWaterMl,
+    waterTargetMl,
+    todaySteps,
+    stepsGoal,
+    vitals: latestCheckIn
+      ? {
+          restingHeartRateBpm: latestCheckIn.restingHeartRateBpm,
+          sleepHours: latestCheckIn.sleepHours,
+          energyLevel: latestCheckIn.energyLevel,
+        }
+      : undefined,
     recommendation,
     suggestedAdjustment,
   };

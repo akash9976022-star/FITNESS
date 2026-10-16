@@ -39,6 +39,7 @@ import {
   type FoodAnalysisResult,
   isGeminiConfigured,
 } from '../services/geminiService';
+import WaterIntakeWidget from '../components/hydration/WaterIntakeWidget';
 
 export const Nutrition: React.FC = () => {
   const { currentUser } = useAuth();
@@ -512,6 +513,9 @@ export const Nutrition: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Daily Water Intake & Hydration Engine */}
+          <WaterIntakeWidget />
 
           {/* AI Vision Food Scanner Card */}
           <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
