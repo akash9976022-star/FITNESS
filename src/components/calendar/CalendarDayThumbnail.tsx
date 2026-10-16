@@ -76,6 +76,11 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
   const isPurattasiSaturday =
     dayInfo.dayOfWeekEnglish === 'Saturday' && dayInfo.tamilMonthEnglish === 'Purattasi';
 
+  // Exact astronomical Thithi start and end time string (in IST)
+  const timeSpan = dayInfo.panchangam?.thithi?.timingsTextTamil
+    ? ` • ${dayInfo.panchangam.thithi.timingsTextTamil}`
+    : '';
+
   // 1. Maha Shivaratri (Strict Shiva Lingam Worship) - Prioritized on Shivaratri days
   const isMahaShivaratri =
     festIds.some((id) => id.includes('shivaratri') || id === 'maha-shivaratri') ||
@@ -88,7 +93,7 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'shivaratri',
       titleTamil: 'மகா சிவராத்திரி & சிவலிங்கம்',
       titleEnglish: 'Maha Shivaratri (Lord Shiva & Lingam)',
-      reason: 'மகா சிவராத்திரி விரதம் & லிங்கோத்பவர் ஜோதி வழிபாடு',
+      reason: `மகா சிவராத்திரி விரதம் & லிங்கோத்பவர் ஜோதி வழிபாடு${timeSpan}`,
     };
   }
 
@@ -107,7 +112,7 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'pradosham',
       titleTamil: 'பிரதோஷம் & நந்தியம் பெருமான்',
       titleEnglish: 'Pradosham (Sacred Nandhi & Shiva)',
-      reason: 'பிரதோஷ கால நந்தி தேவர் & ஈஸ்வரர் சிறப்பு அபிஷேக விரதம்',
+      reason: `பிரதோஷ கால நந்தி தேவர் & ஈஸ்வரர் சிறப்பு அபிஷேக விரதம்${timeSpan}`,
     };
   }
 
@@ -124,7 +129,7 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'natarajar',
       titleTamil: 'நடராஜர் ஆனந்த தாண்டவம்',
       titleEnglish: 'Lord Nataraja (Arudra Darshanam)',
-      reason: 'ஆருத்ரா தரிசனம் / திருவாதிரை மார்கழி நடராஜர் உற்சவம்',
+      reason: `ஆருத்ரா தரிசனம் / திருவாதிரை மார்கழி நடராஜர் உற்சவம்${timeSpan}`,
     };
   }
 
@@ -152,7 +157,7 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'murugan',
       titleTamil: 'முருகப்பெருமான் & ஞானவேல் மயில்',
       titleEnglish: 'Lord Murugan (Vel & Peacock)',
-      reason: 'கந்த சஷ்டி / கார்த்திகை / தைப்பூசம் விரதம்',
+      reason: `கந்த சஷ்டி / கார்த்திகை / தைப்பூசம் விரதம்${timeSpan}`,
     };
   }
 
@@ -168,7 +173,7 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'ganesha',
       titleTamil: 'முழுமுதற் கடவுள் விநாயகர்',
       titleEnglish: 'Lord Ganesha (Vinayagar)',
-      reason: 'விநாயகர் சதுர்த்தி / சங்கடஹர சதுர்த்தி',
+      reason: `விநாயகர் சதுர்த்தி / சங்கடஹர சதுர்த்தி${timeSpan}`,
     };
   }
 
@@ -185,7 +190,7 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'diya',
       titleTamil: 'மங்கள அகல் விளக்கு தீபம்',
       titleEnglish: 'Sacred Clay Diya (Deepam)',
-      reason: 'தீபாவளி / திருக்கார்த்திகை தீபத் திருநாள்',
+      reason: `தீபாவளி / திருக்கார்த்திகை தீபத் திருநாள்${timeSpan}`,
     };
   }
 
@@ -211,40 +216,43 @@ export const getCalendarDayThumbnail = (dayInfo: TamilDateInfo): CalendarThumbna
       type: 'vishnu',
       titleTamil: 'திருமால் திருநாமம் & சங்கு சக்கரம்',
       titleEnglish: 'Lord Vishnu (Thiruman & Shankha-Chakra)',
-      reason: 'வைகுண்ட ஏகாதசி / புரட்டாசி சனிக்கிழமை பெருமாள் விரதம்',
+      reason: `வைகுண்ட ஏகாதசி / புரட்டாசி சனிக்கிழமை பெருமாள் விரதம்${timeSpan}`,
     };
   }
 
   // 8. Pournami (Full Moon)
-  if (
+  const isPournami =
     festIds.some((id) => id.includes('pournami') || id.includes('purnima')) ||
     festNames.includes('பௌர்ணமி') ||
     festNames.includes('பவுர்ணமி') ||
-    thithiEn.includes('pournami') ||
-    thithiEn.includes('purnima') ||
-    thithiTa.includes('பௌர்ணமி')
-  ) {
+    thithiEn === 'pournami' ||
+    thithiTa === 'பௌர்ணமி' ||
+    thithiTa.startsWith('பௌர்ணமி');
+
+  if (isPournami) {
     return {
       type: 'pournami',
       titleTamil: 'பிரகாச பௌர்ணமி முழுநிலவு',
       titleEnglish: 'Radiant Full Moon (Pournami)',
-      reason: 'கிரிவலம் மற்றும் பௌர்ணமி சிறப்பு வழிபாடு',
+      reason: `பௌர்ணமி விரதம் & கிரிவலம்${timeSpan}`,
     };
   }
 
   // 9. Amavasai (New Moon)
-  if (
+  const isAmavasai =
     festIds.some((id) => id.includes('amavasai') || id.includes('amavasya')) ||
     festNames.includes('அமாவாசை') ||
-    thithiEn.includes('amavasai') ||
-    thithiEn.includes('amavasya') ||
-    thithiTa.includes('அமாவாசை')
-  ) {
+    thithiEn === 'amavasya' ||
+    thithiEn === 'amavasai' ||
+    thithiTa === 'அமாவாசை' ||
+    thithiTa.startsWith('அமாவாசை');
+
+  if (isAmavasai) {
     return {
       type: 'amavasai',
       titleTamil: 'புனித அமாவாசை',
       titleEnglish: 'Sacred New Moon (Amavasai)',
-      reason: 'முன்னோர் தர்ப்பண அமாவாசை புனிதம்',
+      reason: `முன்னோர் தர்ப்பண அமாவாசை புனிதம்${timeSpan}`,
     };
   }
 

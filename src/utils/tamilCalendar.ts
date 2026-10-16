@@ -35,6 +35,10 @@ export interface PanchangamTimings {
     nameTamil: string;
     nameEnglish: string;
     paksham: 'சுக்ல பட்சம் (Valarpirai)' | 'கிருஷ்ண பட்சம் (Theipirai)';
+    startTime?: string;
+    endTime?: string;
+    timingsTextTamil?: string;
+    timingsTextEnglish?: string;
   };
   nakshatram: {
     nameTamil: string;
@@ -242,8 +246,10 @@ export const THITHIS = [
   { nameTamil: 'துவாதசி', nameEnglish: 'Dvadashi' },
   { nameTamil: 'திரயோதசி', nameEnglish: 'Trayodashi' },
   { nameTamil: 'சதுர்த்தசி', nameEnglish: 'Chaturdashi' },
-  { nameTamil: 'பௌர்ணமி / அமாவாசை', nameEnglish: 'Pournami / Amavasya' },
+  { nameTamil: 'பௌர்ணமி', nameEnglish: 'Pournami' },
 ];
+
+export const AMAVASAI_THITHI = { nameTamil: 'அமாவாசை', nameEnglish: 'Amavasya' };
 
 // Fixed Traditional Almanac Timing Rules (By Day of Week: 0=Sun to 6=Sat)
 export const DAY_TIMINGS_TABLE: Record<
@@ -1004,35 +1010,152 @@ export function getTamilDateDetails(date: Date): {
 }
 
 /**
+ * High-precision astronomical calculation of Sun and Moon ecliptic longitudes (Jean Meeus algorithm)
+ */
+export function getCelestialAngles(date: Date): { sunLon: number; moonLon: number; elong: number } {
+  // Julian Date
+  const jd = date.getTime() / 86400000.0 + 2440587.5;
+  const T = (jd - 2451545.0) / 36525.0; // Julian centuries since J2000.0
+
+  // Geometric mean longitude of the Sun
+  let L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
+  L0 = ((L0 % 360) + 360) % 360;
+
+  // Mean anomaly of the Sun
+  const M = ((357.52911 + 35999.05029 * T - 0.0001537 * T * T) % 360) * (Math.PI / 180);
+
+  // Sun's Equation of the Center
+  const C = (1.914602 - 0.004817 * T) * Math.sin(M) + 0.019993 * Math.sin(2 * M);
+  const sunLon = ((L0 + C) % 360 + 360) % 360;
+
+  // Moon's mean longitude & fundamental arguments
+  const Lp = 218.3164477 + 481267.88123421 * T;
+  const D = ((297.8501921 + 445267.1114034 * T) % 360) * (Math.PI / 180);
+  const Mm = ((134.9633964 + 477198.8675055 * T) % 360) * (Math.PI / 180);
+  const F = ((93.272095 + 483202.0175233 * T) % 360) * (Math.PI / 180);
+
+  // Moon's true longitude including major perturbations
+  let moonLon =
+    Lp +
+    6.288774 * Math.sin(Mm) +
+    1.274027 * Math.sin(2 * D - Mm) +
+    0.658309 * Math.sin(2 * D) +
+    0.213618 * Math.sin(2 * Mm) -
+    0.185116 * Math.sin(M) -
+    0.114332 * Math.sin(2 * F);
+  moonLon = ((moonLon % 360) + 360) % 360;
+
+  // Angular elongation (Moon - Sun)
+  const elong = ((moonLon - sunLon) % 360 + 360) % 360;
+  return { sunLon, moonLon, elong };
+}
+
+/**
+ * High-precision bisection search to locate the exact crossing time for a target elongation angle
+ */
+export function findThithiCrossing(targetDeg: number, centerTime: Date): Date {
+  let low = centerTime.getTime() - 36 * 3600 * 1000;
+  let high = centerTime.getTime() + 36 * 3600 * 1000;
+  for (let i = 0; i < 40; i++) {
+    const mid = (low + high) / 2;
+    const el = getCelestialAngles(new Date(mid)).elong;
+    const diff = ((el - targetDeg + 540) % 360) - 180;
+    if (diff > 0) high = mid;
+    else low = mid;
+  }
+  return new Date((low + high) / 2);
+}
+
+function formatISTDateTime(d: Date): string {
+  return d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/**
  * Calculates Panchangam timings (Nalla Neram, Ragukalam, Yemagandam, Kuligai, Thithi, Nakshatram)
+ * with astronomically exact Thithi start and end times.
  */
 export function getPanchangamTimings(date: Date): PanchangamTimings {
   const dayOfWeek = date.getDay(); // 0 - 6
   const timings = DAY_TIMINGS_TABLE[dayOfWeek] || DAY_TIMINGS_TABLE[0];
 
-  // Mathematical approximation of Moon's synodic age (0 to 29.53 days)
-  // Base new moon reference: Jan 18, 2026 (~New Moon)
-  const refNewMoon = new Date(2026, 0, 18).getTime();
-  const diffDays = (date.getTime() - refNewMoon) / (1000 * 60 * 60 * 24);
-  const synodicMonth = 29.53058867;
-  const cycleDay = ((diffDays % synodicMonth) + synodicMonth) % synodicMonth;
+  // Evaluate at local sunrise (~06:00 IST / 00:30 UTC) for Udaya Thithi
+  const sunriseDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 30));
+  const { elong: elongSunrise, moonLon } = getCelestialAngles(sunriseDate);
 
-  // Thithi determination
-  const thithiIndex = Math.min(14, Math.floor((cycleDay % (synodicMonth / 2)) / (synodicMonth / 30)));
-  const isValarpirai = cycleDay < synodicMonth / 2;
-  const thithiObj = THITHIS[thithiIndex] || THITHIS[0];
+  // Evaluate at evening (~18:00 IST / 12:30 UTC) to catch afternoon/evening transitions (e.g. Pournami / Amavasai)
+  const eveningDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 30));
+  const { elong: elongEvening } = getCelestialAngles(eveningDate);
 
-  // Nakshatra determination (sidereal moon cycle ~27.32 days)
-  const refAshwini = new Date(2026, 0, 1).getTime();
-  const diffSidereal = (date.getTime() - refAshwini) / (1000 * 60 * 60 * 24);
-  const siderealMonth = 27.321661;
-  const nakshatraIndex =
-    Math.floor((((diffSidereal % siderealMonth) + siderealMonth) % siderealMonth) / (siderealMonth / 27)) % 27;
+  let thithiIndex = Math.floor(elongSunrise / 12); // 0 to 29
+  const eveningThithiIndex = Math.floor(elongEvening / 12);
+
+  // Prioritize Pournami (14) or Amavasai (29) if active during the day or evening
+  if (thithiIndex !== 14 && eveningThithiIndex === 14) {
+    thithiIndex = 14;
+  } else if (thithiIndex !== 29 && eveningThithiIndex === 29) {
+    thithiIndex = 29;
+  }
+
+  const isValarpirai = thithiIndex < 15;
+  let thithiNameTamil = '';
+  let thithiNameEnglish = '';
+
+  if (isValarpirai) {
+    if (thithiIndex === 14) {
+      thithiNameTamil = 'பௌர்ணமி';
+      thithiNameEnglish = 'Pournami';
+    } else {
+      thithiNameTamil = THITHIS[thithiIndex].nameTamil;
+      thithiNameEnglish = THITHIS[thithiIndex].nameEnglish;
+    }
+  } else {
+    if (thithiIndex === 29) {
+      thithiNameTamil = 'அமாவாசை';
+      thithiNameEnglish = 'Amavasya';
+    } else {
+      thithiNameTamil = THITHIS[thithiIndex - 15].nameTamil;
+      thithiNameEnglish = THITHIS[thithiIndex - 15].nameEnglish;
+    }
+  }
+
+  // Calculate exact start and end times for this active Thithi
+  const targetStart = thithiIndex * 12;
+  const targetEnd = ((thithiIndex + 1) % 30) * 12;
+  const tStart = findThithiCrossing(targetStart, sunriseDate);
+  const tEnd = findThithiCrossing(targetEnd, new Date(tStart.getTime() + 22 * 3600 * 1000));
+
+  const startTimeStr = formatISTDateTime(tStart);
+  const endTimeStr = formatISTDateTime(tEnd);
+  const timingsTextTamil = `ஆரம்பம்: ${startTimeStr} | முடிவு: ${endTimeStr}`;
+  const timingsTextEnglish = `Starts: ${startTimeStr} | Ends: ${endTimeStr}`;
+
+  // Nakshatra determination from sidereal moon position (~27 segments of 13°20')
+  // Lahiri Ayanamsha offset: ~24.16° in 2026
+  const ayanamsha = 24.16;
+  const siderealMoonLon = ((moonLon - ayanamsha) % 360 + 360) % 360;
+  const nakshatraIndex = Math.floor(siderealMoonLon / (360 / 27)) % 27;
   const nakshatraObj = NAKSHATRAS[nakshatraIndex] || NAKSHATRAS[0];
 
   // Yogam (Siddha, Amrutha, Marana) derived from Day + Nakshatra rules
-  const yogamType = (dayOfWeek + nakshatraIndex) % 3 === 0 ? 'Amrutha' : (dayOfWeek + nakshatraIndex) % 3 === 1 ? 'Siddha' : 'Marana';
-  const yogamTamil = yogamType === 'Amrutha' ? 'அமிர்த யோகம்' : yogamType === 'Siddha' ? 'சித்த யோகம்' : 'மரண யோகம்';
+  const yogamType =
+    (dayOfWeek + nakshatraIndex) % 3 === 0
+      ? 'Amrutha'
+      : (dayOfWeek + nakshatraIndex) % 3 === 1
+      ? 'Siddha'
+      : 'Marana';
+  const yogamTamil =
+    yogamType === 'Amrutha'
+      ? 'அமிர்த யோகம்'
+      : yogamType === 'Siddha'
+      ? 'சித்த யோகம்'
+      : 'மரண யோகம்';
 
   // Chandrashtamam (8th moon sign): changes every 2.25 days
   const rasiIdx = Math.floor((nakshatraIndex + 8) % 12);
@@ -1046,9 +1169,13 @@ export function getPanchangamTimings(date: Date): PanchangamTimings {
     yemagandam: timings.yema,
     kuligai: timings.kuli,
     thithi: {
-      nameTamil: thithiObj.nameTamil,
-      nameEnglish: thithiObj.nameEnglish,
+      nameTamil: thithiNameTamil,
+      nameEnglish: thithiNameEnglish,
       paksham: isValarpirai ? 'சுக்ல பட்சம் (Valarpirai)' : 'கிருஷ்ண பட்சம் (Theipirai)',
+      startTime: startTimeStr,
+      endTime: endTimeStr,
+      timingsTextTamil,
+      timingsTextEnglish,
     },
     nakshatram: {
       nameTamil: nakshatraObj.nameTamil,

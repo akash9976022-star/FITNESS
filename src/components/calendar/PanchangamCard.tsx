@@ -62,26 +62,59 @@ export const PanchangamCard: React.FC<PanchangamCardProps> = ({ dayInfo, classNa
 
       {/* Sacred Day Deity / Occasion Highlight Card */}
       {thumbnail && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-300 dark:border-amber-500/30 flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <CalendarDayThumbnail info={thumbnail} size="md" />
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200">
-                  {thumbnail.titleTamil}
-                </span>
-                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                  • {thumbnail.titleEnglish}
-                </span>
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-300 dark:border-amber-500/30 space-y-2.5 shadow-xs">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <CalendarDayThumbnail info={thumbnail} size="md" />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200">
+                    {thumbnail.titleTamil}
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                    • {thumbnail.titleEnglish}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-0.5">
+                  {thumbnail.reason}
+                </p>
               </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-0.5">
-                {thumbnail.reason}
-              </p>
             </div>
+            <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 shadow-xs flex-shrink-0">
+              புனித நாள்
+            </span>
           </div>
-          <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 shadow-xs flex-shrink-0">
-            புனித நாள்
-          </span>
+
+          {/* Dedicated Start & End Timing Banner for Sacred Days / Thithi */}
+          {panchangam.thithi.startTime && (
+            <div className="pt-2 border-t border-amber-300/60 dark:border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+              <span className="font-extrabold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>
+                  {thumbnail.type === 'pournami'
+                    ? 'பௌர்ணமி ஆரம்பம் & முடிவு நேரம் (Pournami):'
+                    : thumbnail.type === 'amavasai'
+                    ? 'அமாவாசை ஆரம்பம் & முடிவு நேரம் (Amavasai):'
+                    : thumbnail.type === 'pradosham'
+                    ? 'பிரதோஷ திரயோதசி திதி நேரம் (Pradosham):'
+                    : thumbnail.type === 'vishnu'
+                    ? 'ஏகாதசி விரத திதி நேரம் (Ekadashi):'
+                    : thumbnail.type === 'murugan'
+                    ? 'சஷ்டி விரத திதி நேரம் (Sashti):'
+                    : thumbnail.type === 'ganesha'
+                    ? 'சதுர்த்தி விரத திதி நேரம் (Chaturthi):'
+                    : thumbnail.type === 'shivaratri'
+                    ? 'சிவராத்திரி சதுர்த்தசி திதி நேரம் (Shivaratri):'
+                    : `${panchangam.thithi.nameTamil} திதி ஆரம்பம் & முடிவு நேரம்:`}
+                </span>
+              </span>
+              <div className="flex items-center gap-3 text-[11px] font-mono font-bold text-slate-800 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-500/20">
+                <span className="text-emerald-700 dark:text-emerald-400">ஆரம்பம்: {panchangam.thithi.startTime}</span>
+                <span className="text-slate-300 dark:text-slate-600">|</span>
+                <span className="text-rose-700 dark:text-rose-400">முடிவு: {panchangam.thithi.endTime}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -207,6 +240,12 @@ export const PanchangamCard: React.FC<PanchangamCardProps> = ({ dayInfo, classNa
           <span className="text-[11px] text-teal-600 dark:text-teal-400 font-semibold block mt-0.5">
             {panchangam.thithi.paksham}
           </span>
+          {panchangam.thithi.startTime && (
+            <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800/80 text-[10px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5">
+              <div className="text-emerald-700 dark:text-emerald-400 font-medium">ஆரம்பம்: {panchangam.thithi.startTime}</div>
+              <div className="text-rose-700 dark:text-rose-400 font-medium">முடிவு: {panchangam.thithi.endTime}</div>
+            </div>
+          )}
         </div>
 
         {/* Nakshatram */}
