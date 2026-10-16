@@ -10,6 +10,8 @@ import {
   Sparkles,
   CheckCircle2,
   Info,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -21,15 +23,30 @@ import {
   type ExperienceLevel,
 } from '../services/firestoreService';
 
+export const DEFAULT_PROFILE: UserProfile = {
+  gender: 'male',
+  age: 25,
+  heightCm: 175,
+  currentWeightKg: 75,
+  targetWeightKg: 75,
+  activityMultiplier: 1.55,
+  experienceLevel: 'intermediate',
+  equipment: ['Barbell', 'Dumbbells', 'Adjustable Bench', 'Pull-up Bar', 'Resistance Bands'],
+  calculatedTdee: 2450,
+  bmr: 1700,
+  onboardingCompleted: false,
+};
+
 export const Profile: React.FC = () => {
   const { currentUser } = useAuth();
 
-  // Firestore profile state
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // Firestore profile state with guaranteed safe default fallback
+  const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Form edit states
   const [gender, setGender] = useState<'male' | 'female'>('male');
@@ -39,45 +56,78 @@ export const Profile: React.FC = () => {
   const [targetWeightKg, setTargetWeightKg] = useState<number>(75);
   const [activityMultiplier, setActivityMultiplier] = useState<number>(1.55);
   const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>('intermediate');
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>(DEFAULT_PROFILE.equipment);
 
   // Load real user profile from Firestore onSnapshot
   useEffect(() => {
     if (!currentUser?.uid) {
+      setProfile(DEFAULT_PROFILE);
+      setGender(DEFAULT_PROFILE.gender);
+      setAge(DEFAULT_PROFILE.age);
+      setHeightCm(DEFAULT_PROFILE.heightCm);
+      setCurrentWeightKg(DEFAULT_PROFILE.currentWeightKg);
+      setTargetWeightKg(DEFAULT_PROFILE.targetWeightKg);
+      setActivityMultiplier(DEFAULT_PROFILE.activityMultiplier);
+      setExperienceLevel(DEFAULT_PROFILE.experienceLevel);
+      setSelectedEquipment(DEFAULT_PROFILE.equipment);
       setLoading(false);
       return;
     }
 
+    setLoading(true);
     const unsub = subscribeUserProfile(currentUser.uid, (data) => {
-      setProfile(data);
-      if (data) {
-        setGender(data.gender || 'male');
-        setAge(data.age || 25);
-        setHeightCm(data.heightCm || 175);
-        setCurrentWeightKg(data.currentWeightKg || 75);
-        setTargetWeightKg(data.targetWeightKg || data.currentWeightKg || 75);
-        setActivityMultiplier(data.activityMultiplier || 1.55);
-        setExperienceLevel(data.experienceLevel || 'intermediate');
-        setSelectedEquipment(data.equipment || []);
-      }
+      // Safe fallback if document does not exist yet in Firestore (brand new sign-up)
+      const safeProfile: UserProfile = data
+        ? {
+            gender: data.gender || DEFAULT_PROFILE.gender,
+            age: Number(data.age) || DEFAULT_PROFILE.age,
+            heightCm: Number(data.heightCm) || DEFAULT_PROFILE.heightCm,
+            currentWeightKg: Number(data.currentWeightKg) || DEFAULT_PROFILE.currentWeightKg,
+            targetWeightKg: Number(data.targetWeightKg) || Number(data.currentWeightKg) || DEFAULT_PROFILE.targetWeightKg,
+            activityMultiplier: Number(data.activityMultiplier) || DEFAULT_PROFILE.activityMultiplier,
+            experienceLevel: (data.experienceLevel as ExperienceLevel) || DEFAULT_PROFILE.experienceLevel,
+            equipment: Array.isArray(data.equipment) ? data.equipment : DEFAULT_PROFILE.equipment,
+            calculatedTdee: Number(data.calculatedTdee) || DEFAULT_PROFILE.calculatedTdee,
+            bmr: Number(data.bmr) || DEFAULT_PROFILE.bmr,
+            onboardingCompleted: Boolean(data.onboardingCompleted),
+          }
+        : { ...DEFAULT_PROFILE };
+
+      setProfile(safeProfile);
+      setGender(safeProfile.gender);
+      setAge(safeProfile.age);
+      setHeightCm(safeProfile.heightCm);
+      setCurrentWeightKg(safeProfile.currentWeightKg);
+      setTargetWeightKg(safeProfile.targetWeightKg);
+      setActivityMultiplier(safeProfile.activityMultiplier);
+      setExperienceLevel(safeProfile.experienceLevel);
+      setSelectedEquipment(safeProfile.equipment);
       setLoading(false);
     });
 
     return () => unsub();
   }, [currentUser?.uid]);
 
-  // Live Mifflin-St Jeor Calculation
+  // Live Mifflin-St Jeor Calculation with strictly sanitized numeric parsing
   const { bmr, calculatedTdee } = useMemo(() => {
-    return calculateMifflinStJeor(gender, currentWeightKg, heightCm, age, activityMultiplier);
+    const safeAge = parseInt(String(age), 10) || 25;
+    const safeHeight = parseFloat(String(heightCm)) || 175;
+    const safeCurrentWeight = parseFloat(String(currentWeightKg)) || 75;
+    const safeActivity = parseFloat(String(activityMultiplier)) || 1.55;
+
+    return calculateMifflinStJeor(gender, safeCurrentWeight, safeHeight, safeAge, safeActivity);
   }, [gender, currentWeightKg, heightCm, age, activityMultiplier]);
 
   // Macro target estimates
   const macroBreakdown = useMemo(() => {
-    const proteinGrams = Math.round(currentWeightKg * 2.0);
+    const safeWeight = parseFloat(String(currentWeightKg)) || 75;
+    const safeTdee = calculatedTdee || 2450;
+
+    const proteinGrams = Math.round(safeWeight * 2.0);
     const proteinKcal = proteinGrams * 4;
-    const fatsKcal = calculatedTdee * 0.25;
+    const fatsKcal = safeTdee * 0.25;
     const fatsGrams = Math.round(fatsKcal / 9);
-    const carbsKcal = Math.max(0, calculatedTdee - proteinKcal - fatsKcal);
+    const carbsKcal = Math.max(0, safeTdee - proteinKcal - fatsKcal);
     const carbsGrams = Math.round(carbsKcal / 4);
 
     return { proteinGrams, fatsGrams, carbsGrams };
@@ -89,16 +139,16 @@ export const Profile: React.FC = () => {
   };
 
   const handleCancelEdit = () => {
-    if (profile) {
-      setGender(profile.gender || 'male');
-      setAge(profile.age || 25);
-      setHeightCm(profile.heightCm || 175);
-      setCurrentWeightKg(profile.currentWeightKg || 75);
-      setTargetWeightKg(profile.targetWeightKg || profile.currentWeightKg || 75);
-      setActivityMultiplier(profile.activityMultiplier || 1.55);
-      setExperienceLevel(profile.experienceLevel || 'intermediate');
-      setSelectedEquipment(profile.equipment || []);
-    }
+    const source = profile || DEFAULT_PROFILE;
+    setGender(source.gender || 'male');
+    setAge(Number(source.age) || 25);
+    setHeightCm(Number(source.heightCm) || 175);
+    setCurrentWeightKg(Number(source.currentWeightKg) || 75);
+    setTargetWeightKg(Number(source.targetWeightKg) || Number(source.currentWeightKg) || 75);
+    setActivityMultiplier(Number(source.activityMultiplier) || 1.55);
+    setExperienceLevel(source.experienceLevel || 'intermediate');
+    setSelectedEquipment(Array.isArray(source.equipment) ? source.equipment : []);
+    setErrorMessage(null);
     setIsEditing(false);
   };
 
@@ -106,27 +156,84 @@ export const Profile: React.FC = () => {
     if (e) e.preventDefault();
     if (!currentUser?.uid) return;
 
+    setErrorMessage(null);
+
+    // Strict numeric type parsing with explicit parseInt / parseFloat / Number
+    const parsedAge = parseInt(String(age), 10);
+    const parsedHeight = parseFloat(String(heightCm));
+    const parsedCurrentWeight = parseFloat(String(currentWeightKg));
+    const parsedTargetWeight = parseFloat(String(targetWeightKg));
+    const parsedActivity = parseFloat(String(activityMultiplier));
+
+    if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 120) {
+      setErrorMessage('Please enter a valid age between 10 and 120 years.');
+      return;
+    }
+    if (isNaN(parsedHeight) || parsedHeight < 80 || parsedHeight > 250) {
+      setErrorMessage('Please enter a valid height between 80 and 250 cm.');
+      return;
+    }
+    if (isNaN(parsedCurrentWeight) || parsedCurrentWeight < 25 || parsedCurrentWeight > 350) {
+      setErrorMessage('Please enter a valid current weight between 25 and 350 kg.');
+      return;
+    }
+    if (isNaN(parsedTargetWeight) || parsedTargetWeight < 25 || parsedTargetWeight > 350) {
+      setErrorMessage('Please enter a valid target weight between 25 and 350 kg.');
+      return;
+    }
+    if (isNaN(parsedActivity) || parsedActivity < 1.0) {
+      setErrorMessage('Please select a valid physical activity level.');
+      return;
+    }
+
+    const safeAge = Number(parsedAge);
+    const safeHeight = Number(parsedHeight);
+    const safeCurrentWeight = Number(parsedCurrentWeight);
+    const safeTargetWeight = Number(parsedTargetWeight);
+    const safeActivity = Number(parsedActivity);
+
+    // Explicitly recalculate Mifflin-St Jeor TDEE with verified numeric types
+    const { bmr: freshBmr, calculatedTdee: freshTdee } = calculateMifflinStJeor(
+      gender,
+      safeCurrentWeight,
+      safeHeight,
+      safeAge,
+      safeActivity
+    );
+
     setSaving(true);
     try {
-      await saveUserProfile(currentUser.uid, {
+      const updatedProfile: UserProfile = {
         gender,
-        age: Number(age),
-        heightCm: Number(heightCm),
-        currentWeightKg: Number(currentWeightKg),
-        targetWeightKg: Number(targetWeightKg),
-        activityMultiplier: Number(activityMultiplier),
+        age: safeAge,
+        heightCm: safeHeight,
+        currentWeightKg: safeCurrentWeight,
+        targetWeightKg: safeTargetWeight,
+        activityMultiplier: safeActivity,
         experienceLevel,
-        calculatedTdee,
-        bmr,
-        equipment: selectedEquipment,
+        calculatedTdee: Number(freshTdee),
+        bmr: Number(freshBmr),
+        equipment: selectedEquipment.length > 0 ? selectedEquipment : ['None'],
         onboardingCompleted: true,
-      });
+      };
+
+      await saveUserProfile(currentUser.uid, updatedProfile);
+
+      // Local state confirmation
+      setProfile(updatedProfile);
+      setAge(safeAge);
+      setHeightCm(safeHeight);
+      setCurrentWeightKg(safeCurrentWeight);
+      setTargetWeightKg(safeTargetWeight);
+      setActivityMultiplier(safeActivity);
 
       setIsEditing(false);
       showToast('Profile and equipment updated successfully!');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to update profile:', err);
-      showToast('Error updating profile. Please try again.');
+      const msg = err instanceof Error ? err.message : 'Error writing to Firestore. Please check your connection and security rules.';
+      setErrorMessage(msg);
+      showToast('Failed to save profile changes. See error details.');
     } finally {
       setSaving(false);
     }
@@ -164,10 +271,19 @@ export const Profile: React.FC = () => {
     return 'Extremely Active (Heavy Labor / 2x Training)';
   };
 
+  // Loading spinner while fetching data from Firestore
   if (loading) {
     return (
-      <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
-        Syncing athlete profile from Firestore...
+      <div className="min-h-[450px] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-4 shadow-sm">
+          <Loader2 className="w-7 h-7 text-emerald-500 animate-spin" />
+        </div>
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+          Loading Profile...
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+          Connecting to Cloud Firestore and initializing biometric baseline...
+        </p>
       </div>
     );
   }
@@ -179,6 +295,29 @@ export const Profile: React.FC = () => {
         <div className="fixed top-5 right-5 z-50 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 font-bold text-xs shadow-2xl flex items-center gap-2.5 border border-emerald-500/40 animate-fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 flex-shrink-0" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Inline Error Alert Banner */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex items-start gap-3 text-xs shadow-sm animate-fade-in">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-bold text-sm text-rose-900 dark:text-rose-100 flex items-center gap-1.5">
+              <span>Profile Update Error</span>
+            </div>
+            <p className="text-rose-700 dark:text-rose-300 leading-relaxed">
+              {errorMessage}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="p-1 text-rose-500 hover:text-rose-800 dark:hover:text-rose-200 rounded-lg transition"
+            title="Dismiss error"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -223,7 +362,7 @@ export const Profile: React.FC = () => {
                 type="button"
                 onClick={handleCancelEdit}
                 disabled={saving}
-                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition"
+                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition"
               >
                 <X className="w-4 h-4" />
                 <span>Cancel</span>
@@ -233,16 +372,28 @@ export const Profile: React.FC = () => {
                 type="button"
                 onClick={handleSaveProfile}
                 disabled={saving}
-                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/25 transition active:scale-[0.98]"
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/25 transition active:scale-[0.98]"
               >
-                <Check className="w-4 h-4 stroke-[3]" />
-                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Save Changes</span>
+                  </>
+                )}
               </button>
             </>
           ) : (
             <button
               type="button"
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                setErrorMessage(null);
+                setIsEditing(true);
+              }}
               className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition active:scale-[0.98]"
             >
               <Edit2 className="w-4 h-4" />
@@ -368,7 +519,10 @@ export const Profile: React.FC = () => {
 
           {!isEditing && (
             <button
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                setErrorMessage(null);
+                setIsEditing(true);
+              }}
               className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1"
             >
               <span>Edit Metrics</span>
@@ -391,8 +545,8 @@ export const Profile: React.FC = () => {
                   onClick={() => setGender('male')}
                   className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition flex items-center justify-between ${
                     gender === 'male'
-                      ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-950 dark:text-emerald-300 shadow-sm'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   <span>Male</span>
@@ -406,8 +560,8 @@ export const Profile: React.FC = () => {
                   onClick={() => setGender('female')}
                   className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition flex items-center justify-between ${
                     gender === 'female'
-                      ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-950 dark:text-emerald-300 shadow-sm'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   <span>Female</span>
@@ -427,10 +581,14 @@ export const Profile: React.FC = () => {
                 <input
                   type="number"
                   min="14"
-                  max="95"
-                  value={age}
-                  onChange={(e) => setAge(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  max="120"
+                  value={age === 0 ? '' : age}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                    setAge(isNaN(val) ? 0 : val);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-sm"
+                  placeholder="e.g. 25"
                 />
               </div>
 
@@ -440,11 +598,16 @@ export const Profile: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min="120"
-                  max="230"
-                  value={heightCm}
-                  onChange={(e) => setHeightCm(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  min="100"
+                  max="250"
+                  step="0.5"
+                  value={heightCm === 0 ? '' : heightCm}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    setHeightCm(isNaN(val) ? 0 : val);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-sm"
+                  placeholder="e.g. 175"
                 />
               </div>
             </div>
@@ -457,12 +620,16 @@ export const Profile: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min="35"
-                  max="200"
-                  step="0.5"
-                  value={currentWeightKg}
-                  onChange={(e) => setCurrentWeightKg(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  min="30"
+                  max="300"
+                  step="0.1"
+                  value={currentWeightKg === 0 ? '' : currentWeightKg}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    setCurrentWeightKg(isNaN(val) ? 0 : val);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-sm"
+                  placeholder="e.g. 75.0"
                 />
               </div>
 
@@ -472,12 +639,16 @@ export const Profile: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min="35"
-                  max="200"
-                  step="0.5"
-                  value={targetWeightKg}
-                  onChange={(e) => setTargetWeightKg(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  min="30"
+                  max="300"
+                  step="0.1"
+                  value={targetWeightKg === 0 ? '' : targetWeightKg}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    setTargetWeightKg(isNaN(val) ? 0 : val);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-sm"
+                  placeholder="e.g. 75.0"
                 />
               </div>
             </div>
@@ -501,13 +672,13 @@ export const Profile: React.FC = () => {
                     onClick={() => setActivityMultiplier(act.mult)}
                     className={`p-3 rounded-xl border text-left transition ${
                       activityMultiplier === act.mult
-                        ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-950 dark:text-emerald-200'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-bold">{act.title}</span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                         {act.mult}x
                       </span>
                     </div>
@@ -548,8 +719,8 @@ export const Profile: React.FC = () => {
                     onClick={() => setExperienceLevel(exp.level)}
                     className={`p-3.5 rounded-2xl border text-left transition ${
                       experienceLevel === exp.level
-                        ? 'bg-teal-50 dark:bg-teal-500/15 border-teal-500 text-teal-950 dark:text-teal-200 shadow-sm'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                        ? 'bg-teal-50 dark:bg-teal-500/15 border-teal-500 text-teal-950 dark:text-teal-100 font-bold shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <span className="text-xs font-black uppercase tracking-wider block mb-1">
@@ -687,7 +858,10 @@ export const Profile: React.FC = () => {
 
           {!isEditing && (
             <button
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                setErrorMessage(null);
+                setIsEditing(true);
+              }}
               className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start sm:self-auto"
             >
               <span>Edit Equipment</span>
@@ -727,7 +901,7 @@ export const Profile: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => toggleCategory(categoryItems)}
-                      className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition"
                     >
                       {allSelected ? 'Deselect Category' : 'Select All'}
                     </button>
@@ -746,7 +920,7 @@ export const Profile: React.FC = () => {
                           key={item}
                           className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${
                             isSelected
-                              ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200 font-semibold'
+                              ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-500/40 text-emerald-950 dark:text-emerald-200 font-semibold'
                               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800/80 text-slate-400 opacity-60'
                           }`}
                         >
@@ -756,7 +930,7 @@ export const Profile: React.FC = () => {
                       );
                     }
 
-                    // EDIT MODE: Checkable buttons
+                    // EDIT MODE: Checkable buttons with high-contrast borders & text
                     return (
                       <button
                         key={item}
@@ -765,7 +939,7 @@ export const Profile: React.FC = () => {
                         className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition text-left ${
                           isSelected
                             ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-500 shadow-sm'
-                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-600'
                         }`}
                       >
                         <span className="truncate">{item}</span>
@@ -773,7 +947,7 @@ export const Profile: React.FC = () => {
                           className={`w-4 h-4 rounded flex items-center justify-center border transition ${
                             isSelected
                               ? 'bg-slate-950 border-slate-950 text-white'
-                              : 'border-slate-300 dark:border-slate-700'
+                              : 'border-slate-300 dark:border-slate-600'
                           }`}
                         >
                           {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -791,7 +965,7 @@ export const Profile: React.FC = () => {
         {isEditing && (
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3">
             <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-emerald-500" />
+              <Info className="w-4 h-4 text-emerald-500 flex-shrink-0" />
               <span>Saving updates your baseline TDEE and workouts in Firestore.</span>
             </span>
 
@@ -799,7 +973,8 @@ export const Profile: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                disabled={saving}
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 Cancel
               </button>
@@ -807,9 +982,19 @@ export const Profile: React.FC = () => {
                 type="button"
                 onClick={handleSaveProfile}
                 disabled={saving}
-                className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md shadow-emerald-500/20"
+                className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 text-xs font-bold shadow-md shadow-emerald-500/20 flex items-center gap-2 transition"
               >
-                {saving ? 'Saving...' : 'Save Profile & Inventory'}
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Save Profile & Inventory</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
