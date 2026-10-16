@@ -1,6 +1,17 @@
 import React from 'react';
 import type { TamilDateInfo } from '../../utils/tamilCalendar';
 
+// Authentic, verified sacred image assets
+import muruganImg from '../../assets/calendar/murugan.jpg';
+import shivaratriImg from '../../assets/calendar/shivaratri.jpg';
+import pradoshamImg from '../../assets/calendar/pradosham.jpg';
+import natarajarImg from '../../assets/calendar/natarajar.jpg';
+import ganeshaImg from '../../assets/calendar/ganesha.jpg';
+import vishnuImg from '../../assets/calendar/vishnu.jpg';
+import pournamiImg from '../../assets/calendar/pournami.jpg';
+import amavasaiImg from '../../assets/calendar/amavasai.jpg';
+import diyaImg from '../../assets/calendar/diya.jpg';
+
 export type ThumbnailType =
   | 'amavasai'
   | 'pournami'
@@ -21,29 +32,29 @@ export interface CalendarThumbnailInfo {
 }
 
 /**
- * Verified high-definition public CDN image URLs for Tamil sacred events,
- * festivals, and celestial phases.
+ * Authentic, verified sacred image mappings for Tamil sacred events,
+ * festivals, and celestial phases. Bundled directly for instant 0ms offline loading.
  */
 export const SACRED_IMAGE_URLS: Record<ThumbnailType, string> = {
-  // Lord Murugan with Vel & Peacock (authentic temple deity & Vel sculpture)
-  murugan: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=160&q=80',
-  // Maha Shivaratri: Lord Shiva / Lingam / Adi Yogi in meditation with divine aura
-  shivaratri: 'https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?auto=format&fit=crop&w=160&q=80',
-  shiva: 'https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?auto=format&fit=crop&w=160&q=80',
-  // Pradosham: Lord Shiva's sacred vehicle Nandhi (seated bull facing the shrine)
-  pradosham: 'https://images.unsplash.com/photo-1544717302-de2939b7ef71?auto=format&fit=crop&w=160&q=80',
-  // Arudra Darshanam: Lord Nataraja cosmic dance bronze sculpture
-  natarajar: 'https://images.unsplash.com/photo-1608889825205-eebdb9fc5806?auto=format&fit=crop&w=160&q=80',
+  // Lord Murugan with Vel & Peacock (authentic Batu Caves golden Murugan statue & Vel)
+  murugan: muruganImg,
+  // Maha Shivaratri: Authentic sacred black stone Shiva Lingam with Vibhuti Tripundra & Kumkum
+  shivaratri: shivaratriImg,
+  shiva: shivaratriImg,
+  // Pradosham: Sacred Nandi Bull at Brihadisvara Temple facing Shiva sanctum
+  pradosham: pradoshamImg,
+  // Arudra Darshanam: Lord Nataraja cosmic dance Chola bronze sculpture
+  natarajar: natarajarImg,
   // Pournami: Radiant glowing Full Moon photograph
-  pournami: 'https://images.unsplash.com/photo-1532693322450-2cb5c511067d?auto=format&fit=crop&w=160&q=80',
+  pournami: pournamiImg,
   // Amavasai: Dark celestial New Moon crescent over deep sky
-  amavasai: 'https://images.unsplash.com/photo-1532767153582-b1a0e5145009?auto=format&fit=crop&w=160&q=80',
-  // Vinayagar Chaturthi: Lord Ganesha festive idol
-  ganesha: 'https://images.unsplash.com/photo-1606214174585-fe31582dc6ee?auto=format&fit=crop&w=160&q=80',
-  // Deepavali / Karthigai Deepam: Traditional brass Diya oil lamp flame
-  diya: 'https://images.unsplash.com/photo-1605647540924-852290f6b0d5?auto=format&fit=crop&w=160&q=80',
-  // Lord Vishnu / Perumal / Venkateswara Thiruman & Shankha-Chakra
-  vishnu: 'https://images.unsplash.com/photo-1617478755490-e21232a5eeaf?auto=format&fit=crop&w=160&q=80',
+  amavasai: amavasaiImg,
+  // Vinayagar Chaturthi: Lord Ganesha festive idol with garlands & red canopy
+  ganesha: ganeshaImg,
+  // Deepavali / Karthigai Deepam: Traditional terracotta clay Diya oil lamp flame
+  diya: diyaImg,
+  // Lord Vishnu / Perumal: Authentic Lord Vishnu Chola bronze with Sudarshana Chakra & Shankha
+  vishnu: vishnuImg,
 };
 
 /**
