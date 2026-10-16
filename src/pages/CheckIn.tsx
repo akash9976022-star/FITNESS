@@ -947,7 +947,7 @@ export const CheckIn: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   {/* Resting Heart Rate */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                       <Heart className="w-3 h-3 text-rose-500" />
                       <span>Resting HR (BPM)</span>
                     </label>
@@ -966,7 +966,7 @@ export const CheckIn: React.FC = () => {
 
                   {/* Sleep Duration */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                       <Moon className="w-3 h-3 text-indigo-400" />
                       <span>Sleep Duration (Hrs)</span>
                     </label>
@@ -988,7 +988,7 @@ export const CheckIn: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   {/* Energy / Fatigue Level */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                       <BatteryCharging className="w-3 h-3 text-amber-500" />
                       <span>Energy Level</span>
                     </label>
@@ -1016,7 +1016,7 @@ export const CheckIn: React.FC = () => {
 
                   {/* Daily Steps */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                       <Footprints className="w-3 h-3 text-teal-500" />
                       <span>Today's Steps</span>
                     </label>

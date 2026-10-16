@@ -149,7 +149,7 @@ export const PanchangamCard: React.FC<PanchangamCardProps> = ({ dayInfo, classNa
             {/* Chandrashtamam Advisory Pill */}
             <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/20 flex items-center justify-between shadow-xs">
               <div>
-                <span className="font-bold text-amber-700 dark:text-amber-400 block flex items-center gap-1">
+                <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
                   <ShieldAlert className="w-3 h-3" />
                   <span>சந்திராஷ்டமம் (Chandrashtamam)</span>
                 </span>
