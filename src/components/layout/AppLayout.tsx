@@ -24,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getPlatform, isNativeApp } from '../../utils/platform';
 import LiveAnimatedBackground from '../common/LiveAnimatedBackground';
+import AlarmManager from '../alarm/AlarmManager';
 
 interface NavItem {
   name: string;
@@ -75,6 +76,9 @@ export const AppLayout: React.FC = () => {
     <div className="flex h-screen w-full bg-slate-50/70 dark:bg-slate-950/70 text-slate-900 dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
       {/* Live Animated Background */}
       <LiveAnimatedBackground />
+
+      {/* Global Heavy-Sleeper Alarm & Dual-Language Speech Briefing Manager */}
+      <AlarmManager />
 
       {/* ================= DESKTOP SIDEBAR ================= */}
       <aside className="hidden md:flex flex-col w-64 lg:w-72 border-r border-slate-200/90 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex-shrink-0 select-none shadow-sm z-30">
@@ -269,11 +273,12 @@ export const AppLayout: React.FC = () => {
             </div>
 
             <button
-              onClick={() => navigate('/settings')}
-              className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-              title="Notifications & Settings"
+              onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition shadow-sm text-xs font-bold"
+              title="6:00 AM Max-Volume Alarm & Video Songs Library"
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-3.5 h-3.5 fill-current text-amber-500 animate-pulse" />
+              <span className="hidden sm:inline">Alarm & Songs</span>
             </button>
 
             {/* User Avatar Chip */}

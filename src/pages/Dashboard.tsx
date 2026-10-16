@@ -22,6 +22,8 @@ import {
   Moon,
   BatteryCharging,
   Timer,
+  Bell,
+  Video,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -286,6 +288,55 @@ export const Dashboard: React.FC = () => {
             >
               <span>Edit Inventory & Profile</span>
               <ArrowUpRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Heavy-Sleeper Max-Volume Alarm & Dual-Language Voice Briefing Card */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 border border-amber-300 dark:border-amber-500/30 p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400">
+              <Bell className="w-6 h-6 animate-bounce" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase text-amber-700 dark:text-amber-400 tracking-wider">
+                  Heavy-Sleeper Protocol
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
+                  Dual-Language: English ➔ தமிழ்
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                6:00 AM Max-Volume Alarm & Oral Briefing
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl">
+                Plays Tibetan singing bowl or selected video song at max volume (100%), followed by 5-pillar English & Tamil speech briefing and continuous devotional audio (கந்த சஷ்டி கவசம் & சிவபுராணம்).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Select custom video songs and adjust wake-up time"
+            >
+              <Video className="w-4 h-4 text-emerald-500" />
+              <span>Alarm & Songs</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_TEST_ALARM'))}
+              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition transform active:scale-95"
+              title="Test the complete alarm, speech briefing, and devotional playback sequence"
+            >
+              <Bell className="w-4 h-4 fill-current" />
+              <span>TEST ALARM & BRIEFING</span>
             </button>
           </div>
         </div>

@@ -51,6 +51,9 @@ service cloud.firestore {
     // Subcollection: users/{userId}/custom_festivals/{festivalId}
     //   - Custom festivals, fasting days, and cultural observances
     //
+    // Subcollection: users/{userId}/alarm_videos/{videoId}
+    //   - Custom alarm video songs and wake-up media
+    //
     // ===============================================================
 
     // Helper Functions
@@ -109,6 +112,11 @@ service cloud.firestore {
 
       // Subcollection: Custom Festivals & Fasting Days
       match /custom_festivals/{festivalId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Custom Alarm Video Songs
+      match /alarm_videos/{videoId} {
         allow read, write: if isOwner(userId);
       }
     }

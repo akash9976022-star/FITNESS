@@ -1942,5 +1942,179 @@ export const deleteCustomFestival = async (
   await deleteDoc(docRef);
 };
 
+/* ==================== CUSTOM ALARM VIDEO SONGS & SETTINGS ==================== */
+
+export interface AlarmVideoItem {
+  id: string;
+  title: string;
+  artistOrDeity?: string;
+  videoUrl: string;
+  videoType: 'direct' | 'youtube' | 'upload';
+  isDefault?: boolean;
+  duration?: string;
+  thumbnailUrl?: string;
+  createdAt?: unknown;
+}
+
+export interface UserAlarmSettings {
+  enabled: boolean;
+  time: string; // '06:00'
+  maxVolume: boolean;
+  selectedVideoId: string | null;
+  selectedRasi: string;
+  playDevotionals: boolean;
+  backgroundMusicVolume: number; // 0.0 - 1.0
+  lastDismissedDate?: string; // YYYY-MM-DD
+}
+
+export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
+  enabled: true,
+  time: '06:00',
+  maxVolume: true,
+  selectedVideoId: 'murugan-kavasam-video',
+  selectedRasi: 'mesham',
+  playDevotionals: true,
+  backgroundMusicVolume: 0.15,
+};
+
+/**
+ * Subscribes to custom alarm videos stored at users/{userId}/alarm_videos
+ */
+export const subscribeAlarmVideos = (
+  userId: string,
+  callback: (videos: AlarmVideoItem[]) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback([]);
+    return () => {};
+  }
+
+  const videosRef = collection(db, 'users', userId, 'alarm_videos');
+  const q = query(videosRef, orderBy('createdAt', 'desc'));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: AlarmVideoItem[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<AlarmVideoItem, 'id'>),
+      }));
+      callback(items);
+    },
+    (err) => {
+      console.warn('Alarm videos snapshot notice:', err);
+      callback([]);
+    }
+  );
+};
+
+/**
+ * Adds a new custom alarm video to users/{userId}/alarm_videos
+ */
+export const addAlarmVideo = async (
+  userId: string,
+  video: Omit<AlarmVideoItem, 'id' | 'createdAt'>
+): Promise<string | null> => {
+  if (!db || !userId) return null;
+  const videosRef = collection(db, 'users', userId, 'alarm_videos');
+  const docRef = await addDoc(videosRef, {
+    ...video,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+/**
+ * Deletes a custom alarm video from users/{userId}/alarm_videos
+ */
+export const deleteAlarmVideo = async (
+  userId: string,
+  videoId: string
+): Promise<void> => {
+  if (!db || !userId || !videoId) return;
+  const docRef = doc(db, 'users', userId, 'alarm_videos', videoId);
+  await deleteDoc(docRef);
+};
+
+/**
+ * Subscribes in real-time to user's alarm settings stored at users/{userId}/data/alarm_settings
+ */
+export const subscribeAlarmSettings = (
+  userId: string,
+  callback: (settings: UserAlarmSettings) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    const cached = localStorage.getItem(`fit_alarm_settings_${userId}`);
+    if (cached) {
+      try {
+        callback({ ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(cached) });
+      } catch {
+        callback(DEFAULT_ALARM_SETTINGS);
+      }
+    } else {
+      callback(DEFAULT_ALARM_SETTINGS);
+    }
+    return () => {};
+  }
+
+  const settingsDocRef = doc(db, 'users', userId, 'data', 'alarm_settings');
+
+  return onSnapshot(
+    settingsDocRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as UserAlarmSettings;
+        const merged = { ...DEFAULT_ALARM_SETTINGS, ...data };
+        localStorage.setItem(`fit_alarm_settings_${userId}`, JSON.stringify(merged));
+        callback(merged);
+      } else {
+        const cached = localStorage.getItem(`fit_alarm_settings_${userId}`);
+        if (cached) {
+          try {
+            callback({ ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(cached) });
+            return;
+          } catch {
+            // Ignored
+          }
+        }
+        callback(DEFAULT_ALARM_SETTINGS);
+      }
+    },
+    (err) => {
+      console.warn('Alarm settings snapshot notice:', err);
+      const cached = localStorage.getItem(`fit_alarm_settings_${userId}`);
+      if (cached) {
+        try {
+          callback({ ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(cached) });
+          return;
+        } catch {
+          // Ignored
+        }
+      }
+      callback(DEFAULT_ALARM_SETTINGS);
+    }
+  );
+};
+
+/**
+ * Saves alarm settings to users/{userId}/data/alarm_settings
+ */
+export const saveAlarmSettings = async (
+  userId: string,
+  settings: Partial<UserAlarmSettings>
+): Promise<void> => {
+  if (!userId) return;
+  // Always update local cache instantly
+  const cached = localStorage.getItem(`fit_alarm_settings_${userId}`);
+  const current = cached ? JSON.parse(cached) : DEFAULT_ALARM_SETTINGS;
+  const updated = { ...current, ...settings };
+  localStorage.setItem(`fit_alarm_settings_${userId}`, JSON.stringify(updated));
+
+  if (!db) return;
+  const settingsDocRef = doc(db, 'users', userId, 'data', 'alarm_settings');
+  await setDoc(settingsDocRef, updated, { merge: true });
+};
+
+
 
 
