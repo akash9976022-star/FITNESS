@@ -39,3 +39,37 @@ export async function uploadCheckInPhoto(
   });
 }
 
+/**
+ * Uploads a user custom alarm video (.mp4 or video/*) to Firebase Storage.
+ * Falls back to Data URL if storage is unconfigured.
+ */
+export async function uploadAlarmVideo(
+  userId: string,
+  videoFile: File,
+  fileName?: string
+): Promise<string> {
+  const sanitizedName = (fileName || videoFile.name || `${Date.now()}_alarm.mp4`).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `users/${userId}/alarm_videos/${sanitizedName}`;
+
+  if (storage) {
+    try {
+      const storageRef = ref(storage, storagePath);
+      const snapshot = await uploadBytes(storageRef, videoFile, {
+        contentType: videoFile.type || 'video/mp4',
+      });
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+      return downloadUrl;
+    } catch (storageError) {
+      console.warn('Firebase Storage video upload fallback:', storageError);
+    }
+  }
+
+  // Graceful fallback to Data URL
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(videoFile);
+  });
+}
+

@@ -349,10 +349,10 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Soft Background Ambient Notice */}
+                  {/* Pure Speech Notice */}
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                    <Music className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Soft instrumental Tanpura ambience playing at 20% volume underneath speech.</span>
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Pure voice briefing audio • Clear speech synthesis (No background music).</span>
                   </div>
                 </div>
               )}

@@ -83,78 +83,8 @@ export const DEVOTIONAL_TRACKS: DevotionalTrack[] = [
 
 /* ==================== 2. PRELOADED ALARM VIDEO SONGS ==================== */
 
-export const PRELOADED_ALARM_VIDEOS: PreloadedAlarmVideo[] = [
-  {
-    id: 'local-kandhasashti-mp3',
-    title: 'Kanda Sashti Kavasam (Local Audio Master)',
-    artistOrDeity: 'Lord Murugan (கந்த சஷ்டி கவசம்)',
-    videoUrl: '/audio/devotional/kanda_sashti_kavacham.mp3',
-    embedUrl: '/audio/devotional/kanda_sashti_kavacham.mp3',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
-    duration: '21:30',
-    category: 'Devotional',
-  },
-  {
-    id: 'local-sivapuranam-mp3',
-    title: 'Sivapuranam SPB (Local Audio Master)',
-    artistOrDeity: 'Lord Shiva (சிவபுராணம் - எஸ்.பி. பாலசுப்பிரமணியம்)',
-    videoUrl: '/audio/devotional/sivapuranam_spb.mp3',
-    embedUrl: '/audio/devotional/sivapuranam_spb.mp3',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80',
-    duration: '16:45',
-    category: 'Devotional',
-  },
-  {
-    id: 'murugan-kavasam-video',
-    title: 'Kanda Sashti Kavasam - Full Visual Chants',
-    artistOrDeity: 'Lord Murugan (கந்தவேள்)',
-    videoUrl: 'https://www.youtube.com/watch?v=kYJ5bQx9xGE',
-    embedUrl: 'https://www.youtube-nocookie.com/embed/kYJ5bQx9xGE?autoplay=1&enablejsapi=1&rel=0',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
-    duration: '21:30',
-    category: 'Devotional',
-  },
-  {
-    id: 'sivapuranam-chants-video',
-    title: 'Sivapuranam - Divine Morning Thiruvasagam',
-    artistOrDeity: 'Lord Shiva (சிவபெருமான்)',
-    videoUrl: 'https://www.youtube.com/watch?v=OmsF2_4XWps',
-    embedUrl: 'https://www.youtube-nocookie.com/embed/OmsF2_4XWps?autoplay=1&enablejsapi=1&rel=0',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80',
-    duration: '16:45',
-    category: 'Devotional',
-  },
-  {
-    id: 'suprabhatam-ms-video',
-    title: 'Sri Venkateswara Suprabhatam - M.S. Subbulakshmi',
-    artistOrDeity: 'Lord Venkateswara (ஸ்ரீ வெங்கடேஸ்வரா)',
-    videoUrl: 'https://www.youtube.com/watch?v=FqjU0nI6G90',
-    embedUrl: 'https://www.youtube-nocookie.com/embed/FqjU0nI6G90?autoplay=1&enablejsapi=1&rel=0',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80',
-    duration: '20:15',
-    category: 'Devotional',
-  },
-  {
-    id: 'vinayagar-agaval-video',
-    title: 'Vinayagar Agaval - Morning Awakening Energy',
-    artistOrDeity: 'Lord Ganesha (விநாயகர்)',
-    videoUrl: 'https://www.youtube.com/watch?v=7uK3X8l1t-4',
-    embedUrl: 'https://www.youtube-nocookie.com/embed/7uK3X8l1t-4?autoplay=1&enablejsapi=1&rel=0',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&q=80',
-    duration: '12:00',
-    category: 'Devotional',
-  },
-  {
-    id: 'tibetan-bowls-432hz-video',
-    title: 'Tibetan Singing Bowls & Sunrise - 432Hz Sound Bath',
-    artistOrDeity: 'Deep Awakening & Clarity',
-    videoUrl: 'https://www.youtube.com/watch?v=P2oB_j5p6wM',
-    embedUrl: 'https://www.youtube-nocookie.com/embed/P2oB_j5p6wM?autoplay=1&enablejsapi=1&rel=0',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=600&q=80',
-    duration: '15:00',
-    category: 'Meditation',
-  },
-];
+// 100% User-Uploaded Alarm Video Library: No pre-imported, mock, or default video songs
+export const PRELOADED_ALARM_VIDEOS: PreloadedAlarmVideo[] = [];
 
 /**
  * Normalizes any video link (YouTube or direct URL) into an embeddable URL
@@ -288,97 +218,19 @@ export const tibetanBowlSynth = new TibetanBowlSynthesizer();
 /* ==================== 4. AMBIENT BACKGROUND INSTRUMENTAL SYNTHESIZER ==================== */
 
 class AmbientBackgroundMusicEngine {
-  private ctx: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private oscillators: OscillatorNode[] = [];
-  private isPlaying: boolean = false;
-
-  private getAudioContext(): AudioContext {
-    if (!this.ctx || this.ctx.state === 'closed') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtx();
-    }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
-    return this.ctx;
-  }
-
   /**
-   * Generates a warm, meditative morning Tanpura / drone chord (C# - G# - C# - F)
-   * filtered with gentle resonance to accompany speech briefing without overwhelming it.
+   * Background music completely removed as per requirement for pure speech only.
    */
-  public start(volume: number = 0.20) {
-    if (this.isPlaying) return;
-    try {
-      const ctx = this.getAudioContext();
-      const now = ctx.currentTime;
-
-      this.masterGain = ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.0001, now);
-      // Gentle 2-second fade-in to soft background volume (0.20)
-      this.masterGain.gain.linearRampToValueAtTime(Math.min(0.35, volume), now + 2.0);
-      this.masterGain.connect(ctx.destination);
-
-      // Low pass filter to keep sound soft and soothing under speech
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(450, now);
-      filter.Q.setValueAtTime(1.5, now);
-      filter.connect(this.masterGain);
-
-      // Notes: C#3 (138.59 Hz), G#3 (207.65 Hz), C#4 (277.18 Hz), F4 (349.23 Hz)
-      const freqs = [138.59, 207.65, 277.18, 349.23];
-
-      this.oscillators = freqs.map((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = i % 2 === 0 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(freq, now);
-        // Micro-detune for warm acoustic flutter
-        osc.detune.setValueAtTime((i - 1.5) * 4, now);
-
-        gain.gain.setValueAtTime(0.25, now);
-        osc.connect(gain);
-        gain.connect(filter);
-
-        osc.start(now);
-        return osc;
-      });
-
-      this.isPlaying = true;
-    } catch (e) {
-      console.warn('Ambient background music init notice:', e);
-    }
+  public start(_volume: number = 0.20) {
+    // Pure speech only: Background ambient music removed completely.
   }
 
-  public fadeOutAndStop(durationMs: number = 1500) {
-    if (!this.isPlaying || !this.masterGain || !this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const durationSec = durationMs / 1000;
-      this.masterGain.gain.linearRampToValueAtTime(0.0001, now + durationSec);
-
-      setTimeout(() => {
-        this.oscillators.forEach((osc) => {
-          try {
-            osc.stop();
-          } catch {
-            // Ignored
-          }
-        });
-        this.oscillators = [];
-        this.isPlaying = false;
-      }, durationMs);
-    } catch (e) {
-      console.warn('Fadeout error:', e);
-      this.isPlaying = false;
-    }
+  public fadeOutAndStop(_durationMs: number = 1500) {
+    // Pure speech only
   }
 
   public stop() {
-    this.fadeOutAndStop(300);
+    // Pure speech only
   }
 }
 
@@ -694,9 +546,7 @@ class SpeechBriefingEngine {
     this.isSpeaking = true;
     this.isCancelled = false;
 
-    // Start soothing background ambient Tanpura drone at volume 0.20
-    ambientMusicEngine.start(0.20);
-
+    // Pure speech only - background music completely disabled as requested
     try {
       interface SpeechStep {
         sectionIndex: number;
@@ -804,9 +654,6 @@ class SpeechBriefingEngine {
       if (callbacks?.onError) callbacks.onError(err);
     } finally {
       this.isSpeaking = false;
-      // Fade out background ambient music
-      ambientMusicEngine.fadeOutAndStop(1200);
-
       if (!this.isCancelled && callbacks?.onAllComplete) {
         callbacks.onAllComplete();
       }

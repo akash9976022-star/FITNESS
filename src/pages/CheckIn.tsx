@@ -22,6 +22,7 @@ import {
   Droplets,
   Sun,
   Apple,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -57,11 +58,10 @@ import {
 } from '../services/firestoreService';
 import { uploadCheckInPhoto } from '../services/storageService';
 import {
-  fileToBase64,
+  handleImageUploadAndCompression,
+  dataUrlToFile,
   analyzePhysiqueImage,
   isGeminiConfigured,
-  compressImage,
-  type Base64ImagePart,
 } from '../services/geminiService';
 import GhostOverlayCamera from '../components/camera/GhostOverlayCamera';
 import BadgeUnlockModal from '../components/rewards/BadgeUnlockModal';
@@ -86,22 +86,24 @@ export const CheckIn: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Morning Check-In Form State
+  // Morning Check-In Form State (Streamlined: Weight, Photo, Fasting, Experience, Energy)
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [checkInDate, setCheckInDate] = useState<string>(getTodayDateString());
   const [morningWeight, setMorningWeight] = useState<number>(70);
-  const [fatigueRating, setFatigueRating] = useState<number>(4); // 1-5
-  const [sorenessNotes, setSorenessNotes] = useState<string>('');
-  const [restingHeartRate, setRestingHeartRate] = useState<number | ''>(68);
-  const [sleepHours, setSleepHours] = useState<number | ''>(7.5);
+  const [experienceLevel, setExperienceLevel] = useState<'beginner' | 'intermediate' | 'pro'>('intermediate');
   const [energyLevel, setEnergyLevel] = useState<'low' | 'moderate' | 'high'>('moderate');
+  const [fatigueRating, setFatigueRating] = useState<number>(4); // 1-5 readiness
   const [observingFast, setObservingFast] = useState<FastingType>('none');
   const [fastingNotes, setFastingNotes] = useState<string>('');
+  const [sorenessNotes, setSorenessNotes] = useState<string>('');
   const [checkInPhotoBlob, setCheckInPhotoBlob] = useState<Blob | File | null>(null);
   const [checkInPhotoPreview, setCheckInPhotoPreview] = useState<string | null>(null);
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
+  const [aiAnalysisPreview, setAiAnalysisPreview] = useState<AiPhysiqueAnalysis | null>(null);
   const [runAiAnalysis, setRunAiAnalysis] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // End-of-Day Review & Steps Form State
   const [endOfDayDate, setEndOfDayDate] = useState<string>(getTodayDateString());
@@ -146,6 +148,9 @@ export const CheckIn: React.FC = () => {
       if (prof?.currentWeightKg && checkIns.length === 0) {
         setMorningWeight(prof.currentWeightKg);
       }
+      if (prof?.experienceLevel) {
+        setExperienceLevel(prof.experienceLevel);
+      }
     });
 
     const unsubStreak = subscribeUserStreak(currentUser.uid, (streakData) => {
@@ -183,68 +188,91 @@ export const CheckIn: React.FC = () => {
     };
   }, [currentUser?.uid]);
 
-  // Handle Photo Capture from Ghost Overlay Camera
-  const handlePhotoCaptured = (blob: Blob) => {
-    setCheckInPhotoBlob(blob);
-    setCheckInPhotoPreview(URL.createObjectURL(blob));
-    setShowCamera(false);
+  // Process and analyze photo immediately upon capture/upload
+  const processAndAnalyzePhoto = async (fileOrBlob: File | Blob) => {
+    try {
+      setIsAnalyzingPhoto(true);
+      setAiAnalysisPreview(null);
+      setStatusMessage('Compressing photo client-side & triggering Gemini AI vision...');
+
+      // 1. Client-Side Image Compression using canvas utility (max width 800px)
+      const compressedDataUrl = await handleImageUploadAndCompression(fileOrBlob);
+      const compressedFile = dataUrlToFile(compressedDataUrl, `${checkInDate}_checkin.jpg`);
+
+      setCheckInPhotoBlob(compressedFile);
+      setCheckInPhotoPreview(compressedDataUrl);
+
+      // 2. Immediately send to Gemini AI vision model
+      if (runAiAnalysis && isGeminiConfigured) {
+        try {
+          const analysis = await analyzePhysiqueImage(
+            compressedDataUrl,
+            Number(morningWeight) || 70,
+            experienceLevel
+          );
+          setAiAnalysisPreview(analysis);
+          setStatusMessage('Gemini AI body type analysis ready & attached!');
+          setTimeout(() => setStatusMessage(null), 3500);
+        } catch (aiErr) {
+          console.warn('Immediate Gemini AI analysis notice (fallback enabled):', aiErr);
+          setStatusMessage('Photo compressed. You can save your check-in.');
+          setTimeout(() => setStatusMessage(null), 3500);
+        }
+      } else {
+        setStatusMessage('Photo uploaded & compressed successfully.');
+        setTimeout(() => setStatusMessage(null), 2500);
+      }
+    } catch (err) {
+      console.error('Photo processing error:', err);
+      alert('Could not process photo. Please choose a valid image file.');
+    } finally {
+      setIsAnalyzingPhoto(false);
+    }
   };
 
-  // Submit Morning Check-In (with client-side image compression & timeout-safe AI analysis)
+  // Handle Photo Capture from Ghost Overlay Camera
+  const handlePhotoCaptured = (blob: Blob) => {
+    setShowCamera(false);
+    processAndAnalyzePhoto(blob);
+  };
+
+  // Submit Morning Check-In (Streamlined: Weight, Photo, Fasting, Experience, Energy)
   const handleSubmitCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser?.uid) return;
 
-    if (!checkInPhotoBlob) {
-      alert('Please capture or upload a check-in progress photo.');
+    if (!checkInPhotoBlob || !checkInPhotoPreview) {
+      alert('Please upload or capture a morning progress photo.');
       return;
     }
 
     setIsSubmitting(true);
-    setStatusMessage('Compressing photo for fast analysis...');
+    setStatusMessage('Saving check-in and uploading photo...');
 
     try {
-      // 1. Client-Side Image Compression: downscale to max 800px width (~150KB)
-      let compressedFile: File;
-      let compressedBase64: Base64ImagePart | null = null;
-      try {
-        const compressed = await compressImage(checkInPhotoBlob, 800, 0.82);
-        compressedFile = compressed.file;
-        compressedBase64 = compressed.base64Part;
-      } catch (compErr) {
-        console.warn('Canvas compression fallback to original photo:', compErr);
-        compressedFile =
-          checkInPhotoBlob instanceof File
-            ? checkInPhotoBlob
-            : new File([checkInPhotoBlob], 'checkin.jpg', { type: 'image/jpeg' });
-      }
-
-      // 2. Upload photo to Firebase Storage
-      setStatusMessage('Uploading photo to storage...');
+      // 1. Upload photo to Firebase Storage
       const photoUrl = await uploadCheckInPhoto(
         currentUser.uid,
-        compressedFile,
+        checkInPhotoBlob,
         `${checkInDate}_checkin.jpg`
       );
 
-      // 3. AI Body Type & Physique Analysis via Gemini AI Vision
-      let aiAnalysisResult: AiPhysiqueAnalysis | undefined = undefined;
-      if (runAiAnalysis && isGeminiConfigured) {
+      // 2. Use the already generated AI insights, or compute if not yet generated
+      let aiAnalysisResult: AiPhysiqueAnalysis | undefined = aiAnalysisPreview || undefined;
+      if (!aiAnalysisResult && runAiAnalysis && isGeminiConfigured) {
         try {
-          setStatusMessage('Analyzing symmetry & posture with Gemini AI...');
-          const base64Part = compressedBase64 || (await fileToBase64(compressedFile));
-
+          setStatusMessage('Finalizing Gemini AI physique analysis...');
           aiAnalysisResult = await analyzePhysiqueImage(
-            base64Part,
-            morningWeight,
-            userProfile?.experienceLevel || 'intermediate'
+            checkInPhotoPreview,
+            Number(morningWeight) || 70,
+            experienceLevel
           );
         } catch (aiErr) {
-          console.warn('AI Physique analysis encountered an issue (graceful fallback):', aiErr);
+          console.warn('AI analysis issue on submit:', aiErr);
         }
       }
 
-      // 4. Save to Firestore (users/{userId}/checkins/{date})
+      // 3. Save to Firestore (users/{userId}/checkins/{date}) - Zero BP
       setStatusMessage('Saving check-in to Firestore...');
       await addCheckIn(currentUser.uid, {
         date: checkInDate,
@@ -253,8 +281,6 @@ export const CheckIn: React.FC = () => {
         sorenessNotes: sorenessNotes.trim(),
         photoUrl,
         aiPhysiqueAnalysis: aiAnalysisResult,
-        restingHeartRateBpm: restingHeartRate !== '' ? Number(restingHeartRate) : undefined,
-        sleepHours: sleepHours !== '' ? Number(sleepHours) : undefined,
         energyLevel,
         isFasting: observingFast !== 'none',
         fastingType: observingFast,
@@ -266,11 +292,11 @@ export const CheckIn: React.FC = () => {
         await saveDailyFasting(currentUser.uid, checkInDate, observingFast, fastingNotes);
       }
 
-      // Automatically maintain / record consistency streak
+      // Automatically maintain consistency streak
       const updatedStreak = await recordStreakActivity(currentUser.uid, 'checkin', checkInDate);
       setUserStreak(updatedStreak);
 
-      // 5. Automatically Evaluate & Unlock Gamified Badges
+      // Evaluate and unlock gamified badges
       const updatedCheckIns: CheckInItem[] = [
         {
           id: 'temp',
@@ -279,8 +305,6 @@ export const CheckIn: React.FC = () => {
           fatigueRating: Number(fatigueRating),
           photoUrl,
           aiPhysiqueAnalysis: aiAnalysisResult,
-          restingHeartRateBpm: restingHeartRate !== '' ? Number(restingHeartRate) : undefined,
-          sleepHours: sleepHours !== '' ? Number(sleepHours) : undefined,
           energyLevel,
           isFasting: observingFast !== 'none',
           fastingType: observingFast,
@@ -300,9 +324,9 @@ export const CheckIn: React.FC = () => {
       setShowCheckInModal(false);
       setCheckInPhotoBlob(null);
       setCheckInPhotoPreview(null);
+      setAiAnalysisPreview(null);
       setSorenessNotes('');
 
-      // Show celebratory reward unlock if any
       if (unlocked.length > 0) {
         setNewlyUnlockedBadges(unlocked);
       }
@@ -1481,61 +1505,34 @@ export const CheckIn: React.FC = () => {
                 />
               </div>
 
-              {/* Vitals & Daily Movement Engine */}
+              {/* Experience Level & Energy Level */}
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
-                    <Heart className="w-3.5 h-3.5 text-rose-500" />
-                    <span>Daily Vitals & Movement Log</span>
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Recovery Tracking
-                  </span>
-                </div>
-
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Resting Heart Rate */}
+                  {/* Experience Level */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
-                      <Heart className="w-3 h-3 text-rose-500" />
-                      <span>Resting HR (BPM)</span>
+                      <Flame className="w-3 h-3 text-emerald-500" />
+                      <span>Experience Level</span>
                     </label>
-                    <input
-                      type="number"
-                      min="35"
-                      max="140"
-                      placeholder="e.g. 64"
-                      value={restingHeartRate}
-                      onChange={(e) =>
-                        setRestingHeartRate(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs"
-                    />
+                    <div className="grid grid-cols-3 gap-1">
+                      {(['beginner', 'intermediate', 'pro'] as const).map((lvl) => (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => setExperienceLevel(lvl)}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold uppercase transition ${
+                            experienceLevel === lvl
+                              ? 'bg-emerald-600 text-white shadow'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Sleep Duration */}
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
-                      <Moon className="w-3 h-3 text-indigo-400" />
-                      <span>Sleep Duration (Hrs)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="24"
-                      placeholder="e.g. 7.5"
-                      value={sleepHours}
-                      onChange={(e) =>
-                        setSleepHours(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  {/* Energy / Fatigue Level */}
+                  {/* Energy Level */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                       <BatteryCharging className="w-3 h-3 text-amber-500" />
@@ -1562,17 +1559,16 @@ export const CheckIn: React.FC = () => {
                       ))}
                     </div>
                   </div>
+                </div>
 
-                  {/* Daily Steps Moved Notice */}
-                  <div className="flex flex-col justify-center p-2 rounded-xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/40 text-[11px] text-teal-800 dark:text-teal-300">
-                    <span className="font-bold flex items-center gap-1">
-                      <Footprints className="w-3 h-3 text-teal-500" />
-                      <span>Steps Tracking:</span>
-                    </span>
-                    <span className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">
-                      Logged in End-of-Day Review
-                    </span>
-                  </div>
+                <div className="flex items-center justify-between p-2 rounded-xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/40 text-[11px] text-teal-800 dark:text-teal-300">
+                  <span className="font-bold flex items-center gap-1">
+                    <Footprints className="w-3.5 h-3.5 text-teal-500" />
+                    <span>Daily Steps Tracking</span>
+                  </span>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400">
+                    Logged in End-of-Day Review
+                  </span>
                 </div>
               </div>
 
@@ -1634,43 +1630,147 @@ export const CheckIn: React.FC = () => {
                 )}
               </div>
 
-              {/* Ghost Overlay Camera Trigger & Photo Preview */}
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-700 dark:text-slate-300">
-                  Progress Photo (Ghost Overlay Guided)
-                </label>
+              {/* Progress Photo (Upload from Device / Ghost Overlay Guided) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300">
+                    Progress Photo (Ghost Overlay or Device Upload)
+                  </label>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    Max 800px client-compressed
+                  </span>
+                </div>
+
+                {/* Hidden File Input for Device/Gallery Upload */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      await processAndAnalyzePhoto(file);
+                    }
+                  }}
+                />
 
                 {checkInPhotoPreview ? (
-                  <div className="relative rounded-2xl overflow-hidden bg-black max-h-52 flex items-center justify-center border border-slate-200 dark:border-slate-800">
-                    <img
-                      src={checkInPhotoPreview}
-                      alt="Captured preview"
-                      className="max-h-52 object-contain"
-                    />
+                  <div className="space-y-2">
+                    <div className="relative rounded-2xl overflow-hidden bg-black max-h-56 flex items-center justify-center border border-slate-200 dark:border-slate-800">
+                      <img
+                        src={checkInPhotoPreview}
+                        alt="Captured preview"
+                        className="max-h-56 object-contain"
+                      />
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-900 text-white font-bold text-[11px] backdrop-blur flex items-center gap-1 cursor-pointer transition shadow"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>Change Photo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowCamera(true)}
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white font-bold text-[11px] backdrop-blur flex items-center gap-1 cursor-pointer transition shadow"
+                        >
+                          <Camera className="w-3 h-3" />
+                          <span>Ghost Retake</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-4 rounded-2xl border-2 border-dashed border-emerald-400/40 hover:border-emerald-500 bg-emerald-50/40 dark:bg-emerald-500/5 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition text-center"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs">
+                        Upload Photo
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        From gallery / device
+                      </span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setShowCamera(true)}
-                      className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-slate-900/90 text-white font-bold text-xs backdrop-blur"
+                      className="p-4 rounded-2xl border-2 border-dashed border-teal-400/40 hover:border-teal-500 bg-teal-50/40 dark:bg-teal-500/5 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition text-center"
                     >
-                      Retake with Ghost Camera
+                      <div className="w-9 h-9 rounded-xl bg-teal-500 text-slate-950 flex items-center justify-center shadow">
+                        <Camera className="w-4 h-4" />
+                      </div>
+                      <span className="font-bold text-slate-900 dark:text-white text-xs">
+                        Ghost Camera
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Match posture silhouette
+                      </span>
                     </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowCamera(true)}
-                    className="w-full py-6 rounded-2xl border-2 border-dashed border-emerald-400/40 hover:border-emerald-500 bg-emerald-50/40 dark:bg-emerald-500/5 flex flex-col items-center justify-center gap-2 cursor-pointer transition"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
-                      <Camera className="w-5 h-5" />
+                )}
+
+                {/* Gemini AI Live Loading Indicator */}
+                {isAnalyzingPhoto && (
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3">
+                    <Sparkles className="w-5 h-5 text-emerald-500 animate-spin shrink-0" />
+                    <div>
+                      <p className="font-bold text-emerald-900 dark:text-emerald-200 text-xs">
+                        Analyzing Physique with Gemini AI...
+                      </p>
+                      <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                        Compressing photo client-side & extracting posture, frame, and recovery insights
+                      </p>
                     </div>
-                    <span className="font-bold text-slate-900 dark:text-white">
-                      Launch Ghost Overlay Camera
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Align your posture with yesterday's ghost silhouette
-                    </span>
-                  </button>
+                  </div>
+                )}
+
+                {/* Gemini AI Vision Insights Card */}
+                {aiAnalysisPreview && (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="font-bold text-slate-900 dark:text-white text-xs">
+                          Gemini AI Physique Analysis
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
+                        {aiAnalysisPreview.bodyTypeEstimate}
+                      </span>
+                    </div>
+
+                    {aiAnalysisPreview.physiqueObservations?.length > 0 && (
+                      <ul className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300">
+                        {aiAnalysisPreview.physiqueObservations.map((obs, idx) => (
+                          <li key={idx} className="flex items-start gap-1.5">
+                            <span className="text-emerald-500 font-bold">•</span>
+                            <span>{obs}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <div className="pt-1 border-t border-emerald-500/20 grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="font-bold text-slate-500 dark:text-slate-400 block">Symmetry:</span>
+                        <span className="text-slate-700 dark:text-slate-300">{aiAnalysisPreview.symmetryNotes}</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-slate-500 dark:text-slate-400 block">Autoregulation:</span>
+                        <span className="text-slate-700 dark:text-slate-300">{aiAnalysisPreview.recoveryAdjustment}</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 

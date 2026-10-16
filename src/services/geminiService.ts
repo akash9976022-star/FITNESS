@@ -274,8 +274,69 @@ export async function compressImage(
   });
 }
 
+// Reliable image compression and base64 helper
+export function handleImageUploadAndCompression(file: Blob | File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800; // Compress down to prevent AI timeouts
+        const scaleSize = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scaleSize;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(event.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Return compressed base64 string
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+}
+
 /**
- * Robust timeout and retry wrapper for Gemini API calls.
+ * Converts a base64 data URL to a standard browser File object for storage upload.
+ */
+export function dataUrlToFile(
+  dataUrl: string,
+  fileName: string = `${Date.now()}_checkin.jpg`
+): File {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], fileName, { type: mime });
+}
+
+/**
+ * Extracts pure Base64 and MIME type from Data URL or raw base64.
+ */
+export function extractBase64Part(dataUrlOrRaw: string): Base64ImagePart {
+  const commaIndex = dataUrlOrRaw.indexOf(',');
+  if (commaIndex !== -1) {
+    const mimeType = dataUrlOrRaw.substring(5, commaIndex).split(';')[0] || 'image/jpeg';
+    const data = dataUrlOrRaw.substring(commaIndex + 1);
+    return { mimeType, data };
+  }
+  return { mimeType: 'image/jpeg', data: dataUrlOrRaw };
+}
+
+/**
  * Wraps an async call in a 10-second timeout with an automatic single retry attempt before erroring.
  */
 export async function withTimeoutAndRetry<T>(
@@ -545,7 +606,7 @@ export function safeParsePhysiqueJson(rawText: string): AiPhysiqueAnalysis | nul
  * body type estimation, symmetry notes, and recovery/training volume adjustments.
  */
 export async function analyzePhysiqueImage(
-  imagePart: Base64ImagePart,
+  imagePart: Base64ImagePart | string,
   weightKg: number,
   experienceLevel: 'beginner' | 'intermediate' | 'pro' = 'intermediate'
 ): Promise<AiPhysiqueAnalysis> {
@@ -553,6 +614,8 @@ export async function analyzePhysiqueImage(
   if (!client) {
     throw new Error('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your environment.');
   }
+
+  const resolvedPart = typeof imagePart === 'string' ? extractBase64Part(imagePart) : imagePart;
 
   const prompt = `Analyze this morning physique check-in photo as an elite kinesiology biomechanist and physique coach.
 Athlete Context:
@@ -572,8 +635,8 @@ Instructions:
   const contents = [
     {
       inlineData: {
-        mimeType: imagePart.mimeType,
-        data: imagePart.data,
+        mimeType: resolvedPart.mimeType,
+        data: resolvedPart.data,
       },
     },
     { text: prompt },

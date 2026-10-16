@@ -10,8 +10,6 @@ import {
 import {
   tibetanBowlSynth,
   normalizeVideoUrl,
-  PRELOADED_ALARM_VIDEOS,
-  type PreloadedAlarmVideo,
 } from '../../utils/audioAlarmEngine';
 import type { AlarmVideoItem, UserAlarmSettings } from '../../services/firestoreService';
 import type { TamilDateInfo } from '../../utils/tamilCalendar';
@@ -35,7 +33,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
 }) => {
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   const [currentDateStr, setCurrentDateStr] = useState('');
-  const [selectedVideo, setSelectedVideo] = useState<(PreloadedAlarmVideo | AlarmVideoItem) | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<AlarmVideoItem | null>(null);
   const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -66,13 +64,6 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     const videoId = alarmSettings.selectedVideoId;
 
     if (videoId) {
-      // Check preloaded first
-      const preloaded = PRELOADED_ALARM_VIDEOS.find((v) => v.id === videoId);
-      if (preloaded) {
-        setSelectedVideo(preloaded);
-        return;
-      }
-      // Check custom
       const custom = customVideos.find((v) => v.id === videoId);
       if (custom) {
         setSelectedVideo(custom);
@@ -80,8 +71,8 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
       }
     }
 
-    // Default to first preloaded video
-    setSelectedVideo(PRELOADED_ALARM_VIDEOS[0]);
+    // Default to first user-uploaded video if available, or null (Tibetan singing bowl)
+    setSelectedVideo(customVideos[0] || null);
   }, [isOpen, alarmSettings.selectedVideoId, customVideos]);
 
   // Max-Volume Audio / Video Trigger
