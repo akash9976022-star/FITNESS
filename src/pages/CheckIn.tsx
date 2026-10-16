@@ -1410,9 +1410,10 @@ export const CheckIn: React.FC = () => {
 
       {/* ==================== DAILY CHECK-IN MODAL ==================== */}
       {showCheckInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-5 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in fade-in duration-200">
+            {/* Modal Header (Fixed at top - Never Cut Off) */}
+            <div className="px-5 sm:px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-white dark:bg-slate-900">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -1425,13 +1426,15 @@ export const CheckIn: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowCheckInModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmitCheckIn} className="space-y-4 text-xs">
+            <form onSubmit={handleSubmitCheckIn} className="flex flex-col flex-1 overflow-hidden min-h-0">
+              {/* Scrollable Form Body */}
+              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 text-xs">
               {/* Date & Morning Weight */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1835,19 +1838,21 @@ export const CheckIn: React.FC = () => {
                 </div>
               </label>
 
-              {/* Submit Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-2.5">
+              </div>
+
+              {/* Submit / Footer Buttons (Fixed at bottom - Always Visible) */}
+              <div className="px-5 sm:px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5 shrink-0 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur-sm">
                 <button
                   type="button"
                   onClick={() => setShowCheckInModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !checkInPhotoBlob}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
