@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Flame,
-  Activity,
   Dumbbell,
   Target,
   Sparkles,
@@ -13,13 +12,17 @@ import {
   Calendar,
   AlertTriangle,
   Play,
+  Wrench,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   subscribeUserBiometrics,
+  subscribeUserProfile,
   subscribeActiveWorkout,
   subscribeCompletedWorkouts,
   type UserBiometrics,
+  type UserProfile,
   type WorkoutSession,
   type CompletedWorkout,
 } from '../services/firestoreService';
@@ -29,6 +32,7 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const [biometrics, setBiometrics] = useState<UserBiometrics | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +48,10 @@ export const Dashboard: React.FC = () => {
       setLoading(false);
     });
 
+    const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
+      setUserProfile(profile);
+    });
+
     const unsubActive = subscribeActiveWorkout(currentUser.uid, (session) => {
       setActiveSession(session);
     });
@@ -54,14 +62,22 @@ export const Dashboard: React.FC = () => {
 
     return () => {
       unsubBio();
+      unsubProfile();
       unsubActive();
       unsubCompleted();
     };
   }, [currentUser?.uid]);
 
-  // Compute real maintenance calories & macros from user biometrics doc
+  // Compute real maintenance calories & macros from user biometrics / profile doc
   const { targetCalories, proteinTargetGrams, carbsTargetGrams, fatsTargetGrams } = React.useMemo(() => {
-    if (!biometrics) {
+    const weight = userProfile?.currentWeightKg || biometrics?.weightKg;
+    const height = userProfile?.heightCm || biometrics?.heightCm;
+    const age = userProfile?.age || biometrics?.age;
+    const gender = userProfile?.gender || biometrics?.gender;
+    const activity = userProfile?.activityMultiplier || biometrics?.activityMultiplier;
+    const goal = biometrics?.goal || 'maintain';
+
+    if (!weight || !height || !age || !gender || !activity) {
       return {
         targetCalories: 2000,
         proteinTargetGrams: 140,
@@ -69,16 +85,16 @@ export const Dashboard: React.FC = () => {
         fatsTargetGrams: 55,
       };
     }
-    const { weightKg, heightCm, age, gender, activityMultiplier, goal } = biometrics;
-    let bmr = 10 * weightKg + 6.25 * heightCm - 5 * age;
+
+    let bmr = 10 * weight + 6.25 * height - 5 * age;
     bmr += gender === 'male' ? 5 : -161;
-    const tdee = Math.round(bmr * activityMultiplier);
+    const tdee = Math.round(bmr * activity);
 
     let target = tdee;
     if (goal === 'lean_bulk') target = tdee + 250;
     if (goal === 'cut') target = tdee - 450;
 
-    const protein = Math.round(weightKg * 2.0);
+    const protein = Math.round(weight * 2.0);
     const fats = Math.round((target * 0.25) / 9);
     const carbs = Math.max(0, Math.round((target - protein * 4 - fats * 9) / 4));
 
@@ -88,7 +104,7 @@ export const Dashboard: React.FC = () => {
       carbsTargetGrams: carbs,
       fatsTargetGrams: fats,
     };
-  }, [biometrics]);
+  }, [biometrics, userProfile]);
 
   // Real volume from completed workouts in the past 7 days
   const weeklyWorkoutsCount = completedWorkouts.length;
@@ -116,38 +132,38 @@ export const Dashboard: React.FC = () => {
               Welcome, {currentUser?.displayName?.split(' ')[0] || 'Athlete'}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-xl">
-              {biometrics
-                ? `Your calculated baseline is dynamically tracking your metabolic target (${biometrics.goal.replace('_', ' ')} mode).`
-                : 'No biometrics configured yet. Setup your profile to calculate your personalized maintenance baseline.'}
+              {userProfile?.onboardingCompleted
+                ? `Tuned for ${userProfile.experienceLevel.toUpperCase()} training intensity with ${userProfile.equipment?.length || 0} registered gym machines.`
+                : 'Complete the baseline profile & machine inventory to customize your training volume and TDEE.'}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/nutrition')}
+              onClick={() => navigate('/onboarding')}
               className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition"
             >
-              <span>{biometrics ? 'Recalculate Calories' : 'Set Up Biometrics'}</span>
+              <span>{userProfile?.onboardingCompleted ? 'Edit Inventory & Profile' : 'Start Onboarding'}</span>
               <ArrowUpRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Zero-Mock Calorie Alert Banner if biometrics are missing */}
-      {!biometrics && (
+      {/* Onboarding Callout if incomplete */}
+      {!userProfile?.onboardingCompleted && (
         <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/30 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-200">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span className="font-bold block text-sm">Real-time Biometrics Profile Needed</span>
+            <span className="font-bold block text-sm">Gym Machine Inventory & Experience Level Not Set</span>
             <p className="mt-0.5 text-amber-700 dark:text-amber-300">
-              The dashboard calculates 100% real numbers with zero mock presets. Head over to the Nutrition Calculator to save your real weight, height, and activity.
+              Set your target maintenance weight, select your gym machines (Cables, Pulleys, Free Weights), and pick your experience level for tailored AI advice.
             </p>
           </div>
           <button
-            onClick={() => navigate('/nutrition')}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-sm"
+            onClick={() => navigate('/onboarding')}
+            className="px-3.5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-sm hover:bg-amber-400 whitespace-nowrap transition"
           >
-            Configure
+            Launch Onboarding
           </button>
         </div>
       )}
@@ -170,7 +186,7 @@ export const Dashboard: React.FC = () => {
               <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">kcal/day</span>
             </div>
             <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1 font-semibold">
-              <TrendingUp className="w-3 h-3" /> {biometrics ? biometrics.goal.replace('_', ' ') : 'Pending profile'}
+              <TrendingUp className="w-3 h-3" /> {biometrics ? biometrics.goal.replace('_', ' ') : 'Mifflin-St Jeor'}
             </span>
           </div>
         </div>
@@ -196,7 +212,28 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Metric 3: Real Completed Workouts */}
+        {/* Metric 3: Machine Inventory Count */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+            <span className="text-xs font-bold">Gym Machines</span>
+            <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-500/10 flex items-center justify-center text-teal-600 dark:text-teal-400">
+              <Wrench className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                {userProfile?.equipment ? userProfile.equipment.length : 0}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">available</span>
+            </div>
+            <span className="text-[11px] text-teal-600 dark:text-teal-400 mt-1 block font-semibold">
+              {userProfile?.experienceLevel ? `${userProfile.experienceLevel.toUpperCase()} Tier` : 'Configuring...'}
+            </span>
+          </div>
+        </div>
+
+        {/* Metric 4: Completed Workouts */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-bold">Completed Sessions</span>
@@ -216,31 +253,11 @@ export const Dashboard: React.FC = () => {
             </span>
           </div>
         </div>
-
-        {/* Metric 4: Real Session State */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-bold">Active Session</span>
-            <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-500/10 flex items-center justify-center text-teal-600 dark:text-teal-400">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                {activeSession ? 'In Progress' : 'Resting'}
-              </span>
-            </div>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block font-medium">
-              {activeSession ? `${activeSession.exercises.length} exercises active` : 'Ready to train'}
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Split Dashboard View: Active Session / Schedule & Macro Split */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (2 Cols): Live Workout Stream */}
+        {/* Left Column (2 Cols): Live Workout Stream & Onboarding Summary */}
         <div className="lg:col-span-2 space-y-4">
           <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -318,7 +335,7 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
 
-          {/* AI Coach Insight Card */}
+          {/* AI Coach Insight Card with Experience Tier */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-500/30 shadow-sm">
             <div className="flex items-start gap-3.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center flex-shrink-0 text-slate-950 shadow-md shadow-emerald-500/20">
@@ -327,14 +344,14 @@ export const Dashboard: React.FC = () => {
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                    FitMaintenance AI Guidance
+                    FitMaintenance AI Guidance ({userProfile?.experienceLevel ? userProfile.experienceLevel.toUpperCase() : 'ATHLETE'})
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-semibold">Live Model</span>
+                  <span className="text-[10px] text-slate-400 font-semibold">Gemini Live</span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  {biometrics
-                    ? `With your target at ${targetCalories.toLocaleString()} kcal (${biometrics.goal.replace('_', ' ')}), maintain high protein density (${proteinTargetGrams}g) to ensure zero nitrogen deficit.`
-                    : 'Configure your real biometric profile to receive personalized metabolic recommendations.'}
+                  {userProfile?.calculatedTdee
+                    ? `Your maintenance baseline is locked at ${userProfile.calculatedTdee.toLocaleString()} kcal. Your AI Coach is configured for ${userProfile.experienceLevel} progression using your ${userProfile.equipment?.length || 0} registered gym machines.`
+                    : 'Set up your biometric profile to enable tailored metabolic and exercise recommendations.'}
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
@@ -349,7 +366,7 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Macro Distribution & Target Meter */}
+        {/* Right Column: Macro Distribution & Equipment Quick View */}
         <div className="space-y-4">
           <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4">
@@ -404,23 +421,27 @@ export const Dashboard: React.FC = () => {
 
           {/* Quick Shortcuts */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Actions</h4>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Inventory & Config</h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
-                onClick={() => navigate('/workouts')}
+                onClick={() => navigate('/onboarding')}
                 className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
               >
-                <Dumbbell className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1" />
-                <span className="font-bold block text-slate-800 dark:text-slate-200">Log Workout</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">Live sets</span>
+                <Wrench className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1" />
+                <span className="font-bold block text-slate-800 dark:text-slate-200">Machines</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {userProfile?.equipment ? `${userProfile.equipment.length} tools` : 'Setup'}
+                </span>
               </button>
               <button
-                onClick={() => navigate('/ai-coach')}
+                onClick={() => navigate('/onboarding')}
                 className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
               >
-                <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 mb-1" />
-                <span className="font-bold block text-slate-800 dark:text-slate-200">AI Advice</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">Gemini Live</span>
+                <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400 mb-1" />
+                <span className="font-bold block text-slate-800 dark:text-slate-200">Experience</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 capitalize">
+                  {userProfile?.experienceLevel || 'Beginner'}
+                </span>
               </button>
             </div>
           </div>

@@ -5,35 +5,47 @@ import {
   Bot,
   User,
   Zap,
+  Wrench,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { askFitMaintenanceAI, isGeminiConfigured } from '../services/geminiService';
 import {
   subscribeCoachMessages,
   addCoachMessage,
+  subscribeUserProfile,
   type CoachMessageItem,
+  type UserProfile,
 } from '../services/firestoreService';
 
 export const AiCoach: React.FC = () => {
   const { currentUser } = useAuth();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<CoachMessageItem[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Real-time Firestore sync of chat history (Zero mock data)
+  // Real-time Firestore sync of chat history and user profile (Zero mock data)
   useEffect(() => {
     if (!currentUser?.uid) {
       setLoading(false);
       return;
     }
 
-    const unsubscribe = subscribeCoachMessages(currentUser.uid, (chatHistory) => {
+    const unsubChat = subscribeCoachMessages(currentUser.uid, (chatHistory) => {
       setMessages(chatHistory);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
+      setUserProfile(profile);
+    });
+
+    return () => {
+      unsubChat();
+      unsubProfile();
+    };
   }, [currentUser?.uid]);
 
   const samplePrompts = [
@@ -57,8 +69,8 @@ export const AiCoach: React.FC = () => {
         text: prompt.trim(),
       });
 
-      // 2. Query Gemini AI service
-      const reply = await askFitMaintenanceAI(prompt.trim());
+      // 2. Query Gemini AI service with User Profile context (experience level, equipment, TDEE)
+      const reply = await askFitMaintenanceAI(prompt.trim(), userProfile || undefined);
 
       // 3. Save AI reply to Firestore
       await addCoachMessage(currentUser.uid, {
@@ -112,6 +124,22 @@ export const AiCoach: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Profile Context Badges in Header */}
+        <div className="hidden sm:flex items-center gap-2">
+          {userProfile?.experienceLevel && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 capitalize">
+              <Activity className="w-3 h-3 text-emerald-500" />
+              {userProfile.experienceLevel} Mode
+            </span>
+          )}
+          {userProfile?.equipment && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              <Wrench className="w-3 h-3 text-teal-500" />
+              {userProfile.equipment.length} Machines
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Messages list */}
@@ -126,7 +154,9 @@ export const AiCoach: React.FC = () => {
                 Start a Consultation with FitMaintenance AI
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-                Zero mock messages. Type a question below or click a quick prompt to analyze maintenance calories, progressive overload, or recovery splits.
+                Zero mock messages. Type a question below or click a prompt. The AI automatically adapts its feedback to your{' '}
+                <strong className="text-emerald-600 dark:text-emerald-400 capitalize">{userProfile?.experienceLevel || 'athlete'}</strong> level and your{' '}
+                <strong className="text-teal-600 dark:text-teal-400">{userProfile?.equipment?.length || 0} registered machines</strong>.
               </p>
             </div>
           </div>

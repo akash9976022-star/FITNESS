@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Smartphone,
@@ -11,16 +11,31 @@ import {
   Sun,
   Moon,
   Monitor,
+  Dumbbell,
+  Wrench,
+  ChevronRight,
+  Flame,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { firebaseConfig, isFirebaseConfigured } from '../config/firebase';
 import { getPlatform, isNativeApp } from '../utils/platform';
+import { subscribeUserProfile, type UserProfile } from '../services/firestoreService';
 
 export const Settings: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    const unsub = subscribeUserProfile(currentUser.uid, (data) => {
+      setProfile(data);
+    });
+    return () => unsub();
+  }, [currentUser?.uid]);
 
   const handleLogout = async () => {
     await logout();
@@ -80,6 +95,102 @@ export const Settings: React.FC = () => {
           <LogOut className="w-4 h-4" />
           <span>Sign Out</span>
         </button>
+      </div>
+
+      {/* Gym Inventory & Coaching Tier */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-3">
+          <div className="flex items-center gap-2.5">
+            <Dumbbell className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Gym Inventory & Coaching Tier
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Calibrated against your available equipment catalog and target maintenance volume.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/onboarding')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-[0.98] self-start sm:self-auto"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>{profile ? 'Edit Inventory & Profile' : 'Configure Profile'}</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {profile ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
+                <span className="text-slate-500 dark:text-slate-400 block mb-1">Coaching Tier</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 capitalize flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {profile.experienceLevel}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
+                <span className="text-slate-500 dark:text-slate-400 block mb-1">Maintenance TDEE</span>
+                <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                  {profile.calculatedTdee} kcal
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
+                <span className="text-slate-500 dark:text-slate-400 block mb-1">Target Weight</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {profile.targetWeightKg} kg
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
+                <span className="text-slate-500 dark:text-slate-400 block mb-1">Equipment Count</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {profile.equipment?.length || 0} Registered
+                </span>
+              </div>
+            </div>
+
+            {profile.equipment && profile.equipment.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Active Machine & Free-Weight Inventory
+                </span>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {profile.equipment.map((item) => (
+                    <span
+                      key={item}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-xs flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <span className="font-bold text-amber-800 dark:text-amber-400 block">
+                Onboarding Setup Pending
+              </span>
+              <p className="text-amber-700 dark:text-amber-300">
+                No inventory or biometric profile synced. Launch onboarding to customize your Gemini AI coach.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/onboarding')}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold shrink-0 transition"
+            >
+              Start Setup
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Persistent Theme Selector */}

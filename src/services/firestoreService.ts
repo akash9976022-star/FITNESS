@@ -13,6 +13,132 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
+/* ==================== USER PROFILE & ONBOARDING ==================== */
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'pro';
+
+export interface UserProfile {
+  age: number;
+  gender: 'male' | 'female';
+  heightCm: number;
+  currentWeightKg: number;
+  targetWeightKg: number;
+  activityMultiplier: number;
+  experienceLevel: ExperienceLevel;
+  calculatedTdee: number;
+  bmr: number;
+  equipment: string[];
+  onboardingCompleted: boolean;
+  updatedAt?: unknown;
+}
+
+export interface EquipmentCategory {
+  category: string;
+  description: string;
+  items: string[];
+}
+
+export const EQUIPMENT_CATALOG: EquipmentCategory[] = [
+  {
+    category: 'Cables & Pulleys',
+    description: 'Constant tension cable stacks for isolated hypertrophy and unilateral angles',
+    items: ['Lat Pulldown', 'Cable Crossover', 'Seated Cable Row'],
+  },
+  {
+    category: 'Machines',
+    description: 'Guided track leverage machines for joint-friendly maximum mechanical load',
+    items: ['Leg Press', 'Leg Extension', 'Hamstring Curl', 'Smith Machine', 'Chest/Shoulder Press'],
+  },
+  {
+    category: 'Free Weights & Benches',
+    description: 'Core barbell and dumbbell platforms for compound overload',
+    items: ['Barbell', 'Dumbbells', 'Adjustable Bench', 'Pull-up Bar'],
+  },
+  {
+    category: 'Bodyweight / Minimal',
+    description: 'Calisthenics, portable resistance, and floor-based mobility work',
+    items: ['Resistance Bands', 'Yoga Mat', 'None'],
+  },
+];
+
+export const calculateMifflinStJeor = (
+  gender: 'male' | 'female',
+  weightKg: number,
+  heightCm: number,
+  age: number,
+  activityMultiplier: number
+) => {
+  let baseBmr = 10 * weightKg + 6.25 * heightCm - 5 * age;
+  baseBmr += gender === 'male' ? 5 : -161;
+  const bmr = Math.round(baseBmr);
+  const calculatedTdee = Math.round(baseBmr * activityMultiplier);
+  return { bmr, calculatedTdee };
+};
+
+export const subscribeUserProfile = (
+  userId: string,
+  callback: (profile: UserProfile | null) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback(null);
+    return () => {};
+  }
+
+  const userDocRef = doc(db, 'users', userId);
+  return onSnapshot(
+    userDocRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        callback(snapshot.data() as UserProfile);
+      } else {
+        callback(null);
+      }
+    },
+    (error) => {
+      console.warn('Firestore user profile snapshot error:', error);
+      callback(null);
+    }
+  );
+};
+
+export const saveUserProfile = async (
+  userId: string,
+  profile: Partial<UserProfile>
+): Promise<void> => {
+  if (!db || !userId) return;
+
+  const userDocRef = doc(db, 'users', userId);
+  const dataToSave = {
+    ...profile,
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(userDocRef, dataToSave, { merge: true });
+
+  // Sync to biometrics subdocument for backwards-compatibility with nutrition engine
+  if (
+    profile.gender &&
+    profile.currentWeightKg &&
+    profile.heightCm &&
+    profile.age &&
+    profile.activityMultiplier
+  ) {
+    const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
+    await setDoc(
+      biometricsRef,
+      {
+        gender: profile.gender,
+        weightKg: profile.currentWeightKg,
+        heightCm: profile.heightCm,
+        age: profile.age,
+        activityMultiplier: profile.activityMultiplier,
+        goal: 'maintain',
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+};
+
 /* ==================== BIOMETRICS & NUTRITION ==================== */
 export interface UserBiometrics {
   gender: 'male' | 'female';
@@ -56,10 +182,14 @@ export const saveUserBiometrics = async (
 ): Promise<void> => {
   if (!db || !userId) return;
   const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
-  await setDoc(biometricsRef, {
-    ...biometrics,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  await setDoc(
+    biometricsRef,
+    {
+      ...biometrics,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 };
 
 /* ==================== ACTIVE & COMPLETED WORKOUTS ==================== */
@@ -242,4 +372,3 @@ export const addCoachMessage = async (
     createdAt: serverTimestamp(),
   });
 };
-
