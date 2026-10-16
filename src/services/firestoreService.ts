@@ -336,12 +336,21 @@ export const saveActiveWorkout = async (
   }
 };
 
+export interface WorkoutCompletionResult {
+  logId: string;
+  milestoneCount: number;
+  streakCount: number;
+  totalVolumeKg: number;
+  totalSets: number;
+  durationMinutes: number;
+}
+
 export const finishAndSaveWorkout = async (
   userId: string,
   session: WorkoutSession,
   durationMinutes = 45
-): Promise<void> => {
-  if (!db || !userId) return;
+): Promise<WorkoutCompletionResult | null> => {
+  if (!db || !userId) return null;
 
   const totalVolumeKg = session.exercises.reduce((acc, ex) => {
     return (
@@ -407,7 +416,22 @@ export const finishAndSaveWorkout = async (
   await saveActiveWorkout(userId, null);
 
   // Automatically record core maintenance goal for streak
-  await recordStreakActivity(userId, 'workout');
+  const streak = await recordStreakActivity(userId, 'workout');
+
+  // Increment user workout stats & milestones in users/{userId}/stats
+  const milestoneCount = await incrementUserWorkoutStats(userId, {
+    volumeKg: totalVolumeKg,
+    durationMinutes: finalDurationMinutes,
+  });
+
+  return {
+    logId: compDoc.id,
+    milestoneCount,
+    streakCount: streak?.currentStreak || 1,
+    totalVolumeKg,
+    totalSets,
+    durationMinutes: finalDurationMinutes,
+  };
 };
 
 /**
@@ -3588,6 +3612,179 @@ export const startDayRoutineWorkout = async (
 
   return newSession;
 };
+
+/* ==================== USER WORKOUT STATS & COMPLETION MILESTONES ==================== */
+export interface UserWorkoutStats {
+  totalWorkoutsCompleted: number;
+  totalVolumeLiftedKg: number;
+  totalDurationMinutes: number;
+  lastWorkoutDate?: string;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_USER_WORKOUT_STATS: UserWorkoutStats = {
+  totalWorkoutsCompleted: 0,
+  totalVolumeLiftedKg: 0,
+  totalDurationMinutes: 0,
+};
+
+/**
+ * Subscribes in real-time to user's workout completion milestones and stats
+ * stored at users/{userId}/stats/summary
+ */
+export const subscribeUserWorkoutStats = (
+  userId: string,
+  callback: (stats: UserWorkoutStats) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    const cached = localStorage.getItem(`fit_user_stats_${userId}`);
+    if (cached) {
+      try {
+        callback({ ...DEFAULT_USER_WORKOUT_STATS, ...JSON.parse(cached) });
+        return () => {};
+      } catch {
+        // Ignored
+      }
+    }
+    callback(DEFAULT_USER_WORKOUT_STATS);
+    return () => {};
+  }
+
+  const statsDocRef = doc(db, 'users', userId, 'stats', 'summary');
+  return onSnapshot(
+    statsDocRef,
+    (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        const stats: UserWorkoutStats = {
+          totalWorkoutsCompleted: Number(d.totalWorkoutsCompleted) || 0,
+          totalVolumeLiftedKg: Number(d.totalVolumeLiftedKg) || 0,
+          totalDurationMinutes: Number(d.totalDurationMinutes) || 0,
+          lastWorkoutDate: d.lastWorkoutDate || getTodayDateString(),
+          updatedAt: d.updatedAt,
+        };
+        localStorage.setItem(`fit_user_stats_${userId}`, JSON.stringify(stats));
+        callback(stats);
+      } else {
+        const cached = localStorage.getItem(`fit_user_stats_${userId}`);
+        if (cached) {
+          try {
+            callback({ ...DEFAULT_USER_WORKOUT_STATS, ...JSON.parse(cached) });
+            return;
+          } catch {
+            // Ignored
+          }
+        }
+        callback(DEFAULT_USER_WORKOUT_STATS);
+      }
+    },
+    (err) => {
+      console.warn('User workout stats snapshot error:', err);
+      callback(DEFAULT_USER_WORKOUT_STATS);
+    }
+  );
+};
+
+/**
+ * Atomically increments user's total completed workouts count and volume in Firestore
+ * (users/{userId}/stats/summary and users/{userId}), returning the new milestone count.
+ */
+export const incrementUserWorkoutStats = async (
+  userId: string,
+  sessionMetrics: {
+    volumeKg: number;
+    durationMinutes: number;
+  }
+): Promise<number> => {
+  if (!userId) return 1;
+
+  let currentCount = 0;
+  let currentVol = 0;
+  let currentDur = 0;
+
+  const cached = localStorage.getItem(`fit_user_stats_${userId}`);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      currentCount = Number(parsed.totalWorkoutsCompleted) || 0;
+      currentVol = Number(parsed.totalVolumeLiftedKg) || 0;
+      currentDur = Number(parsed.totalDurationMinutes) || 0;
+    } catch {
+      // Ignored
+    }
+  }
+
+  let updatedTotal = currentCount + 1;
+  const newVol = currentVol + sessionMetrics.volumeKg;
+  const newDur = currentDur + sessionMetrics.durationMinutes;
+
+  if (db) {
+    try {
+      const statsDocRef = doc(db, 'users', userId, 'stats', 'summary');
+      const snap = await getDoc(statsDocRef);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        const firestoreCount = Number(data.totalWorkoutsCompleted) || 0;
+        updatedTotal = Math.max(updatedTotal, firestoreCount + 1);
+        const firestoreVol = (Number(data.totalVolumeLiftedKg) || 0) + sessionMetrics.volumeKg;
+        const firestoreDur = (Number(data.totalDurationMinutes) || 0) + sessionMetrics.durationMinutes;
+
+        await setDoc(
+          statsDocRef,
+          {
+            totalWorkoutsCompleted: updatedTotal,
+            totalVolumeLiftedKg: firestoreVol,
+            totalDurationMinutes: firestoreDur,
+            lastWorkoutDate: getTodayDateString(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } else {
+        await setDoc(
+          statsDocRef,
+          {
+            totalWorkoutsCompleted: updatedTotal,
+            totalVolumeLiftedKg: newVol,
+            totalDurationMinutes: newDur,
+            lastWorkoutDate: getTodayDateString(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      // Also mirror to user root document
+      await setDoc(
+        doc(db, 'users', userId),
+        {
+          stats: {
+            totalWorkoutsCompleted: updatedTotal,
+            lastWorkoutDate: getTodayDateString(),
+          },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error saving workout stats to Firestore:', err);
+    }
+  }
+
+  localStorage.setItem(
+    `fit_user_stats_${userId}`,
+    JSON.stringify({
+      totalWorkoutsCompleted: updatedTotal,
+      totalVolumeLiftedKg: newVol,
+      totalDurationMinutes: newDur,
+      lastWorkoutDate: getTodayDateString(),
+    })
+  );
+
+  return updatedTotal;
+};
+
 
 
 

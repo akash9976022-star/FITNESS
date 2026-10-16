@@ -39,6 +39,8 @@ import {
   subscribeDailyRoutines,
   saveDailyRoutine,
   startDayRoutineWorkout,
+  subscribeUserWorkoutStats,
+  subscribeUserStreak,
   DEFAULT_WEEKLY_SPLIT,
   type WorkoutSession,
   type ExerciseItem,
@@ -49,10 +51,15 @@ import {
   type CustomExercise,
   type DayOfWeek,
   type DayRoutineTemplate,
+  type UserWorkoutStats,
+  type UserStreak,
 } from '../services/firestoreService';
 import WorkoutTimer from '../components/workout/WorkoutTimer';
 import CustomExerciseLibraryModal from '../components/workout/CustomExerciseLibraryModal';
 import HevyDaySplitSelector, { getTodayDayOfWeek } from '../components/workout/HevyDaySplitSelector';
+import WorkoutCompletionModal, {
+  type WorkoutCompletionMetrics,
+} from '../components/workout/WorkoutCompletionModal';
 
 export const Workouts: React.FC = () => {
   const { currentUser } = useAuth();
@@ -63,6 +70,14 @@ export const Workouts: React.FC = () => {
   const [savedTemplates, setSavedTemplates] = useState<(WorkoutSession & { id: string })[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // User Completion Milestones & Streak
+  const [userStats, setUserStats] = useState<UserWorkoutStats | null>(null);
+  const [userStreak, setUserStreak] = useState<UserStreak | null>(null);
+
+  // 3D Workout Completion Flash Card Modal State
+  const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
+  const [completionMetrics, setCompletionMetrics] = useState<WorkoutCompletionMetrics | null>(null);
 
   // Routine Name Inline Editing
   const [isEditingRoutineTitle, setIsEditingRoutineTitle] = useState(false);
@@ -129,6 +144,14 @@ export const Workouts: React.FC = () => {
       setDailyRoutines(routines);
     });
 
+    const unsubStats = subscribeUserWorkoutStats(currentUser.uid, (stats) => {
+      setUserStats(stats);
+    });
+
+    const unsubStreak = subscribeUserStreak(currentUser.uid, (streak) => {
+      setUserStreak(streak);
+    });
+
     return () => {
       unsubActive();
       unsubHistory();
@@ -136,6 +159,8 @@ export const Workouts: React.FC = () => {
       unsubTemplates();
       unsubCustom();
       unsubDaily();
+      unsubStats();
+      unsubStreak();
     };
   }, [currentUser?.uid]);
 
@@ -571,26 +596,104 @@ export const Workouts: React.FC = () => {
     await saveActiveWorkout(currentUser.uid, updated);
   };
 
-  /* ==================== SESSION FINISH & DISCARD ==================== */
+  /* ==================== SESSION FINISH & 3D FLASH CARD TRIGGER ==================== */
   const handleFinishWorkout = async () => {
     if (!currentUser?.uid || !activeSession) return;
     try {
       if ((activeSession.exercises || []).length === 0) {
         await saveActiveWorkout(currentUser.uid, null);
+        showToast('Empty workout cleared.');
         return;
       }
-      const durationMinutes = workoutElapsedSeconds > 0
-        ? Math.max(1, Math.round(workoutElapsedSeconds / 60))
-        : activeSession.startedAt
-        ? Math.max(1, Math.round((Date.now() - activeSession.startedAt) / 60000))
-        : 45;
 
-      await finishAndSaveWorkout(currentUser.uid, activeSession, durationMinutes);
-      showToast(`Workout finished! Logged ${durationMinutes} mins training time to Firestore.`);
+      // 1. Calculate active training duration (seconds and minutes)
+      const totalSeconds = workoutElapsedSeconds > 0
+        ? workoutElapsedSeconds
+        : activeSession.startedAt
+        ? Math.max(1, Math.floor((Date.now() - activeSession.startedAt) / 1000))
+        : 2700;
+      const durationMinutes = Math.max(1, Math.round(totalSeconds / 60));
+
+      // 2. Calculate total volume
+      const calculatedVolume = (activeSession.exercises || []).reduce((acc, ex) => {
+        return (
+          acc +
+          (ex.sets || []).reduce((setAcc, s) => {
+            return s.completed
+              ? setAcc + (Number(s.weight) || 0) * (Number(s.reps) || 0)
+              : setAcc;
+          }, 0)
+        );
+      }, 0);
+
+      // Fallback volume if user didn't check every individual set checkbox
+      const fallbackVolume = (activeSession.exercises || []).reduce((acc, ex) => {
+        return (
+          acc +
+          (ex.sets || []).reduce((setAcc, s) => {
+            return setAcc + (Number(s.weight) || 0) * (Number(s.reps) || 0);
+          }, 0)
+        );
+      }, 0);
+
+      const totalVolumeKg = calculatedVolume > 0 ? calculatedVolume : fallbackVolume;
+
+      // 3. Extract trained muscle groups
+      const muscleSet = new Set<string>();
+      (activeSession.exercises || []).forEach((ex) => {
+        if (ex.muscle) {
+          const parts = ex.muscle.split(/[/&,]/).map((m) => m.trim()).filter(Boolean);
+          if (parts.length > 0) {
+            parts.forEach((p) => muscleSet.add(p));
+          } else {
+            muscleSet.add(ex.muscle.trim());
+          }
+        }
+      });
+      const trainedMuscles = Array.from(muscleSet).slice(0, 6);
+      if (trainedMuscles.length === 0) trainedMuscles.push('Full Body');
+
+      const totalSets = (activeSession.exercises || []).reduce(
+        (acc, ex) => acc + (ex.sets || []).length,
+        0
+      );
+      const totalExercises = (activeSession.exercises || []).length;
+
+      // 4. Save to Firestore (workout_logs, completed_workouts) & increment users/{userId}/stats
+      const result = await finishAndSaveWorkout(currentUser.uid, activeSession, durationMinutes);
+
+      const newMilestone = result?.milestoneCount || (userStats?.totalWorkoutsCompleted || 0) + 1;
+      const currentStreak = result?.streakCount || userStreak?.currentStreak || 1;
+
+      // 5. Trigger the 3D-Effect Flash Card Modal
+      setCompletionMetrics({
+        routineName: activeSession.routineName || 'Custom Training Session',
+        durationSeconds: totalSeconds,
+        durationMinutes,
+        totalVolumeKg,
+        totalSets,
+        totalExercises,
+        trainedMuscles,
+        milestoneCount: newMilestone,
+        streakCount: currentStreak,
+      });
+
+      setWorkoutElapsedSeconds(0);
+      setIsCompletionModalOpen(true);
     } catch (err) {
       console.error('Failed to finish workout:', err);
       showToast('Error finishing workout.');
     }
+  };
+
+  const handleCloseCompletionModal = async () => {
+    setIsCompletionModalOpen(false);
+    setCompletionMetrics(null);
+    if (currentUser?.uid) {
+      await saveActiveWorkout(currentUser.uid, null);
+    }
+    showToast('🎉 Workout saved to history! Outstanding work.');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDiscardWorkout = async () => {
@@ -710,10 +813,10 @@ export const Workouts: React.FC = () => {
               </button>
               <button
                 onClick={handleFinishWorkout}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
               >
-                <CheckCircle className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
-                <span>Finish & Save</span>
+                <CheckCircle className="w-4 h-4 text-slate-950" />
+                <span>Finish Workout</span>
               </button>
               <button
                 onClick={handleDiscardWorkout}
@@ -1177,6 +1280,26 @@ export const Workouts: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* BIG PROMINENT BOTTOM FINISH WORKOUT BUTTON */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gradient-to-r from-emerald-500/5 via-teal-500/5 to-transparent p-4 rounded-2xl border border-emerald-500/15 shadow-sm">
+              <div className="text-center sm:text-left">
+                <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-500 animate-spin" />
+                  <span>Ready to complete today&apos;s training?</span>
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {completedSetsCount} / {totalSetsCount} sets logged • {totalVolume.toLocaleString()} kg total volume
+                </p>
+              </div>
+              <button
+                onClick={handleFinishWorkout}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition active:scale-95"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Finish Workout &amp; View Summary</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -1431,6 +1554,14 @@ export const Workouts: React.FC = () => {
           showToast={showToast}
         />
       )}
+
+      {/* 3D-EFFECT WORKOUT COMPLETION FLASH CARD MODAL */}
+      <WorkoutCompletionModal
+        isOpen={isCompletionModalOpen}
+        onClose={handleCloseCompletionModal}
+        metrics={completionMetrics}
+        onShareSuccess={showToast}
+      />
     </div>
   );
 };
