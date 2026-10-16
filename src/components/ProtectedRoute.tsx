@@ -13,15 +13,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-100">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-900 dark:text-slate-100 transition-colors duration-200">
         <div className="relative flex items-center justify-center mb-6">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-pulse">
             <Dumbbell className="w-8 h-8 text-white" />
           </div>
-          <Loader2 className="absolute -bottom-2 -right-2 w-6 h-6 text-emerald-400 animate-spin" />
+          <Loader2 className="absolute -bottom-2 -right-2 w-6 h-6 text-emerald-500 animate-spin" />
         </div>
-        <h2 className="text-xl font-bold tracking-tight text-white mb-1">FitMaintenance AI</h2>
-        <p className="text-sm text-slate-400">Authenticating session...</p>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">FitMaintenance AI</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Authenticating session...</p>
       </div>
     );
   }
@@ -35,4 +35,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 };
 
 export default ProtectedRoute;
-

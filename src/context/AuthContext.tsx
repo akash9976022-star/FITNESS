@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInAnonymously,
   signOut,
   onAuthStateChanged,
   updateProfile,
@@ -15,7 +16,7 @@ export interface AppUser {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
-  isDemo?: boolean;
+  isAnonymous: boolean;
 }
 
 interface AuthContextType {
@@ -25,8 +26,8 @@ interface AuthContextType {
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   signupWithEmail: (email: string, pass: string, name?: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
+  loginAnonymously: () => Promise<void>;
   logout: () => Promise<void>;
-  loginDemo: (role?: string) => void;
   error: string | null;
   clearError: () => void;
 }
@@ -39,18 +40,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if demo user is stored in sessionStorage
-    const storedDemoUser = sessionStorage.getItem('fit_demo_user');
-    if (storedDemoUser) {
-      try {
-        setCurrentUser(JSON.parse(storedDemoUser));
-        setLoading(false);
-        return;
-      } catch (e) {
-        console.error('Failed to parse demo user', e);
-      }
-    }
-
     if (!auth) {
       setLoading(false);
       return;
@@ -63,14 +52,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setCurrentUser({
             uid: user.uid,
             email: user.email,
-            displayName: user.displayName || user.email?.split('@')[0] || 'Athlete',
+            displayName: user.displayName || (user.isAnonymous ? 'Guest Athlete' : user.email?.split('@')[0] || 'Athlete'),
             photoURL: user.photoURL,
+            isAnonymous: user.isAnonymous,
           });
         } else {
-          // If no firebase user, and not in demo mode
-          if (!sessionStorage.getItem('fit_demo_user')) {
-            setCurrentUser(null);
-          }
+          setCurrentUser(null);
         }
         setLoading(false);
       },
@@ -89,16 +76,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithEmail = async (email: string, pass: string) => {
     setError(null);
     if (!auth) {
-      throw new Error('Firebase Auth is not initialized. Please configure your .env credentials.');
+      throw new Error('Firebase Auth is not initialized. Please verify your .env credentials.');
     }
     try {
-      sessionStorage.removeItem('fit_demo_user');
       const credential = await signInWithEmailAndPassword(auth, email, pass);
       setCurrentUser({
         uid: credential.user.uid,
         email: credential.user.email,
         displayName: credential.user.displayName || credential.user.email?.split('@')[0] || 'Athlete',
         photoURL: credential.user.photoURL,
+        isAnonymous: credential.user.isAnonymous,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
@@ -110,10 +97,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signupWithEmail = async (email: string, pass: string, name?: string) => {
     setError(null);
     if (!auth) {
-      throw new Error('Firebase Auth is not initialized. Please configure your .env credentials.');
+      throw new Error('Firebase Auth is not initialized. Please verify your .env credentials.');
     }
     try {
-      sessionStorage.removeItem('fit_demo_user');
       const credential = await createUserWithEmailAndPassword(auth, email, pass);
       if (name && credential.user) {
         await updateProfile(credential.user, { displayName: name });
@@ -123,6 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email: credential.user.email,
         displayName: name || credential.user.email?.split('@')[0] || 'Athlete',
         photoURL: credential.user.photoURL,
+        isAnonymous: credential.user.isAnonymous,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
@@ -134,16 +121,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithGoogle = async () => {
     setError(null);
     if (!auth) {
-      throw new Error('Firebase Auth is not initialized. Please configure your .env credentials.');
+      throw new Error('Firebase Auth is not initialized. Please verify your .env credentials.');
     }
     try {
-      sessionStorage.removeItem('fit_demo_user');
       const result = await signInWithPopup(auth, googleProvider);
       setCurrentUser({
         uid: result.user.uid,
         email: result.user.email,
         displayName: result.user.displayName || result.user.email?.split('@')[0] || 'Athlete',
         photoURL: result.user.photoURL,
+        isAnonymous: result.user.isAnonymous,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to sign in with Google';
@@ -152,22 +139,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const loginDemo = (role = 'Coach / Athlete') => {
-    const demoUser: AppUser = {
-      uid: 'demo-user-12345',
-      email: 'alex.fitness@example.com',
-      displayName: `Alex Rivera (${role})`,
-      photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      isDemo: true,
-    };
-    sessionStorage.setItem('fit_demo_user', JSON.stringify(demoUser));
-    setCurrentUser(demoUser);
+  const loginAnonymously = async () => {
     setError(null);
+    if (!auth) {
+      throw new Error('Firebase Auth is not initialized. Please verify your .env credentials.');
+    }
+    try {
+      const result = await signInAnonymously(auth);
+      setCurrentUser({
+        uid: result.user.uid,
+        email: null,
+        displayName: 'Guest Athlete',
+        photoURL: null,
+        isAnonymous: true,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to start guest session';
+      setError(message);
+      throw err;
+    }
   };
 
   const logout = async () => {
     setError(null);
-    sessionStorage.removeItem('fit_demo_user');
     if (auth) {
       try {
         await signOut(auth);
@@ -187,8 +181,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginWithEmail,
         signupWithEmail,
         loginWithGoogle,
+        loginAnonymously,
         logout,
-        loginDemo,
         error,
         clearError,
       }}
@@ -205,4 +199,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-

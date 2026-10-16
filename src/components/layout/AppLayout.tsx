@@ -14,9 +14,14 @@ import {
   X,
   ChevronRight,
   ShieldCheck,
+  Sun,
+  Moon,
+  User,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { getPlatform, isNativeApp } from '../../utils/platform';
+import LiveAnimatedBackground from '../common/LiveAnimatedBackground';
 
 interface NavItem {
   name: string;
@@ -35,6 +40,7 @@ const navItems: NavItem[] = [
 
 export const AppLayout: React.FC = () => {
   const { currentUser, logout, isFirebaseConfigured } = useAuth();
+  const { resolvedTheme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -53,47 +59,49 @@ export const AppLayout: React.FC = () => {
   const isNative = isNativeApp();
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-slate-50/70 dark:bg-slate-950/70 text-slate-900 dark:text-slate-100 overflow-hidden font-sans relative transition-colors duration-200">
+      {/* Live Animated Background */}
+      <LiveAnimatedBackground />
+
       {/* ================= DESKTOP SIDEBAR ================= */}
-      <aside className="hidden md:flex flex-col w-64 lg:w-72 border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-md flex-shrink-0 select-none">
+      <aside className="hidden md:flex flex-col w-64 lg:w-72 border-r border-slate-200/90 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex-shrink-0 select-none shadow-sm z-30">
         {/* Brand / Logo */}
-        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/25">
               <Dumbbell className="w-5 h-5 text-slate-950 stroke-[2.5]" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-base tracking-tight text-white">FitMaintenance</span>
-                <span className="text-xs px-1.5 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">
+                  FitMaintenance
+                </span>
+                <span className="text-xs px-1.5 py-0.5 rounded font-bold bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                   AI
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 tracking-wide">Intelligent Body Comp</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 tracking-wide">Intelligent Body Comp</p>
             </div>
           </div>
         </div>
 
         {/* Platform & Status Badge */}
-        <div className="px-5 py-3 border-b border-slate-800/40 bg-slate-950/30 flex items-center justify-between text-xs text-slate-400">
-          <div className="flex items-center gap-1.5">
+        <div className="px-5 py-2.5 border-b border-slate-200/60 dark:border-slate-800/40 bg-slate-100/60 dark:bg-slate-950/40 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-1.5 font-medium">
             {isNative ? (
-              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <Smartphone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             ) : (
-              <Globe className="w-3.5 h-3.5 text-teal-400" />
+              <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
             )}
-            <span className="capitalize">{platform} Mode</span>
+            <span className="capitalize">{platform} Client</span>
           </div>
-          {currentUser?.isDemo ? (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
-              Demo Preview
-            </span>
-          ) : isFirebaseConfigured ? (
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
-              <ShieldCheck className="w-3 h-3" /> Live Auth
+
+          {isFirebaseConfigured ? (
+            <span className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              <ShieldCheck className="w-3 h-3" /> Live Firestore
             </span>
           ) : (
-            <span className="text-[10px] text-amber-400">Mock Firebase</span>
+            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">Connecting...</span>
           )}
         </div>
 
@@ -107,36 +115,38 @@ export const AppLayout: React.FC = () => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                  `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 ${
                     isActive
-                      ? 'bg-gradient-to-r from-emerald-500/15 to-teal-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
                   }`
                 }
               >
                 <div className="flex items-center gap-3">
                   <Icon
                     className={`w-5 h-5 transition-colors ${
-                      isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-300'
+                      isActive
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300'
                     }`}
                   />
                   <span>{item.name}</span>
                 </div>
                 {item.badge ? (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
                     {item.badge}
                   </span>
                 ) : (
-                  isActive && <ChevronRight className="w-4 h-4 text-emerald-400/70" />
+                  isActive && <ChevronRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 )}
               </NavLink>
             );
           })}
         </nav>
 
-        {/* Sidebar Footer User Info */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-950/40">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800 mb-2">
+        {/* Sidebar Footer User Info & Actions */}
+        <div className="p-4 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-950/60">
+          <div className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-2.5 shadow-sm">
             {currentUser?.photoURL ? (
               <img
                 src={currentUser.photoURL}
@@ -145,38 +155,60 @@ export const AppLayout: React.FC = () => {
               />
             ) : (
               <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-bold text-xs uppercase shadow-inner">
-                {currentUser?.displayName ? currentUser.displayName[0] : 'U'}
+                {currentUser?.displayName ? currentUser.displayName[0] : <User className="w-4 h-4 text-white" />}
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-200 truncate">
-                {currentUser?.displayName || 'Active User'}
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                {currentUser?.displayName || 'Active Athlete'}
               </p>
-              <p className="text-[10px] text-slate-400 truncate">
-                {currentUser?.email || 'authenticated'}
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-medium">
+                {currentUser?.email || (currentUser?.isAnonymous ? 'Guest Account' : 'Authenticated')}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors border border-transparent hover:border-rose-500/20"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title={`Toggle theme (currently ${resolvedTheme})`}
+            >
+              {resolvedTheme === 'dark' ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Dark</span>
+                </>
+              )}
+            </button>
+
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center px-3 py-2 text-xs font-semibold rounded-lg text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/20 transition"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* ================= MAIN CONTENT WRAPPER ================= */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between flex-shrink-0 z-20">
+        <header className="h-16 border-b border-slate-200/90 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between flex-shrink-0 z-20 shadow-sm">
           <div className="flex items-center gap-3">
             {/* Mobile menu trigger */}
             <button
               onClick={() => setMobileDrawerOpen(true)}
-              className="md:hidden p-2 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition"
+              className="md:hidden p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
@@ -184,29 +216,45 @@ export const AppLayout: React.FC = () => {
 
             {/* Mobile Brand Header */}
             <div className="flex items-center gap-2 md:hidden">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm">
                 <Dumbbell className="w-4 h-4 text-slate-950" />
               </div>
-              <span className="font-bold text-sm tracking-tight text-white">FitMaintenance</span>
+              <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">FitMaintenance</span>
             </div>
 
             {/* Desktop breadcrumb / Page title */}
             <div className="hidden md:block">
-              <h1 className="text-lg font-bold text-slate-100 tracking-tight">{getPageTitle()}</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                {getPageTitle()}
+              </h1>
             </div>
           </div>
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>AI Engine Active</span>
+            {/* Theme Toggle in Header */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 shadow-sm"
+              aria-label="Toggle Light and Dark Mode"
+              title={`Switch to ${resolvedTheme === 'dark' ? 'Light' : 'Dark'} mode`}
+            >
+              {resolvedTheme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-indigo-600" />
+              )}
+            </button>
+
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-300 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Live Synced</span>
             </div>
 
             <button
               onClick={() => navigate('/settings')}
-              className="p-2 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800 transition"
-              title="Notifications"
+              className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Notifications & Settings"
             >
               <Bell className="w-4 h-4" />
             </button>
@@ -214,10 +262,10 @@ export const AppLayout: React.FC = () => {
             {/* User Avatar Chip */}
             <div
               onClick={() => navigate('/settings')}
-              className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 cursor-pointer transition"
+              className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/50 cursor-pointer transition shadow-sm"
             >
-              <span className="hidden sm:inline text-xs font-medium text-slate-200 pl-1">
-                {currentUser?.displayName?.split(' ')[0] || 'User'}
+              <span className="hidden sm:inline text-xs font-semibold text-slate-700 dark:text-slate-200 pl-1">
+                {currentUser?.displayName?.split(' ')[0] || (currentUser?.isAnonymous ? 'Guest' : 'Athlete')}
               </span>
               {currentUser?.photoURL ? (
                 <img
@@ -226,8 +274,8 @@ export const AppLayout: React.FC = () => {
                   className="w-7 h-7 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs">
-                  {currentUser?.displayName ? currentUser.displayName[0] : 'U'}
+                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs shadow-inner">
+                  {currentUser?.displayName ? currentUser.displayName[0] : 'A'}
                 </div>
               )}
             </div>
@@ -243,9 +291,8 @@ export const AppLayout: React.FC = () => {
       </div>
 
       {/* ================= MOBILE BOTTOM NAVIGATION ================= */}
-      {/* Sticky bar strictly fixed to bottom viewport with safe-area spacing */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 shadow-2xl"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800/90 shadow-2xl transition-colors duration-200"
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
         <div className="grid grid-cols-5 h-16 items-center px-1">
@@ -257,20 +304,22 @@ export const AppLayout: React.FC = () => {
                 key={item.path}
                 to={item.path}
                 className={`relative flex flex-col items-center justify-center py-1 transition-colors ${
-                  isActive ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+                  isActive
+                    ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
                 <div className="relative">
                   <Icon className={`w-5 h-5 ${isActive ? 'scale-110' : ''} transition-transform`} />
                   {item.badge && (
-                    <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   )}
                 </div>
-                <span className="text-[10px] mt-1 font-medium tracking-tight truncate max-w-[56px]">
+                <span className="text-[10px] mt-1 tracking-tight truncate max-w-[56px]">
                   {item.name}
                 </span>
                 {isActive && (
-                  <span className="absolute bottom-0 w-8 h-0.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+                  <span className="absolute bottom-0 w-8 h-0.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-sm" />
                 )}
               </NavLink>
             );
@@ -283,29 +332,29 @@ export const AppLayout: React.FC = () => {
         <div className="fixed inset-0 z-50 md:hidden flex">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm"
             onClick={() => setMobileDrawerOpen(false)}
           />
 
           {/* Drawer content */}
-          <div className="relative w-4/5 max-w-xs bg-slate-900 border-r border-slate-800 h-full flex flex-col p-5 shadow-2xl z-10">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="relative w-4/5 max-w-xs bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full flex flex-col p-5 shadow-2xl z-10">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
                   <Dumbbell className="w-4 h-4 text-slate-950" />
                 </div>
-                <span className="font-bold text-white text-base">FitMaintenance AI</span>
+                <span className="font-bold text-slate-900 dark:text-white text-base">FitMaintenance AI</span>
               </div>
               <button
                 onClick={() => setMobileDrawerOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Profile snapshot */}
-            <div className="my-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center gap-3">
+            <div className="my-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
               {currentUser?.photoURL ? (
                 <img
                   src={currentUser.photoURL}
@@ -314,14 +363,16 @@ export const AppLayout: React.FC = () => {
                 />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-sm">
-                  {currentUser?.displayName ? currentUser.displayName[0] : 'U'}
+                  {currentUser?.displayName ? currentUser.displayName[0] : 'A'}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-white truncate">
-                  {currentUser?.displayName || 'Athlete'}
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                  {currentUser?.displayName || 'Active Athlete'}
                 </p>
-                <p className="text-xs text-slate-400 truncate">{currentUser?.email}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {currentUser?.email || (currentUser?.isAnonymous ? 'Guest Account' : 'Synced')}
+                </p>
               </div>
             </div>
 
@@ -335,10 +386,10 @@ export const AppLayout: React.FC = () => {
                     key={item.path}
                     to={item.path}
                     onClick={() => setMobileDrawerOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
                       isActive
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -348,14 +399,33 @@ export const AppLayout: React.FC = () => {
               })}
             </div>
 
-            {/* Sign out */}
-            <button
-              onClick={handleLogout}
-              className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 transition"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </button>
+            {/* Theme Toggle and Logout */}
+            <div className="pt-4 mt-auto border-t border-slate-200 dark:border-slate-800 space-y-2">
+              <button
+                onClick={toggleTheme}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300"
+              >
+                {resolvedTheme === 'dark' ? (
+                  <>
+                    <Sun className="w-4 h-4 text-amber-400" />
+                    <span>Switch to Light Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-indigo-500" />
+                    <span>Switch to Dark Mode</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -364,4 +434,3 @@ export const AppLayout: React.FC = () => {
 };
 
 export default AppLayout;
-
