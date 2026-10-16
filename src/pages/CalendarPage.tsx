@@ -351,19 +351,19 @@ export const CalendarPage: React.FC = () => {
                     key={dayInfo.gregorianDate}
                     type="button"
                     onClick={() => setSelectedDateStr(dayInfo.gregorianDate)}
-                    className={`min-h-[72px] sm:min-h-[88px] p-1.5 sm:p-2 rounded-2xl flex flex-col justify-between text-left transition-all cursor-pointer relative group ${
+                    className={`min-h-[76px] sm:min-h-[92px] p-1.5 sm:p-2 rounded-2xl flex flex-col justify-between text-left transition-all cursor-pointer relative group overflow-hidden ${
                       isSelected
                         ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 shadow-lg scale-102 ring-2 ring-emerald-500'
                         : isToday
                         ? 'bg-emerald-50/70 dark:bg-emerald-950/20 text-slate-900 dark:text-white border-2 border-emerald-500/50'
-                        : 'bg-slate-50 dark:bg-slate-950/70 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800/80'
+                        : 'bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800'
                     }`}
                   >
                     {/* Top Row: Western Date & Tamil Date */}
                     <div className="flex items-start justify-between w-full">
                       <span
                         className={`text-sm sm:text-base font-black leading-none ${
-                          isSelected ? 'text-white dark:text-slate-950' : ''
+                          isSelected ? 'text-white dark:text-slate-950' : 'text-slate-900 dark:text-white'
                         }`}
                       >
                         {dayInfo.day}
@@ -383,14 +383,16 @@ export const CalendarPage: React.FC = () => {
                     </div>
 
                     {/* Sacred Day Deity / Occasion Visual Thumbnail */}
-                    {thumbnail && (
-                      <div className="w-full flex items-center justify-center my-0.5">
+                    {thumbnail ? (
+                      <div className="w-full flex items-center justify-center my-0.5 sm:my-1">
                         <CalendarDayThumbnail info={thumbnail} size="sm" />
                       </div>
+                    ) : (
+                      <div className="w-full h-6 sm:h-7" />
                     )}
 
                     {/* Festival / Fasting Indicators */}
-                    <div className="w-full space-y-0.5 mt-1">
+                    <div className="w-full space-y-0.5 mt-auto pt-1">
                       {dayInfo.festivals.length > 0 && (
                         <div
                           className={`text-[8px] sm:text-[9px] font-extrabold px-1 py-0.5 rounded truncate ${
@@ -450,6 +452,51 @@ export const CalendarPage: React.FC = () => {
               <span className="font-semibold text-slate-600 dark:text-slate-300">
                 Current Jovian Year: {selectedDayInfo.tamilYearName} ({selectedDayInfo.tamilYearEnglish})
               </span>
+            </div>
+
+            {/* Sacred Day Deity Icon Key */}
+            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 overflow-x-auto pb-1 gap-4 scrollbar-none">
+              <span className="font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                புனித நாள் குறியீடுகள் (Sacred Observance Icons):
+              </span>
+              <div className="flex items-center gap-3.5 shrink-0">
+                <span className="flex items-center gap-1.5" title="Maha Shivaratri: Lord Shiva Lingam with divine aura">
+                  <CalendarDayThumbnail info={{ type: 'shivaratri', titleTamil: 'மகா சிவராத்திரி', titleEnglish: 'Maha Shivaratri', reason: '' }} size="sm" showTooltip={false} />
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">மகா சிவராத்திரி (Shiva Lingam)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Pradosham: Sacred Nandhi Bull facing Lord Shiva">
+                  <CalendarDayThumbnail info={{ type: 'pradosham', titleTamil: 'பிரதோஷம்', titleEnglish: 'Pradosham', reason: '' }} size="sm" showTooltip={false} />
+                  <span className="font-semibold text-amber-700 dark:text-amber-400">பிரதோஷம் (Sacred Nandhi)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Skanda Sashti / Thai Poosam: Lord Murugan Vel & Peacock">
+                  <CalendarDayThumbnail info={{ type: 'murugan', titleTamil: 'முருகன்', titleEnglish: 'Murugan', reason: '' }} size="sm" showTooltip={false} />
+                  <span>முருகன் (Vel & Peacock)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Arudra Darshanam: Lord Nataraja Dancing Pose">
+                  <CalendarDayThumbnail info={{ type: 'natarajar', titleTamil: 'நடராஜர்', titleEnglish: 'Nataraja', reason: '' }} size="sm" showTooltip={false} />
+                  <span>நடராஜர் (Cosmic Dance)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Vinayagar Chaturthi: Lord Ganesha">
+                  <CalendarDayThumbnail info={{ type: 'ganesha', titleTamil: 'விநாயகர்', titleEnglish: 'Ganesha', reason: '' }} size="sm" showTooltip={false} />
+                  <span>விநாயகர் (Ganesha)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Ekadashi / Purattasi Saturdays: Lord Vishnu Thiruman & Shankha-Chakra">
+                  <CalendarDayThumbnail info={{ type: 'vishnu', titleTamil: 'பெருமாள்', titleEnglish: 'Vishnu', reason: '' }} size="sm" showTooltip={false} />
+                  <span>பெருமாள் (Vishnu)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Pournami: Full Moon">
+                  <CalendarDayThumbnail info={{ type: 'pournami', titleTamil: 'பௌர்ணமி', titleEnglish: 'Pournami', reason: '' }} size="sm" showTooltip={false} />
+                  <span>பௌர்ணமி (Full Moon)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Amavasai: New Moon & Crescent">
+                  <CalendarDayThumbnail info={{ type: 'amavasai', titleTamil: 'அமாவாசை', titleEnglish: 'Amavasai', reason: '' }} size="sm" showTooltip={false} />
+                  <span>அமாவாசை (New Moon)</span>
+                </span>
+                <span className="flex items-center gap-1.5" title="Deepavali / Karthigai Deepam: Sacred Diya">
+                  <CalendarDayThumbnail info={{ type: 'diya', titleTamil: 'தீபம்', titleEnglish: 'Diya', reason: '' }} size="sm" showTooltip={false} />
+                  <span>தீபம் (Diya)</span>
+                </span>
+              </div>
             </div>
           </div>
 
