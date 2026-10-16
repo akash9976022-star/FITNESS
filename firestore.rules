@@ -48,6 +48,9 @@ service cloud.firestore {
     // Subcollection: users/{userId}/workouts/{workoutId}
     //   - Custom equipment-filtered workout routines
     //
+    // Subcollection: users/{userId}/custom_festivals/{festivalId}
+    //   - Custom festivals, fasting days, and cultural observances
+    //
     // ===============================================================
 
     // Helper Functions
@@ -101,6 +104,11 @@ service cloud.firestore {
 
       // Subcollection: Workout Templates
       match /workouts/{workoutId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Custom Festivals & Fasting Days
+      match /custom_festivals/{festivalId} {
         allow read, write: if isOwner(userId);
       }
     }

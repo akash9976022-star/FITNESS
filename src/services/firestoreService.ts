@@ -1868,4 +1868,79 @@ export const applyWorkoutVolumeAdjustment = async (
   return updatedSession;
 };
 
+/* ==================== CUSTOM FESTIVALS & VIRATHAM MANAGER ==================== */
+export interface CustomFestivalItem {
+  id: string;
+  nameEnglish: string;
+  nameTamil?: string;
+  date: string; // YYYY-MM-DD
+  category: 'Temple Festival' | 'Fasting / Viratham' | 'Personal Milestone' | 'Pooja';
+  deity?: string;
+  templeLocation?: string;
+  fastingNotes?: string;
+  reminderEnabled?: boolean;
+  createdAt?: unknown;
+}
+
+/**
+ * Subscribes in real-time to user's custom local temple festivals & fasting days
+ * stored at users/{userId}/custom_festivals
+ */
+export const subscribeCustomFestivals = (
+  userId: string,
+  callback: (festivals: CustomFestivalItem[]) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback([]);
+    return () => {};
+  }
+
+  const festivalsRef = collection(db, 'users', userId, 'custom_festivals');
+  const q = query(festivalsRef, orderBy('date', 'asc'));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: CustomFestivalItem[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<CustomFestivalItem, 'id'>),
+      }));
+      callback(items);
+    },
+    (err) => {
+      console.warn('Custom festivals snapshot error:', err);
+      callback([]);
+    }
+  );
+};
+
+/**
+ * Adds a new custom festival or fasting day to users/{userId}/custom_festivals
+ */
+export const addCustomFestival = async (
+  userId: string,
+  festival: Omit<CustomFestivalItem, 'id' | 'createdAt'>
+): Promise<string | null> => {
+  if (!db || !userId) return null;
+  const festivalsRef = collection(db, 'users', userId, 'custom_festivals');
+  const docRef = await addDoc(festivalsRef, {
+    ...festival,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+/**
+ * Deletes a custom festival from users/{userId}/custom_festivals
+ */
+export const deleteCustomFestival = async (
+  userId: string,
+  festivalId: string
+): Promise<void> => {
+  if (!db || !userId || !festivalId) return;
+  const docRef = doc(db, 'users', userId, 'custom_festivals', festivalId);
+  await deleteDoc(docRef);
+};
+
+
 

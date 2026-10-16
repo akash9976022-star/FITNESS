@@ -18,6 +18,7 @@ import {
   Moon,
   User,
   Camera,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { name: 'Check-In', path: '/checkin', icon: Camera },
   { name: 'Workouts', path: '/workouts', icon: Dumbbell },
   { name: 'Nutrition', path: '/nutrition', icon: UtensilsCrossed },
+  { name: 'Calendar', path: '/calendar', icon: CalendarIcon, badge: 'தமிழ்' },
   { name: 'AI Coach', path: '/ai-coach', icon: Sparkles, badge: 'AI' },
   { name: 'Profile', path: '/profile', icon: User },
   { name: 'Settings', path: '/settings', icon: Settings },
