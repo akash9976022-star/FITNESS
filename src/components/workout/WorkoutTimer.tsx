@@ -30,7 +30,7 @@ export const WorkoutTimer: React.FC<WorkoutTimerProps> = ({
 
   // Ticker interval
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     if (isRunning) {
       interval = setInterval(() => {

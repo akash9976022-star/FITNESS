@@ -230,4 +230,3 @@ export const PanchangamCard: React.FC<PanchangamCardProps> = ({ dayInfo, classNa
 };
 
 export default PanchangamCard;
-
