@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model - FitMaintenance AI
+    // ===============================================================
+    //
+    // Collection: users/{userId}
+    // Document ID: Firebase Auth UID (EGcJHRpm4YPH...)
+    // Fields:
+    //   - gender: string ('male' | 'female')
+    //   - age: number (10 - 120)
+    //   - heightCm: number (80 - 250)
+    //   - currentWeightKg: number (25 - 350)
+    //   - targetWeightKg: number (25 - 350)
+    //   - activityMultiplier: number (1.0 - 2.5)
+    //   - experienceLevel: string ('beginner' | 'intermediate' | 'pro')
+    //   - calculatedTdee: number
+    //   - bmr: number
+    //   - equipment: list of strings (e.g. ['Lat Pulldown', 'Leg Press'])
+    //   - onboardingCompleted: boolean
+    //   - email: optional string
+    //   - displayName: optional string
+    //   - photoURL: optional string
+    //   - createdAt: optional timestamp
+    //   - updatedAt: optional timestamp
+    //
+    // Subcollection: users/{userId}/data/{documentId}
+    //   - biometrics, active_workout, and state documents
+    //
+    // Subcollection: users/{userId}/completed_workouts/{workoutId}
+    //   - Logged workout history and completed volume
+    //
+    // Subcollection: users/{userId}/coach_messages/{messageId}
+    //   - AI Coach conversation history
+    //
+    // Subcollection: users/{userId}/nutrition_logs/{logId}
+    //   - Daily meals, macros, and Gemini food vision logs
+    //
+    // Subcollection: users/{userId}/checkins/{checkInId}
+    //   - Daily check-in metrics, morning weight, and AI physique analyses
+    //
+    // Subcollection: users/{userId}/rewards/{rewardId}
+    //   - Gamified badges and streaks
+    //
+    // Subcollection: users/{userId}/workouts/{workoutId}
+    //   - Custom equipment-filtered workout routines
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Default deny all access to unlisted collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Root User Document: strict per-user ownership
+    match /users/{userId} {
+      // Allow authenticated user full read and write access to their own document
+      allow read, write: if isOwner(userId);
+
+      // Subcollection: User Data (biometrics, active workout tracking)
+      match /data/{documentId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Completed Workouts
+      match /completed_workouts/{workoutId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: AI Coach Messages
+      match /coach_messages/{messageId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Nutrition Logs
+      match /nutrition_logs/{logId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Daily Check-Ins & Progress Photos
+      match /checkins/{checkInId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Rewards & Gamified Badges
+      match /rewards/{rewardId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Workout Templates
+      match /workouts/{workoutId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

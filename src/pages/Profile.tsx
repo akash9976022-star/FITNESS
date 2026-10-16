@@ -231,9 +231,12 @@ export const Profile: React.FC = () => {
       showToast('Profile and equipment updated successfully!');
     } catch (err: unknown) {
       console.error('Failed to update profile:', err);
-      const msg = err instanceof Error ? err.message : 'Error writing to Firestore. Please check your connection and security rules.';
+      let msg = err instanceof Error ? err.message : 'Error writing to Firestore. Please check your connection and security rules.';
+      if (msg.toLowerCase().includes('permission')) {
+        msg = 'Missing or insufficient permissions: Your Firebase Firestore Security Rules in the Firebase Console currently deny writes to users/{userId}. Please paste the provided firestore.rules into your Firebase Console > Firestore Database > Rules tab.';
+      }
       setErrorMessage(msg);
-      showToast('Failed to save profile changes. See error details.');
+      showToast('Failed to save profile changes. See error details above.');
     } finally {
       setSaving(false);
     }
