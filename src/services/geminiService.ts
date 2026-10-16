@@ -93,7 +93,7 @@ export async function askFitMaintenanceAI(
   try {
     const systemInstruction = buildSystemInstruction(profile);
     const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -104,9 +104,214 @@ export async function askFitMaintenanceAI(
     if (response?.text) {
       return response.text;
     }
-    return fallbackFitnessAnswer(prompt, profile);
   } catch (error) {
-    console.warn('Gemini API call encountered an issue, using scientific fallback response:', error);
-    return fallbackFitnessAnswer(prompt, profile);
+    console.warn('Gemini 3.8 Flash call failed, trying Gemini 3.5 Flash Lite:', error);
+    try {
+      const systemInstruction = buildSystemInstruction(profile);
+      const fallbackRes = await aiClient.models.generateContent({
+        model: 'gemini-3.5-flash-lite',
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        },
+      });
+      if (fallbackRes?.text) return fallbackRes.text;
+    } catch (fbErr) {
+      console.warn('Gemini fallback failed:', fbErr);
+    }
   }
+
+  return fallbackFitnessAnswer(prompt, profile);
+}
+
+/* ==================== FOOD SCANNING & NUTRITION ANALYSIS ==================== */
+
+export interface Base64ImagePart {
+  mimeType: string;
+  data: string;
+}
+
+export interface FoodAnalysisResult {
+  food_name: string;
+  detected_components: string[];
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fats_g: number;
+  confidence_score: 'High' | 'Medium' | 'Low';
+}
+
+/**
+ * Helper utility to convert mobile camera captures or web file uploads into clean base64 image parts.
+ */
+export function fileToBase64(file: File): Promise<Base64ImagePart> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const commaIndex = result.indexOf(',');
+      if (commaIndex !== -1) {
+        const metadata = result.substring(0, commaIndex);
+        const data = result.substring(commaIndex + 1);
+        const mimeMatch = metadata.match(/^data:(.*?);base64/);
+        const mimeType = mimeMatch ? mimeMatch[1] : (file.type || 'image/jpeg');
+        resolve({ mimeType, data });
+      } else {
+        resolve({ mimeType: file.type || 'image/jpeg', data: result });
+      }
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Safe parsing utility implementing markdown stripping (`replace(/```json|```/g, '')`) before calling JSON.parse().
+ */
+export function safeParseNutritionJson(rawText: string): FoodAnalysisResult | null {
+  try {
+    const cleaned = rawText.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (parsed && typeof parsed === 'object') {
+      const rawConf = String(parsed.confidence_score || 'Medium').trim();
+      let confidence_score: 'High' | 'Medium' | 'Low' = 'Medium';
+      if (/high/i.test(rawConf)) confidence_score = 'High';
+      else if (/low/i.test(rawConf)) confidence_score = 'Low';
+      else confidence_score = 'Medium';
+
+      const detected = Array.isArray(parsed.detected_components)
+        ? parsed.detected_components.map((c: unknown) => String(c).trim()).filter(Boolean)
+        : [String(parsed.food_name || 'Detected Dish')];
+
+      return {
+        food_name: String(parsed.food_name || 'Detected Meal').trim(),
+        detected_components: detected.length > 0 ? detected : ['Standard serving portion'],
+        calories: Math.max(0, Math.round(Number(parsed.calories) || 0)),
+        protein_g: Math.max(0, Math.round(Number(parsed.protein_g) || 0)),
+        carbs_g: Math.max(0, Math.round(Number(parsed.carbs_g) || 0)),
+        fats_g: Math.max(0, Math.round(Number(parsed.fats_g) || 0)),
+        confidence_score,
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to parse Gemini nutrition JSON response:', err, rawText);
+  }
+  return null;
+}
+
+const INDIAN_NUTRITION_SYSTEM_INSTRUCTION = `You are an elite sports nutritionist and metabolic biochemistry specialist with deep expertise in global and Indian cuisines (North Indian, South Indian, home-cooked regional thalis, and street food).
+When analyzing food images:
+1. Accurately identify the main dishes, sides, breads, gravies, and discrete ingredients (e.g. Roti, Paratha, Dal, Chana Masala, Paneer, Rice, Dosa, Idli, Sambar, Chutney, Salad, Curd).
+2. Rigorously account for hidden cooking fats:
+   - Ghee (clarified butter), butter (makhan), mustard oil, sunflower/groundnut oil, coconut oil, dairy cream (malai), and deep-frying oils (tadka/tempering).
+   - Recognize standard Indian serving containers: standard katori (~150ml / 150g cooked capacity), standard dinner thali / plate, piece counts (e.g., 2 medium rotis, 1 piece samosa, 2 idlis).
+3. Compute precise macronutrients for athletic fitness:
+   - calories (total energy in kcal)
+   - protein_g (grams of protein)
+   - carbs_g (grams of carbohydrates)
+   - fats_g (grams of fats including hidden oils/ghee)
+4. Assign confidence_score:
+   - "High": Dish, portion size, and components are clearly visible and well-lit.
+   - "Medium": Partially obscured, mixed curry/gravy, or approximate volume.
+   - "Low": Blurry, ambiguous street food item, unrecognizable mixture, or non-food.
+5. Strictly output valid JSON adhering to the specified schema with no markdown code blocks outside JSON.`;
+
+const foodAnalysisJsonSchema = {
+  type: 'object',
+  properties: {
+    food_name: { type: 'string', description: 'Name of the primary dish or full meal' },
+    detected_components: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Individual items, ingredients, breads, and curries identified',
+    },
+    calories: { type: 'number', description: 'Total calories in kcal' },
+    protein_g: { type: 'number', description: 'Protein in grams' },
+    carbs_g: { type: 'number', description: 'Carbohydrates in grams' },
+    fats_g: { type: 'number', description: 'Fats in grams including cooking oils and ghee' },
+    confidence_score: {
+      type: 'string',
+      enum: ['High', 'Medium', 'Low'],
+      description: 'Confidence score: High, Medium, or Low',
+    },
+  },
+  required: [
+    'food_name',
+    'detected_components',
+    'calories',
+    'protein_g',
+    'carbs_g',
+    'fats_g',
+    'confidence_score',
+  ],
+};
+
+/**
+ * Analyzes a food image using Gemini AI with specialized Indian & Global nutrition instruction.
+ */
+export async function analyzeFoodImage(
+  imagePart: Base64ImagePart
+): Promise<FoodAnalysisResult> {
+  if (!aiClient || !apiKey) {
+    throw new Error('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your environment.');
+  }
+
+  const prompt = `Analyze this food image in detail. Identify the dish and all individual components.
+Estimate portion size based on visual cues (plates, bowls/katori, piece sizes).
+Rigorously account for hidden fats (ghee, butter, mustard/coconut oil, cream) and calculate total calories, protein_g, carbs_g, and fats_g.
+Determine the confidence_score ("High", "Medium", or "Low").
+Return strictly valid JSON adhering to the schema.`;
+
+  const contents = [
+    {
+      inlineData: {
+        mimeType: imagePart.mimeType,
+        data: imagePart.data,
+      },
+    },
+    { text: prompt },
+  ];
+
+  const config = {
+    systemInstruction: INDIAN_NUTRITION_SYSTEM_INSTRUCTION,
+    responseMimeType: 'application/json',
+    responseSchema: foodAnalysisJsonSchema,
+    temperature: 0.2,
+  };
+
+  // Primary model: gemini-3.8-flash
+  try {
+    const response = await aiClient.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents,
+      config,
+    });
+    if (response?.text) {
+      const parsed = safeParseNutritionJson(response.text);
+      if (parsed) return parsed;
+    }
+  } catch (primaryErr) {
+    console.warn('gemini-3.8-flash scan failed, trying gemini-3.5-flash-lite fallback:', primaryErr);
+  }
+
+  // Fallback model: gemini-3.5-flash-lite
+  try {
+    const fallbackResponse = await aiClient.models.generateContent({
+      model: 'gemini-3.5-flash-lite',
+      contents,
+      config,
+    });
+
+    if (fallbackResponse?.text) {
+      const parsed = safeParseNutritionJson(fallbackResponse.text);
+      if (parsed) return parsed;
+    }
+  } catch (fallbackErr) {
+    console.warn('gemini-3.5-flash-lite scan also failed:', fallbackErr);
+    throw fallbackErr;
+  }
+
+  throw new Error('Unable to extract structured nutritional data from scan response.');
 }
