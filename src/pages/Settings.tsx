@@ -112,11 +112,11 @@ export const Settings: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate('/onboarding')}
+            onClick={() => navigate('/profile')}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-[0.98] self-start sm:self-auto"
           >
             <Wrench className="w-3.5 h-3.5" />
-            <span>{profile ? 'Edit Inventory & Profile' : 'Configure Profile'}</span>
+            <span>{profile ? 'Manage Profile & Inventory' : 'Configure Profile'}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>

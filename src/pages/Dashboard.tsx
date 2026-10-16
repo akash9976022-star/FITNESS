@@ -226,7 +226,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/onboarding')}
+              onClick={() => navigate(userProfile?.onboardingCompleted ? '/profile' : '/onboarding')}
               className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition"
             >
               <span>{userProfile?.onboardingCompleted ? 'Edit Inventory & Profile' : 'Start Onboarding'}</span>
@@ -713,7 +713,7 @@ export const Dashboard: React.FC = () => {
                 </span>
               </button>
               <button
-                onClick={() => navigate('/onboarding')}
+                onClick={() => navigate('/profile')}
                 className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
               >
                 <Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400 mb-1" />
@@ -723,7 +723,7 @@ export const Dashboard: React.FC = () => {
                 </span>
               </button>
               <button
-                onClick={() => navigate('/onboarding')}
+                onClick={() => navigate('/profile')}
                 className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
               >
                 <Layers className="w-4 h-4 text-amber-500 mb-1" />

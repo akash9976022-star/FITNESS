@@ -37,7 +37,16 @@ const navItems: NavItem[] = [
   { name: 'Workouts', path: '/workouts', icon: Dumbbell },
   { name: 'Nutrition', path: '/nutrition', icon: UtensilsCrossed },
   { name: 'AI Coach', path: '/ai-coach', icon: Sparkles, badge: 'AI' },
+  { name: 'Profile', path: '/profile', icon: User },
   { name: 'Settings', path: '/settings', icon: Settings },
+];
+
+const mobileBottomNavItems: NavItem[] = [
+  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Check-In', path: '/checkin', icon: Camera },
+  { name: 'Workouts', path: '/workouts', icon: Dumbbell },
+  { name: 'Nutrition', path: '/nutrition', icon: UtensilsCrossed },
+  { name: 'Profile', path: '/profile', icon: User },
 ];
 
 export const AppLayout: React.FC = () => {
@@ -148,7 +157,11 @@ export const AppLayout: React.FC = () => {
 
         {/* Sidebar Footer User Info & Actions */}
         <div className="p-4 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-950/60">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-2.5 shadow-sm">
+          <div
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-2.5 shadow-sm cursor-pointer hover:border-emerald-500/40 hover:bg-slate-50 dark:hover:bg-slate-850 transition"
+            title="View & Edit Athlete Profile"
+          >
             {currentUser?.photoURL ? (
               <img
                 src={currentUser.photoURL}
@@ -263,8 +276,9 @@ export const AppLayout: React.FC = () => {
 
             {/* User Avatar Chip */}
             <div
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/profile')}
               className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/50 cursor-pointer transition shadow-sm"
+              title="View & Edit Profile"
             >
               <span className="hidden sm:inline text-xs font-semibold text-slate-700 dark:text-slate-200 pl-1">
                 {currentUser?.displayName?.split(' ')[0] || (currentUser?.isAnonymous ? 'Guest' : 'Athlete')}
@@ -298,7 +312,7 @@ export const AppLayout: React.FC = () => {
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
         <div className="grid grid-cols-5 h-16 items-center px-1">
-          {navItems.map((item) => {
+          {mobileBottomNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
@@ -356,7 +370,14 @@ export const AppLayout: React.FC = () => {
             </div>
 
             {/* Profile snapshot */}
-            <div className="my-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+            <div
+              onClick={() => {
+                setMobileDrawerOpen(false);
+                navigate('/profile');
+              }}
+              className="my-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center gap-3 cursor-pointer hover:border-emerald-500/40 transition"
+              title="View & Edit Profile"
+            >
               {currentUser?.photoURL ? (
                 <img
                   src={currentUser.photoURL}
