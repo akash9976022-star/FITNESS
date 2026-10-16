@@ -28,6 +28,7 @@ export interface DevotionalTrack {
   deityTamil: string;
   duration: string;
   audioUrl: string;
+  fallbackAudioUrl?: string;
   description: string;
   descriptionTamil: string;
   lyricsHighlight: string;
@@ -50,13 +51,14 @@ export interface PreloadedAlarmVideo {
 export const DEVOTIONAL_TRACKS: DevotionalTrack[] = [
   {
     id: 'kanda-sashti-kavasam',
-    title: 'Kanda Sashti Kavasam',
-    titleTamil: 'கந்த சஷ்டி கவசம்',
+    title: 'Kanda Sashti Kavasam (Original Master)',
+    titleTamil: 'கந்த சஷ்டி கவசம் (ஒரிஜினல் பாடல்)',
     deity: 'Lord Murugan',
     deityTamil: 'முருகப்பெருமான்',
     duration: '21:30',
-    // Authentic continuous high-fidelity audio streams with reliable fallback
-    audioUrl: 'https://ia800304.us.archive.org/21/items/KandhaSashtiKavasam/Kandha_Sashti_Kavasam.mp3',
+    // Loaded directly from user's local music collection with streaming fallback
+    audioUrl: '/audio/devotional/kanda_sashti_kavacham.mp3',
+    fallbackAudioUrl: 'https://ia800304.us.archive.org/21/items/KandhaSashtiKavasam/Kandha_Sashti_Kavasam.mp3',
     description: 'The ancient armor of Lord Murugan conferring fearless vitality, focus, and supreme physical endurance.',
     descriptionTamil: 'துதிப்போர்க்கு வல்வினைபோம் துன்பம்போம் நெஞ்சில் பதிப்போர்க்குச் செல்வம் பலித்துக் கதித்தோங்கும் கந்த சஷ்டி கவசம்.',
     lyricsHighlight: 'Thudhipporkku valvinaipom thunbampom; Nenjil padhipporkku chelvam palithuk kathithongum; Saravana bhavanaar saasharam kaakka!',
@@ -64,13 +66,15 @@ export const DEVOTIONAL_TRACKS: DevotionalTrack[] = [
   },
   {
     id: 'sivapuranam',
-    title: 'Sivapuranam (Thiruvasagam)',
-    titleTamil: 'சிவபுராணம் (திருவாசகம்)',
+    title: 'Sivapuranam (SPB Traditional)',
+    titleTamil: 'சிவபுராணம் (எஸ்.பி. பாலசுப்பிரமணியம்)',
     deity: 'Lord Shiva',
     deityTamil: 'சிவபெருமான்',
     duration: '16:45',
-    audioUrl: 'https://ia801306.us.archive.org/3/items/Sivapuranam_SPB/Sivapuranam.mp3',
-    description: 'The sublime morning hymn of boundless cosmic consciousness by Saint Manikkavacakar.',
+    // Loaded directly from user's local music collection with streaming fallback
+    audioUrl: '/audio/devotional/sivapuranam_spb.mp3',
+    fallbackAudioUrl: 'https://ia801306.us.archive.org/3/items/Sivapuranam_SPB/Sivapuranam.mp3',
+    description: 'The sublime morning hymn of boundless cosmic consciousness by Saint Manikkavacakar, sung by S.P. Balasubrahmanyam.',
     descriptionTamil: 'இமைப்பொழுதும் என் நெஞ்சில் நீங்காதான் தாள் வாழ்க! உள்ளொளியாய் எனை ஆட்கொண்ட ஈசனின் திருவடி போற்றி.',
     lyricsHighlight: 'Namachivaaya vaazhga naadhan thaal vaazhga; Imaippozhudhum en nenjil neengaadhaan thaal vaazhga; Kokazhi aanda guru manipthan thaal vaazhga!',
     lyricsHighlightTamil: 'நமச்சிவாய வாழ்க நாதன்தாள் வாழ்க! இமைப்பொழுதும் என்நெஞ்சில் நீங்காதான் தாள்வாழ்க! கோகழி ஆண்ட குருமணிதன் தாள்வாழ்க!',
@@ -80,6 +84,26 @@ export const DEVOTIONAL_TRACKS: DevotionalTrack[] = [
 /* ==================== 2. PRELOADED ALARM VIDEO SONGS ==================== */
 
 export const PRELOADED_ALARM_VIDEOS: PreloadedAlarmVideo[] = [
+  {
+    id: 'local-kandhasashti-mp3',
+    title: 'Kanda Sashti Kavasam (Local Audio Master)',
+    artistOrDeity: 'Lord Murugan (கந்த சஷ்டி கவசம்)',
+    videoUrl: '/audio/devotional/kanda_sashti_kavacham.mp3',
+    embedUrl: '/audio/devotional/kanda_sashti_kavacham.mp3',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
+    duration: '21:30',
+    category: 'Devotional',
+  },
+  {
+    id: 'local-sivapuranam-mp3',
+    title: 'Sivapuranam SPB (Local Audio Master)',
+    artistOrDeity: 'Lord Shiva (சிவபுராணம் - எஸ்.பி. பாலசுப்பிரமணியம்)',
+    videoUrl: '/audio/devotional/sivapuranam_spb.mp3',
+    embedUrl: '/audio/devotional/sivapuranam_spb.mp3',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80',
+    duration: '16:45',
+    category: 'Devotional',
+  },
   {
     id: 'murugan-kavasam-video',
     title: 'Kanda Sashti Kavasam - Full Visual Chants',
@@ -757,6 +781,15 @@ class DevotionalAudioPlayer {
       this.audio.addEventListener('pause', () => {
         this.isPlaying = false;
         this.onStateChangeCallbacks.forEach((cb) => cb(false));
+      });
+
+      this.audio.addEventListener('error', () => {
+        const track = this.getCurrentTrack();
+        if (track.fallbackAudioUrl && this.audio && !this.audio.src.includes('archive.org')) {
+          console.warn('Local audio file notice, falling back to streaming stream:', track.fallbackAudioUrl);
+          this.audio.src = track.fallbackAudioUrl;
+          this.audio.play().catch(console.warn);
+        }
       });
     }
   }
