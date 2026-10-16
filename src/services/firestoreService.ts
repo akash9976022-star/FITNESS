@@ -358,7 +358,7 @@ export const finishAndSaveWorkout = async (
 
   // 1. Add to completed_workouts collection
   const completedRef = collection(db, 'users', userId, 'completed_workouts');
-  await addDoc(completedRef, {
+  const compDoc = await addDoc(completedRef, {
     routineName: session.routineName || 'Custom Workout',
     completedAt: serverTimestamp(),
     totalVolumeKg,
@@ -368,32 +368,40 @@ export const finishAndSaveWorkout = async (
     exercises: session.exercises,
   });
 
-  // 2. Also log to workouts collection with duration_minutes
-  const workoutsRef = collection(db, 'users', userId, 'workouts');
-  await addDoc(workoutsRef, {
-    routineName: session.routineName || 'Custom Workout',
-    savedAt: serverTimestamp(),
-    completedAt: serverTimestamp(),
-    totalVolumeKg,
-    totalSets,
-    durationMinutes: finalDurationMinutes,
-    duration_minutes: finalDurationMinutes,
-    exercises: session.exercises,
-    isCompleted: true,
-  });
+  // 2. Also log to workouts collection with duration_minutes using identical ID
+  try {
+    const workoutsRef = collection(db, 'users', userId, 'workouts');
+    await setDoc(doc(workoutsRef, compDoc.id), {
+      routineName: session.routineName || 'Custom Workout',
+      savedAt: serverTimestamp(),
+      completedAt: serverTimestamp(),
+      totalVolumeKg,
+      totalSets,
+      durationMinutes: finalDurationMinutes,
+      duration_minutes: finalDurationMinutes,
+      exercises: session.exercises,
+      isCompleted: true,
+    });
+  } catch (err) {
+    console.warn('workouts collection sync error:', err);
+  }
 
-  // 3. Also log to dedicated workout_logs subcollection
-  const workoutLogsRef = collection(db, 'users', userId, 'workout_logs');
-  await addDoc(workoutLogsRef, {
-    routineName: session.routineName || 'Custom Workout',
-    loggedAt: serverTimestamp(),
-    completedAt: serverTimestamp(),
-    totalVolumeKg,
-    totalSets,
-    durationMinutes: finalDurationMinutes,
-    duration_minutes: finalDurationMinutes,
-    exercises: session.exercises,
-  });
+  // 3. Also log to dedicated workout_logs subcollection using identical ID
+  try {
+    const workoutLogsRef = collection(db, 'users', userId, 'workout_logs');
+    await setDoc(doc(workoutLogsRef, compDoc.id), {
+      routineName: session.routineName || 'Custom Workout',
+      loggedAt: serverTimestamp(),
+      completedAt: serverTimestamp(),
+      totalVolumeKg,
+      totalSets,
+      durationMinutes: finalDurationMinutes,
+      duration_minutes: finalDurationMinutes,
+      exercises: session.exercises,
+    });
+  } catch (err) {
+    console.warn('workout_logs collection sync error:', err);
+  }
 
   // Clear active workout session
   await saveActiveWorkout(userId, null);
@@ -402,34 +410,125 @@ export const finishAndSaveWorkout = async (
   await recordStreakActivity(userId, 'workout');
 };
 
-export const subscribeCompletedWorkouts = (
+/**
+ * Permanently deletes a completed workout log from Firestore:
+ * removes it across workout_logs, completed_workouts, and workouts collections.
+ */
+export const deleteCompletedWorkoutLog = async (
+  userId: string,
+  logId: string
+): Promise<void> => {
+  if (!db || !userId || !logId) return;
+
+  // 1. Delete from workout_logs
+  try {
+    const workoutLogRef = doc(db, 'users', userId, 'workout_logs', logId);
+    await deleteDoc(workoutLogRef);
+  } catch (err) {
+    console.warn('Error deleting from workout_logs:', err);
+  }
+
+  // 2. Delete from completed_workouts
+  try {
+    const completedRef = doc(db, 'users', userId, 'completed_workouts', logId);
+    await deleteDoc(completedRef);
+  } catch (err) {
+    console.warn('Error deleting from completed_workouts:', err);
+  }
+
+  // 3. Delete from workouts
+  try {
+    const workoutRef = doc(db, 'users', userId, 'workouts', logId);
+    await deleteDoc(workoutRef);
+  } catch (err) {
+    console.warn('Error deleting from workouts:', err);
+  }
+};
+
+/**
+ * Real-time listener for dedicated workout_logs and completed_workouts,
+ * merging and deduplicating them by ID so all past logs are visible and deletable.
+ */
+export const subscribeWorkoutLogs = (
   userId: string,
   callback: (workouts: CompletedWorkout[]) => void,
-  limitCount = 20
+  limitCount = 50
 ): Unsubscribe => {
   if (!db || !userId) {
     callback([]);
     return () => {};
   }
 
-  const completedRef = collection(db, 'users', userId, 'completed_workouts');
-  const q = query(completedRef, orderBy('completedAt', 'desc'), limit(limitCount));
+  const logsMap = new Map<string, CompletedWorkout>();
+  const completedMap = new Map<string, CompletedWorkout>();
 
-  return onSnapshot(
-    q,
+  const emit = () => {
+    const combined = new Map<string, CompletedWorkout>();
+    completedMap.forEach((val, key) => combined.set(key, val));
+    logsMap.forEach((val, key) => combined.set(key, val));
+
+    const list = Array.from(combined.values());
+    list.sort((a, b) => {
+      const getMillis = (t: unknown): number => {
+        if (!t) return 0;
+        if (typeof (t as { toMillis?: () => number }).toMillis === 'function') {
+          return (t as { toMillis: () => number }).toMillis();
+        }
+        if (t instanceof Date) return t.getTime();
+        if (typeof t === 'number') return t;
+        if (typeof t === 'string') return new Date(t).getTime() || 0;
+        return 0;
+      };
+      return getMillis(b.completedAt) - getMillis(a.completedAt);
+    });
+    callback(list.slice(0, limitCount));
+  };
+
+  const logsRef = collection(db, 'users', userId, 'workout_logs');
+  const qLogs = query(logsRef, orderBy('completedAt', 'desc'), limit(limitCount));
+  const unsubLogs = onSnapshot(
+    qLogs,
     (snapshot) => {
-      const items: CompletedWorkout[] = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<CompletedWorkout, 'id'>),
-      }));
-      callback(items);
+      logsMap.clear();
+      snapshot.docs.forEach((docSnap) => {
+        logsMap.set(docSnap.id, {
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<CompletedWorkout, 'id'>),
+        });
+      });
+      emit();
     },
-    (error) => {
-      console.warn('Firestore completed workouts snapshot error:', error);
-      callback([]);
+    (err) => {
+      console.warn('workout_logs subscription notice:', err);
     }
   );
+
+  const completedRef = collection(db, 'users', userId, 'completed_workouts');
+  const qCompleted = query(completedRef, orderBy('completedAt', 'desc'), limit(limitCount));
+  const unsubCompleted = onSnapshot(
+    qCompleted,
+    (snapshot) => {
+      completedMap.clear();
+      snapshot.docs.forEach((docSnap) => {
+        completedMap.set(docSnap.id, {
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<CompletedWorkout, 'id'>),
+        });
+      });
+      emit();
+    },
+    (err) => {
+      console.warn('completed_workouts subscription notice:', err);
+    }
+  );
+
+  return () => {
+    unsubLogs();
+    unsubCompleted();
+  };
 };
+
+export const subscribeCompletedWorkouts = subscribeWorkoutLogs;
 
 /* ==================== AI COACH CHAT HISTORY ==================== */
 export interface CoachMessageItem {
@@ -1867,25 +1966,68 @@ export const generateEquipmentAwareRoutine = (
 };
 
 /**
- * Saves a workout routine to users/{userId}/workouts collection
+ * Saves a workout routine template to users/{userId}/saved_routines (and mirrors to workouts)
  */
-export const saveWorkoutToCollection = async (
+export const saveSavedWorkoutRoutine = async (
   userId: string,
   session: WorkoutSession
 ): Promise<string | null> => {
   if (!db || !userId) return null;
-  const colRef = collection(db, 'users', userId, 'workouts');
-  const docRef = await addDoc(colRef, {
+
+  // 1. Save to saved_routines
+  const savedColRef = collection(db, 'users', userId, 'saved_routines');
+  const docRef = await addDoc(savedColRef, {
     ...session,
     savedAt: serverTimestamp(),
   });
+
+  // 2. Also mirror to workouts collection with same ID
+  try {
+    const workoutsColRef = collection(db, 'users', userId, 'workouts');
+    await setDoc(doc(workoutsColRef, docRef.id), {
+      ...session,
+      savedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn('Syncing saved routine to workouts notice:', err);
+  }
+
   return docRef.id;
 };
 
+export const saveWorkoutToCollection = saveSavedWorkoutRoutine;
+
 /**
- * Subscribes to custom workouts saved in users/{userId}/workouts
+ * Permanently deletes a saved routine template from users/{userId}/saved_routines and workouts
  */
-export const subscribeWorkoutsCollection = (
+export const deleteSavedWorkoutRoutine = async (
+  userId: string,
+  routineId: string
+): Promise<void> => {
+  if (!db || !userId || !routineId) return;
+
+  // 1. Delete from saved_routines
+  try {
+    const savedRef = doc(db, 'users', userId, 'saved_routines', routineId);
+    await deleteDoc(savedRef);
+  } catch (err) {
+    console.warn('Error deleting from saved_routines:', err);
+  }
+
+  // 2. Delete from workouts
+  try {
+    const workoutsRef = doc(db, 'users', userId, 'workouts', routineId);
+    await deleteDoc(workoutsRef);
+  } catch (err) {
+    console.warn('Error deleting from workouts:', err);
+  }
+};
+
+/**
+ * Subscribes to custom workouts saved in users/{userId}/saved_routines and workouts,
+ * merging and deduplicating them so all templates can be loaded or deleted.
+ */
+export const subscribeSavedWorkoutRoutines = (
   userId: string,
   callback: (workouts: (WorkoutSession & { id: string })[]) => void
 ): Unsubscribe => {
@@ -1893,23 +2035,81 @@ export const subscribeWorkoutsCollection = (
     callback([]);
     return () => {};
   }
-  const colRef = collection(db, 'users', userId, 'workouts');
-  const q = query(colRef, orderBy('savedAt', 'desc'), limit(20));
-  return onSnapshot(
-    q,
+
+  const savedMap = new Map<string, WorkoutSession & { id: string }>();
+  const workoutsMap = new Map<string, WorkoutSession & { id: string }>();
+
+  const emit = () => {
+    const combined = new Map<string, WorkoutSession & { id: string }>();
+    workoutsMap.forEach((val, key) => combined.set(key, val));
+    savedMap.forEach((val, key) => combined.set(key, val));
+
+    // Exclude sessions that are marked as completed workout logs
+    const list = Array.from(combined.values()).filter(
+      (w) => !(w as unknown as { isCompleted?: boolean }).isCompleted
+    );
+
+    // Sort newest saved first
+    list.sort((a, b) => {
+      const getMillis = (t: unknown): number => {
+        if (!t) return 0;
+        if (typeof (t as { toMillis?: () => number }).toMillis === 'function') {
+          return (t as { toMillis: () => number }).toMillis();
+        }
+        if (t instanceof Date) return t.getTime();
+        if (typeof t === 'number') return t;
+        if (typeof t === 'string') return new Date(t).getTime() || 0;
+        return 0;
+      };
+      return getMillis((b as unknown as { savedAt?: unknown }).savedAt) - getMillis((a as unknown as { savedAt?: unknown }).savedAt);
+    });
+
+    callback(list);
+  };
+
+  const savedColRef = collection(db, 'users', userId, 'saved_routines');
+  const unsubSaved = onSnapshot(
+    savedColRef,
     (snapshot) => {
-      const items = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as WorkoutSession),
-      }));
-      callback(items);
+      savedMap.clear();
+      snapshot.docs.forEach((docSnap) => {
+        savedMap.set(docSnap.id, {
+          id: docSnap.id,
+          ...(docSnap.data() as WorkoutSession),
+        });
+      });
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore saved_routines snapshot error:', err);
+    }
+  );
+
+  const workoutsColRef = collection(db, 'users', userId, 'workouts');
+  const unsubWorkouts = onSnapshot(
+    workoutsColRef,
+    (snapshot) => {
+      workoutsMap.clear();
+      snapshot.docs.forEach((docSnap) => {
+        workoutsMap.set(docSnap.id, {
+          id: docSnap.id,
+          ...(docSnap.data() as WorkoutSession),
+        });
+      });
+      emit();
     },
     (err) => {
       console.warn('Firestore workouts collection snapshot error:', err);
-      callback([]);
     }
   );
+
+  return () => {
+    unsubSaved();
+    unsubWorkouts();
+  };
 };
+
+export const subscribeWorkoutsCollection = subscribeSavedWorkoutRoutines;
 
 /**
  * Applies reactive workout volume adjustment (+2 sets on caloric surplus, or -1 set on deficit)

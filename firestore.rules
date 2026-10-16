@@ -63,6 +63,9 @@ service cloud.firestore {
     // Subcollection: users/{userId}/daily_routines/{routineId}
     //   - Day-by-day Hevy-style routine templates (e.g., monday, tuesday, etc.)
     //
+    // Subcollection: users/{userId}/saved_routines/{routineId}
+    //   - Saved workout routine templates and custom exercise programs
+    //
     // Subcollection: users/{userId}/workout_logs/{logId}
     //   - Dedicated workout logs and history
     //
@@ -144,6 +147,11 @@ service cloud.firestore {
 
       // Subcollection: Daily Routine Templates (Hevy-style)
       match /daily_routines/{routineId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Saved Routine Templates
+      match /saved_routines/{routineId} {
         allow read, write: if isOwner(userId);
       }
 

@@ -26,12 +26,15 @@ import {
   subscribeActiveWorkout,
   saveActiveWorkout,
   finishAndSaveWorkout,
-  subscribeCompletedWorkouts,
+  subscribeWorkoutLogs,
+  deleteCompletedWorkoutLog,
   subscribeUserProfile,
   generateEquipmentAwareRoutine,
   getFilteredExercisesForUser,
   saveWorkoutToCollection,
-  subscribeWorkoutsCollection,
+  saveSavedWorkoutRoutine,
+  deleteSavedWorkoutRoutine,
+  subscribeSavedWorkoutRoutines,
   subscribeCustomExercises,
   subscribeDailyRoutines,
   saveDailyRoutine,
@@ -106,7 +109,7 @@ export const Workouts: React.FC = () => {
       setLoading(false);
     });
 
-    const unsubHistory = subscribeCompletedWorkouts(currentUser.uid, (history) => {
+    const unsubHistory = subscribeWorkoutLogs(currentUser.uid, (history) => {
       setCompletedList(history);
     });
 
@@ -114,7 +117,7 @@ export const Workouts: React.FC = () => {
       setUserProfile(profile);
     });
 
-    const unsubTemplates = subscribeWorkoutsCollection(currentUser.uid, (templates) => {
+    const unsubTemplates = subscribeSavedWorkoutRoutines(currentUser.uid, (templates) => {
       setSavedTemplates(templates);
     });
 
@@ -135,6 +138,68 @@ export const Workouts: React.FC = () => {
       unsubDaily();
     };
   }, [currentUser?.uid]);
+
+  // Handler for permanently deleting a completed workout log
+  const handleDeleteCompletedWorkoutLog = async (logId: string, routineName: string) => {
+    if (!currentUser?.uid) return;
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete the completed workout log for "${routineName}"? This will remove it from your history and update your total volume analytics.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setCompletedList((prev) => prev.filter((item) => item.id !== logId));
+      await deleteCompletedWorkoutLog(currentUser.uid, logId);
+      showToast(`Deleted workout log "${routineName}".`);
+    } catch (err) {
+      console.error('Failed to delete completed workout log:', err);
+      showToast('Error deleting workout log.');
+    }
+  };
+
+  // Handler for permanently deleting a saved routine template
+  const handleDeleteSavedRoutine = async (routineId: string, routineName: string) => {
+    if (!currentUser?.uid) return;
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete the saved routine template "${routineName}" from your library?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setSavedTemplates((prev) => prev.filter((tpl) => tpl.id !== routineId));
+      await deleteSavedWorkoutRoutine(currentUser.uid, routineId);
+      showToast(`Deleted routine "${routineName}" from library.`);
+    } catch (err) {
+      console.error('Failed to delete saved routine:', err);
+      showToast('Error deleting saved routine.');
+    }
+  };
+
+  // Helper for human-readable completion date formatting
+  const formatCompletedDate = (timestamp: unknown): string => {
+    if (!timestamp) return 'Recent';
+    try {
+      let d: Date | null = null;
+      if (typeof (timestamp as { toDate?: () => Date }).toDate === 'function') {
+        d = (timestamp as { toDate: () => Date }).toDate();
+      } else if (timestamp instanceof Date) {
+        d = timestamp;
+      } else if (typeof timestamp === 'number' || typeof timestamp === 'string') {
+        d = new Date(timestamp);
+      }
+      if (d && !isNaN(d.getTime())) {
+        return d.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
+    } catch {
+      // Ignore
+    }
+    return 'Completed';
+  };
 
   /* ==================== HEVY ROUTINES & CUSTOM EXERCISE HANDLERS ==================== */
   const handleStartDayRoutine = async (routine: DayRoutineTemplate) => {
@@ -544,7 +609,7 @@ export const Workouts: React.FC = () => {
   const handleSaveAsTemplate = async () => {
     if (!currentUser?.uid || !activeSession) return;
     try {
-      await saveWorkoutToCollection(currentUser.uid, activeSession);
+      await saveSavedWorkoutRoutine(currentUser.uid, activeSession);
       showToast('Routine saved to your custom workouts library!');
     } catch (err) {
       console.error('Failed to save template:', err);
@@ -1159,13 +1224,70 @@ export const Workouts: React.FC = () => {
         </div>
       )}
 
-      {/* COMPLETED WORKOUTS HISTORY (Real Firestore onSnapshot) */}
-      <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            Completed Workout History ({(completedList || []).length})
-          </h3>
+      {/* COMPLETED WORKOUTS HISTORY (Real Firestore onSnapshot & Deletable) */}
+      <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Completed Workout History ({(completedList || []).length})
+            </h3>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Real-time Firestore logs with volume and set telemetry
+          </p>
+        </div>
+
+        {/* Dynamic Training Analytics Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Total Volume
+            </p>
+            <p className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
+              {(completedList || [])
+                .reduce((acc, item) => acc + (Number(item.totalVolumeKg) || 0), 0)
+                .toLocaleString()}{' '}
+              <span className="text-xs font-semibold text-slate-400">kg</span>
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Sessions
+            </p>
+            <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {(completedList || []).length}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Sets Logged
+            </p>
+            <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {(completedList || []).reduce(
+                (acc, item) => acc + (Number(item.totalSets) || 0),
+                0
+              )}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Avg Duration
+            </p>
+            <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              {(completedList || []).length > 0
+                ? Math.round(
+                    (completedList || []).reduce(
+                      (acc, item) =>
+                        acc +
+                        (Number(item.durationMinutes || item.duration_minutes) || 0),
+                      0
+                    ) / (completedList || []).length
+                  )
+                : 0}{' '}
+              <span className="text-xs font-semibold text-slate-400">min</span>
+            </p>
+          </div>
         </div>
 
         {(completedList || []).length === 0 ? (
@@ -1177,20 +1299,40 @@ export const Workouts: React.FC = () => {
             {(completedList || []).map((item) => (
               <div
                 key={item.id}
-                className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2"
+                className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 transition hover:border-slate-300 dark:hover:border-slate-700"
               >
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                    {item.routineName}
-                  </h4>
-                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20">
-                    {(item.totalVolumeKg || 0).toLocaleString()} kg
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {item.routineName}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                      {formatCompletedDate(item.completedAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20">
+                      {(item.totalVolumeKg || 0).toLocaleString()} kg
+                    </span>
+                    <button
+                      onClick={() =>
+                        handleDeleteCompletedWorkoutLog(item.id, item.routineName)
+                      }
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                      title="Permanently delete workout log"
+                      aria-label="Delete workout log"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>{(item.exercises || []).length} exercises • {item.totalSets || 0} sets</span>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                  <span>
+                    {(item.exercises || []).length} exercises • {item.totalSets || 0} sets
+                  </span>
                   <span className="flex items-center gap-1 font-medium">
-                    <Clock className="w-3 h-3 text-slate-400" /> {item.durationMinutes || 0}m
+                    <Clock className="w-3 h-3 text-slate-400" />{' '}
+                    {item.durationMinutes || item.duration_minutes || 0}m
                   </span>
                 </div>
               </div>
@@ -1199,59 +1341,84 @@ export const Workouts: React.FC = () => {
         )}
       </div>
 
-      {/* SAVED WORKOUT TEMPLATES FROM FIRESTORE (users/{userId}/workouts) */}
-      {(savedTemplates || []).length > 0 && (
-        <div className="space-y-3 pt-2">
+      {/* SAVED WORKOUT TEMPLATES FROM FIRESTORE (users/{userId}/saved_routines & workouts) */}
+      <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <BookmarkCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Saved Routines Library ({(savedTemplates || []).length})
             </h3>
           </div>
+          {activeSession && (
+            <button
+              onClick={handleSaveAsTemplate}
+              className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-[11px] font-semibold transition flex items-center gap-1 shadow-sm"
+            >
+              <BookmarkCheck className="w-3.5 h-3.5 text-teal-500" />
+              <span>Save Active as Template</span>
+            </button>
+          )}
+        </div>
 
+        {(savedTemplates || []).length === 0 ? (
+          <div className="p-6 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
+            No saved routine templates yet. Click &quot;Save Active as Template&quot; during an active session to save custom day-by-day routines here!
+          </div>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {(savedTemplates || []).slice(0, 6).map((tpl) => (
+            {(savedTemplates || []).map((tpl) => (
               <div
                 key={tpl.id}
-                className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2"
+                className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 transition hover:border-slate-300 dark:hover:border-slate-700"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                     {tpl.routineName}
                   </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                     {(tpl.exercises || []).length} exercises configured
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    if (currentUser?.uid) {
-                      const cloned: WorkoutSession = {
-                        routineName: tpl.routineName,
-                        startedAt: Date.now(),
-                        exercises: (tpl.exercises || []).map((ex, eIdx) => ({
-                          ...ex,
-                          id: `ex-${Date.now()}-${eIdx}`,
-                          sets: (ex.sets || []).map((s, sIdx) => ({
-                            ...s,
-                            id: `s-${Date.now()}-${eIdx}-${sIdx}`,
-                            completed: false,
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => {
+                      if (currentUser?.uid) {
+                        const cloned: WorkoutSession = {
+                          routineName: tpl.routineName,
+                          startedAt: Date.now(),
+                          exercises: (tpl.exercises || []).map((ex, eIdx) => ({
+                            ...ex,
+                            id: `ex-${Date.now()}-${eIdx}`,
+                            sets: (ex.sets || []).map((s, sIdx) => ({
+                              ...s,
+                              id: `s-${Date.now()}-${eIdx}-${sIdx}`,
+                              completed: false,
+                            })),
                           })),
-                        })),
-                      };
-                      saveActiveWorkout(currentUser.uid, cloned);
-                      showToast(`Loaded routine "${tpl.routineName}"!`);
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-bold text-[11px] whitespace-nowrap transition"
-                >
-                  Load
-                </button>
+                        };
+                        saveActiveWorkout(currentUser.uid, cloned);
+                        showToast(`Loaded routine "${tpl.routineName}"!`);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-bold text-[11px] whitespace-nowrap transition"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSavedRoutine(tpl.id, tpl.routineName)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                    title="Permanently delete routine template"
+                    aria-label="Delete routine template"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* DELETABLE CUSTOM MOVEMENT LIBRARY MODAL */}
       {currentUser?.uid && (
