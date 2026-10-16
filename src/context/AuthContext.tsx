@@ -10,6 +10,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
+import { ensureUserProfileExists } from '../services/firestoreService';
 
 export interface AppUser {
   uid: string;
@@ -55,6 +56,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             displayName: user.displayName || (user.isAnonymous ? 'Guest Athlete' : user.email?.split('@')[0] || 'Athlete'),
             photoURL: user.photoURL,
             isAnonymous: user.isAnonymous,
+          });
+          // Auto-initialize missing Firestore user document on login
+          ensureUserProfileExists(user.uid).catch((err) => {
+            console.warn('Auto-initialize profile on login error:', err);
           });
         } else {
           setCurrentUser(null);

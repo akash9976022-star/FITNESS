@@ -272,7 +272,7 @@ export const Profile: React.FC = () => {
   };
 
   // Loading spinner while fetching data from Firestore
-  if (loading) {
+  if (loading || !currentUser) {
     return (
       <div className="min-h-[450px] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
         <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-4 shadow-sm">
@@ -847,7 +847,7 @@ export const Profile: React.FC = () => {
                   Gym Equipment & Machine Inventory
                 </h2>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-500/15 text-teal-800 dark:text-teal-300 font-bold border border-teal-500/20">
-                  {selectedEquipment.length} Selected
+                  {(selectedEquipment || []).length} Selected
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -873,8 +873,8 @@ export const Profile: React.FC = () => {
         {/* Equipment Categories */}
         <div className="space-y-6">
           {EQUIPMENT_CATALOG.map((category) => {
-            const categoryItems = category.items;
-            const categorySelectedCount = categoryItems.filter((i) => selectedEquipment.includes(i)).length;
+            const categoryItems = category.items || [];
+            const categorySelectedCount = categoryItems.filter((i) => (selectedEquipment || []).includes(i)).length;
             const allSelected = categorySelectedCount === categoryItems.length;
 
             return (
@@ -911,7 +911,7 @@ export const Profile: React.FC = () => {
                 {/* Items Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1">
                   {categoryItems.map((item) => {
-                    const isSelected = selectedEquipment.includes(item);
+                    const isSelected = (selectedEquipment || []).includes(item);
 
                     if (!isEditing) {
                       // VIEW MODE: Show badges

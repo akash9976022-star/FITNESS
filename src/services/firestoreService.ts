@@ -75,6 +75,55 @@ export const calculateMifflinStJeor = (
   return { bmr, calculatedTdee };
 };
 
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  gender: 'male',
+  age: 25,
+  heightCm: 175,
+  currentWeightKg: 75,
+  targetWeightKg: 75,
+  activityMultiplier: 1.55,
+  experienceLevel: 'intermediate',
+  equipment: [],
+  calculatedTdee: 2450,
+  bmr: 1700,
+  onboardingCompleted: true,
+};
+
+/**
+ * Checks if the user's Firestore document (users/{userId}) exists.
+ * If missing, automatically creates it with safe baseline metrics and an empty equipment array.
+ */
+export const ensureUserProfileExists = async (
+  userId: string,
+  defaults?: Partial<UserProfile>
+): Promise<UserProfile> => {
+  if (!db || !userId) return DEFAULT_USER_PROFILE;
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    const snap = await getDoc(userDocRef);
+    if (!snap.exists()) {
+      const defaultProfile: UserProfile = {
+        ...DEFAULT_USER_PROFILE,
+        ...defaults,
+      };
+      await setDoc(
+        userDocRef,
+        {
+          ...defaultProfile,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return defaultProfile;
+    }
+    return snap.data() as UserProfile;
+  } catch (err) {
+    console.warn('Failed to ensure user profile exists in Firestore:', err);
+    return DEFAULT_USER_PROFILE;
+  }
+};
+
 export const subscribeUserProfile = (
   userId: string,
   callback: (profile: UserProfile | null) => void
@@ -87,10 +136,28 @@ export const subscribeUserProfile = (
   const userDocRef = doc(db, 'users', userId);
   return onSnapshot(
     userDocRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        callback(snapshot.data() as UserProfile);
-      } else {
+    async (snapshot) => {
+      try {
+        if (snapshot.exists()) {
+          callback(snapshot.data() as UserProfile);
+        } else {
+          // Auto-initialize missing Firestore user documents
+          const defaultProfile: UserProfile = {
+            ...DEFAULT_USER_PROFILE,
+          };
+          await setDoc(
+            userDocRef,
+            {
+              ...defaultProfile,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+          callback(defaultProfile);
+        }
+      } catch (err) {
+        console.error('Error in subscribeUserProfile onSnapshot handler:', err);
         callback(null);
       }
     },

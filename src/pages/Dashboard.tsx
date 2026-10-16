@@ -17,6 +17,7 @@ import {
   Activity,
   Zap,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -133,20 +134,20 @@ export const Dashboard: React.FC = () => {
   }, [biometrics, userProfile]);
 
   // Real volume from completed workouts in the past 7 days
-  const weeklyWorkoutsCount = completedWorkouts.length;
-  const weeklyVolumeKg = completedWorkouts.reduce((acc, w) => acc + (w.totalVolumeKg || 0), 0);
+  const weeklyWorkoutsCount = (completedWorkouts || []).length;
+  const weeklyVolumeKg = (completedWorkouts || []).reduce((acc, w) => acc + (w.totalVolumeKg || 0), 0);
 
   // Real today's calories from Firestore nutrition_logs (Zero Mock Data)
   const todaysNutritionLogs = useMemo(() => {
-    return nutritionLogs.filter((l) => isToday(l.loggedAt));
+    return (nutritionLogs || []).filter((l) => isToday(l.loggedAt));
   }, [nutritionLogs]);
 
   const todayCalories = useMemo(() => {
-    return todaysNutritionLogs.reduce((acc, log) => acc + (log.calories || 0), 0);
+    return (todaysNutritionLogs || []).reduce((acc, log) => acc + (log.calories || 0), 0);
   }, [todaysNutritionLogs]);
 
   // Latest check-in from Firestore
-  const latestCheckIn = checkIns[0] || null;
+  const latestCheckIn = (checkIns || [])[0] || null;
 
   // Real Body Maintenance Balance (BMB) Score
   const bmbResult = useMemo(() => {
@@ -154,7 +155,7 @@ export const Dashboard: React.FC = () => {
       targetCalories,
       todayCalories,
       latestCheckIn,
-      completedWorkouts
+      completedWorkouts || []
     );
   }, [targetCalories, todayCalories, latestCheckIn, completedWorkouts]);
 
@@ -196,10 +197,19 @@ export const Dashboard: React.FC = () => {
       ? 'bg-amber-100 dark:bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-400'
       : 'bg-rose-100 dark:bg-rose-500/15 border-rose-500/30 text-rose-800 dark:text-rose-400';
 
-  if (loading) {
+  // Defensive Guard Clause: Return clean loading spinner if userData or currentUser is loading/null
+  if (loading || !currentUser) {
     return (
-      <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
-        Syncing dashboard with Firestore data...
+      <div className="min-h-[450px] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-4 shadow-sm">
+          <Loader2 className="w-7 h-7 text-emerald-500 animate-spin" />
+        </div>
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+          Loading Athlete Dashboard...
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+          Connecting to Cloud Firestore and aggregating real-time balance metrics...
+        </p>
       </div>
     );
   }
@@ -529,7 +539,7 @@ export const Dashboard: React.FC = () => {
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {activeSession
-                    ? `${activeSession.exercises.length} exercises logged in live session`
+                    ? `${(activeSession.exercises || []).length} exercises logged in live session`
                     : 'No active session currently running.'}
                 </p>
               </div>
@@ -542,10 +552,11 @@ export const Dashboard: React.FC = () => {
               </button>
             </div>
 
-            {activeSession && activeSession.exercises.length > 0 ? (
+            {activeSession && (activeSession.exercises || []).length > 0 ? (
               <div className="space-y-2.5">
-                {activeSession.exercises.slice(0, 4).map((exercise) => {
-                  const completedSets = exercise.sets.filter((s) => s.completed).length;
+                {(activeSession.exercises || []).slice(0, 4).map((exercise) => {
+                  const completedSets = (exercise.sets || []).filter((s) => s.completed).length;
+                  const totalSets = (exercise.sets || []).length;
                   return (
                     <div
                       key={exercise.id}
@@ -554,7 +565,7 @@ export const Dashboard: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                            completedSets === exercise.sets.length && completedSets > 0
+                            completedSets === totalSets && completedSets > 0
                               ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10'
                               : 'text-slate-400 bg-slate-200 dark:bg-slate-800'
                           }`}

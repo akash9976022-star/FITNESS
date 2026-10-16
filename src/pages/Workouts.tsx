@@ -19,6 +19,7 @@ import {
   ArrowRight,
   X,
   PlusCircle,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -107,14 +108,19 @@ export const Workouts: React.FC = () => {
   const handleGenerateRoutine = async (split: 'full_body' | 'upper' | 'lower') => {
     if (!currentUser?.uid) return;
 
-    const equipment = userProfile?.equipment || [];
-    const experience = userProfile?.experienceLevel || 'intermediate';
+    try {
+      const equipment = userProfile?.equipment || [];
+      const experience = userProfile?.experienceLevel || 'intermediate';
 
-    const generated = generateEquipmentAwareRoutine(equipment, experience, split);
-    await saveActiveWorkout(currentUser.uid, generated);
-    await saveWorkoutToCollection(currentUser.uid, generated);
+      const generated = generateEquipmentAwareRoutine(equipment, experience, split);
+      await saveActiveWorkout(currentUser.uid, generated);
+      await saveWorkoutToCollection(currentUser.uid, generated);
 
-    showToast(`Generated ${split.replace('_', ' ')} routine tailored to your ${equipment.length} registered gym machines!`);
+      showToast(`Generated ${split.replace('_', ' ')} routine tailored to your ${equipment.length} registered gym machines!`);
+    } catch (err) {
+      console.error('Failed to generate routine:', err);
+      showToast('Error generating routine. Please try again.');
+    }
   };
 
   /* ==================== ROUTINE TITLE EDITING ==================== */
@@ -126,12 +132,17 @@ export const Workouts: React.FC = () => {
 
   const handleSaveRoutineTitle = async () => {
     if (!currentUser?.uid || !activeSession) return;
-    const trimmed = routineTitleDraft.trim() || 'Custom Training Session';
-    const updated = { ...activeSession, routineName: trimmed };
-    await saveActiveWorkout(currentUser.uid, updated);
-    await saveWorkoutToCollection(currentUser.uid, updated);
-    setIsEditingRoutineTitle(false);
-    showToast('Routine title updated and synced to Firestore.');
+    try {
+      const trimmed = routineTitleDraft.trim() || 'Custom Training Session';
+      const updated = { ...activeSession, routineName: trimmed };
+      await saveActiveWorkout(currentUser.uid, updated);
+      await saveWorkoutToCollection(currentUser.uid, updated);
+      setIsEditingRoutineTitle(false);
+      showToast('Routine title updated and synced to Firestore.');
+    } catch (err) {
+      console.error('Failed to save routine title:', err);
+      showToast('Error saving routine title.');
+    }
   };
 
   /* ==================== INLINE EXERCISE EDITING ==================== */
@@ -148,14 +159,19 @@ export const Workouts: React.FC = () => {
       return;
     }
 
-    const updatedExercises = activeSession.exercises.map((ex) =>
-      ex.id === exerciseId ? { ...ex, name: trimmed } : ex
-    );
-    const updated = { ...activeSession, exercises: updatedExercises };
-    await saveActiveWorkout(currentUser.uid, updated);
-    await saveWorkoutToCollection(currentUser.uid, updated);
-    setEditingExerciseId(null);
-    showToast('Exercise name updated in real-time.');
+    try {
+      const updatedExercises = (activeSession.exercises || []).map((ex) =>
+        ex.id === exerciseId ? { ...ex, name: trimmed } : ex
+      );
+      const updated = { ...activeSession, exercises: updatedExercises };
+      await saveActiveWorkout(currentUser.uid, updated);
+      await saveWorkoutToCollection(currentUser.uid, updated);
+      setEditingExerciseId(null);
+      showToast('Exercise name updated in real-time.');
+    } catch (err) {
+      console.error('Failed to save exercise name:', err);
+      showToast('Error updating exercise name.');
+    }
   };
 
   const handleStartEditMuscle = (ex: ExerciseItem) => {
@@ -167,26 +183,35 @@ export const Workouts: React.FC = () => {
     if (!currentUser?.uid || !activeSession) return;
     const trimmed = exerciseMuscleDraft.trim() || 'Compound';
 
-    const updatedExercises = activeSession.exercises.map((ex) =>
-      ex.id === exerciseId ? { ...ex, muscle: trimmed } : ex
-    );
-    const updated = { ...activeSession, exercises: updatedExercises };
-    await saveActiveWorkout(currentUser.uid, updated);
-    await saveWorkoutToCollection(currentUser.uid, updated);
-    setEditingMuscleId(null);
+    try {
+      const updatedExercises = (activeSession.exercises || []).map((ex) =>
+        ex.id === exerciseId ? { ...ex, muscle: trimmed } : ex
+      );
+      const updated = { ...activeSession, exercises: updatedExercises };
+      await saveActiveWorkout(currentUser.uid, updated);
+      await saveWorkoutToCollection(currentUser.uid, updated);
+      setEditingMuscleId(null);
+    } catch (err) {
+      console.error('Failed to save muscle group:', err);
+      showToast('Error updating muscle group.');
+    }
   };
 
   /* ==================== SETS MANAGEMENT ==================== */
   const handleToggleSet = async (exerciseId: string, setId: string) => {
     if (!currentUser?.uid || !activeSession) return;
-    const updatedExercises = activeSession.exercises.map((ex) => {
-      if (ex.id !== exerciseId) return ex;
-      return {
-        ...ex,
-        sets: ex.sets.map((s) => (s.id === setId ? { ...s, completed: !s.completed } : s)),
-      };
-    });
-    await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    try {
+      const updatedExercises = (activeSession.exercises || []).map((ex) => {
+        if (ex.id !== exerciseId) return ex;
+        return {
+          ...ex,
+          sets: (ex.sets || []).map((s) => (s.id === setId ? { ...s, completed: !s.completed } : s)),
+        };
+      });
+      await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    } catch (err) {
+      console.error('Failed to toggle set:', err);
+    }
   };
 
   const handleUpdateSet = async (
@@ -196,53 +221,75 @@ export const Workouts: React.FC = () => {
     value: number
   ) => {
     if (!currentUser?.uid || !activeSession) return;
-    const safeValue = Math.max(0, isNaN(value) ? 0 : value);
-    const updatedExercises = activeSession.exercises.map((ex) => {
-      if (ex.id !== exerciseId) return ex;
-      return {
-        ...ex,
-        sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: safeValue } : s)),
-      };
-    });
-    await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    try {
+      const parsedNum = Number(value);
+      const safeValue = Math.max(0, isNaN(parsedNum) ? 0 : parsedNum);
+      const updatedExercises = (activeSession.exercises || []).map((ex) => {
+        if (ex.id !== exerciseId) return ex;
+        return {
+          ...ex,
+          sets: (ex.sets || []).map((s) => (s.id === setId ? { ...s, [field]: safeValue } : s)),
+        };
+      });
+      await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    } catch (err) {
+      console.error('Failed to update set:', err);
+    }
   };
 
   const handleAddSet = async (exerciseId: string) => {
     if (!currentUser?.uid || !activeSession) return;
-    const updatedExercises = activeSession.exercises.map((ex) => {
-      if (ex.id !== exerciseId) return ex;
-      const lastSet = ex.sets[ex.sets.length - 1];
-      const newSet: ExerciseSet = {
-        id: `s-${Date.now()}-${ex.sets.length + 1}`,
-        setNumber: ex.sets.length + 1,
-        weight: lastSet ? lastSet.weight : 20,
-        reps: lastSet ? lastSet.reps : 10,
-        completed: false,
-      };
-      return { ...ex, sets: [...ex.sets, newSet] };
-    });
-    await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    try {
+      const updatedExercises = (activeSession.exercises || []).map((ex) => {
+        if (ex.id !== exerciseId) return ex;
+        const setsList = ex.sets || [];
+        const lastSet = setsList[setsList.length - 1];
+        const newSet: ExerciseSet = {
+          id: `s-${Date.now()}-${setsList.length + 1}`,
+          setNumber: setsList.length + 1,
+          weight: lastSet ? Number(lastSet.weight) : 20,
+          reps: lastSet ? Number(lastSet.reps) : 10,
+          completed: false,
+        };
+        return { ...ex, sets: [...setsList, newSet] };
+      });
+      await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    } catch (err) {
+      console.error('Failed to add set:', err);
+      showToast('Error adding set.');
+    }
   };
 
   const handleDeleteSet = async (exerciseId: string, setId: string) => {
     if (!currentUser?.uid || !activeSession) return;
-    const updatedExercises = activeSession.exercises.map((ex) => {
-      if (ex.id !== exerciseId) return ex;
-      if (ex.sets.length <= 1) return ex; // Keep at least 1 set
-      const filtered = ex.sets.filter((s) => s.id !== setId);
-      const renumbered = filtered.map((s, idx) => ({ ...s, setNumber: idx + 1 }));
-      return { ...ex, sets: renumbered };
-    });
-    await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    try {
+      const updatedExercises = (activeSession.exercises || []).map((ex) => {
+        if (ex.id !== exerciseId) return ex;
+        const setsList = ex.sets || [];
+        if (setsList.length <= 1) return ex; // Keep at least 1 set
+        const filtered = setsList.filter((s) => s.id !== setId);
+        const renumbered = filtered.map((s, idx) => ({ ...s, setNumber: idx + 1 }));
+        return { ...ex, sets: renumbered };
+      });
+      await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    } catch (err) {
+      console.error('Failed to delete set:', err);
+      showToast('Error deleting set.');
+    }
   };
 
   const handleRemoveExercise = async (exerciseId: string) => {
     if (!currentUser?.uid || !activeSession) return;
-    const updatedExercises = activeSession.exercises.filter((ex) => ex.id !== exerciseId);
-    const updated = { ...activeSession, exercises: updatedExercises };
-    await saveActiveWorkout(currentUser.uid, updated);
-    await saveWorkoutToCollection(currentUser.uid, updated);
-    showToast('Exercise removed from active workout.');
+    try {
+      const updatedExercises = (activeSession.exercises || []).filter((ex) => ex.id !== exerciseId);
+      const updated = { ...activeSession, exercises: updatedExercises };
+      await saveActiveWorkout(currentUser.uid, updated);
+      await saveWorkoutToCollection(currentUser.uid, updated);
+      showToast('Exercise removed from active workout.');
+    } catch (err) {
+      console.error('Failed to remove exercise:', err);
+      showToast('Error removing exercise.');
+    }
   };
 
   /* ==================== INLINE CUSTOM MOVEMENT CREATOR ==================== */
@@ -250,114 +297,148 @@ export const Workouts: React.FC = () => {
     if (e) e.preventDefault();
     if (!currentUser?.uid || !activeSession || !inlineExName.trim()) return;
 
-    const newEx: ExerciseItem = {
-      id: `ex-${Date.now()}`,
-      name: inlineExName.trim(),
-      muscle: inlineExMuscle.trim() || 'General / Compound',
-      sets: [
-        { id: `s-${Date.now()}-1`, setNumber: 1, weight: 20, reps: 10, completed: false },
-        { id: `s-${Date.now()}-2`, setNumber: 2, weight: 20, reps: 10, completed: false },
-        { id: `s-${Date.now()}-3`, setNumber: 3, weight: 20, reps: 10, completed: false },
-      ],
-    };
+    try {
+      const newEx: ExerciseItem = {
+        id: `ex-${Date.now()}`,
+        name: inlineExName.trim(),
+        muscle: inlineExMuscle.trim() || 'General / Compound',
+        sets: [
+          { id: `s-${Date.now()}-1`, setNumber: 1, weight: 20, reps: 10, completed: false },
+          { id: `s-${Date.now()}-2`, setNumber: 2, weight: 20, reps: 10, completed: false },
+          { id: `s-${Date.now()}-3`, setNumber: 3, weight: 20, reps: 10, completed: false },
+        ],
+      };
 
-    const updated = {
-      ...activeSession,
-      exercises: [...activeSession.exercises, newEx],
-    };
+      const updated = {
+        ...activeSession,
+        exercises: [...(activeSession.exercises || []), newEx],
+      };
 
-    await saveActiveWorkout(currentUser.uid, updated);
-    await saveWorkoutToCollection(currentUser.uid, updated);
+      await saveActiveWorkout(currentUser.uid, updated);
+      await saveWorkoutToCollection(currentUser.uid, updated);
 
-    setInlineExName('');
-    setInlineExMuscle('');
-    showToast(`Added "${newEx.name}" inline with 3 calibrated sets.`);
+      setInlineExName('');
+      setInlineExMuscle('');
+      showToast(`Added "${newEx.name}" inline with 3 calibrated sets.`);
+    } catch (err) {
+      console.error('Failed to add custom movement:', err);
+      showToast('Error adding custom movement.');
+    }
   };
 
   /* ==================== QUICK-ADD FROM REGISTERED INVENTORY ==================== */
   const availableInventoryExercises = React.useMemo(() => {
     const list = getFilteredExercisesForUser(userProfile?.equipment || []);
     if (!activeSession) return list;
-    const activeNames = new Set(activeSession.exercises.map((e) => e.name.toLowerCase()));
+    const activeNames = new Set((activeSession.exercises || []).map((e) => e.name.toLowerCase()));
     return list.filter((e) => !activeNames.has(e.name.toLowerCase()));
   }, [userProfile?.equipment, activeSession]);
 
   const handleQuickAddFromInventory = async (def: EquipmentExerciseDef) => {
     if (!currentUser?.uid || !activeSession) return;
 
-    const newEx: ExerciseItem = {
-      id: `ex-inv-${Date.now()}-${def.id}`,
-      name: def.name,
-      muscle: def.muscle,
-      sets: [
-        { id: `s-${Date.now()}-1`, setNumber: 1, weight: def.defaultWeightKg, reps: def.defaultReps, completed: false },
-        { id: `s-${Date.now()}-2`, setNumber: 2, weight: def.defaultWeightKg, reps: def.defaultReps, completed: false },
-        { id: `s-${Date.now()}-3`, setNumber: 3, weight: def.defaultWeightKg, reps: def.defaultReps, completed: false },
-      ],
-    };
+    try {
+      const newEx: ExerciseItem = {
+        id: `ex-inv-${Date.now()}-${def.id}`,
+        name: def.name,
+        muscle: def.muscle,
+        sets: [
+          { id: `s-${Date.now()}-1`, setNumber: 1, weight: Number(def.defaultWeightKg), reps: Number(def.defaultReps), completed: false },
+          { id: `s-${Date.now()}-2`, setNumber: 2, weight: Number(def.defaultWeightKg), reps: Number(def.defaultReps), completed: false },
+          { id: `s-${Date.now()}-3`, setNumber: 3, weight: Number(def.defaultWeightKg), reps: Number(def.defaultReps), completed: false },
+        ],
+      };
 
-    const updated = {
-      ...activeSession,
-      exercises: [...activeSession.exercises, newEx],
-    };
+      const updated = {
+        ...activeSession,
+        exercises: [...(activeSession.exercises || []), newEx],
+      };
 
-    await saveActiveWorkout(currentUser.uid, updated);
-    await saveWorkoutToCollection(currentUser.uid, updated);
+      await saveActiveWorkout(currentUser.uid, updated);
+      await saveWorkoutToCollection(currentUser.uid, updated);
 
-    showToast(`Added "${def.name}" to session.`);
+      showToast(`Added "${def.name}" to session.`);
+    } catch (err) {
+      console.error('Failed to quick-add exercise:', err);
+      showToast('Error adding exercise to workout.');
+    }
   };
 
   /* ==================== SESSION FINISH & DISCARD ==================== */
   const handleFinishWorkout = async () => {
     if (!currentUser?.uid || !activeSession) return;
-    if (activeSession.exercises.length === 0) {
-      await saveActiveWorkout(currentUser.uid, null);
-      return;
-    }
-    const durationMinutes = activeSession.startedAt
-      ? Math.max(1, Math.round((Date.now() - activeSession.startedAt) / 60000))
-      : 45;
+    try {
+      if ((activeSession.exercises || []).length === 0) {
+        await saveActiveWorkout(currentUser.uid, null);
+        return;
+      }
+      const durationMinutes = activeSession.startedAt
+        ? Math.max(1, Math.round((Date.now() - activeSession.startedAt) / 60000))
+        : 45;
 
-    await finishAndSaveWorkout(currentUser.uid, activeSession, durationMinutes);
-    showToast('Workout finished and saved to Firestore history!');
+      await finishAndSaveWorkout(currentUser.uid, activeSession, durationMinutes);
+      showToast('Workout finished and saved to Firestore history!');
+    } catch (err) {
+      console.error('Failed to finish workout:', err);
+      showToast('Error finishing workout.');
+    }
   };
 
   const handleDiscardWorkout = async () => {
     if (!currentUser?.uid) return;
-    if (window.confirm('Discard active workout session?')) {
-      await saveActiveWorkout(currentUser.uid, null);
-      showToast('Active session discarded.');
+    try {
+      if (window.confirm('Discard active workout session?')) {
+        await saveActiveWorkout(currentUser.uid, null);
+        showToast('Active session discarded.');
+      }
+    } catch (err) {
+      console.error('Failed to discard workout:', err);
+      showToast('Error discarding workout session.');
     }
   };
 
   const handleSaveAsTemplate = async () => {
     if (!currentUser?.uid || !activeSession) return;
-    await saveWorkoutToCollection(currentUser.uid, activeSession);
-    showToast('Routine saved to your custom workouts library!');
+    try {
+      await saveWorkoutToCollection(currentUser.uid, activeSession);
+      showToast('Routine saved to your custom workouts library!');
+    } catch (err) {
+      console.error('Failed to save template:', err);
+      showToast('Error saving routine template.');
+    }
   };
 
-  // Calculations
+  // Defensive Calculations
   const totalVolume = activeSession
-    ? activeSession.exercises.reduce((acc, ex) => {
+    ? (activeSession.exercises || []).reduce((acc, ex) => {
         return (
           acc +
-          ex.sets.reduce((setAcc, s) => (s.completed ? setAcc + s.weight * s.reps : setAcc), 0)
+          (ex.sets || []).reduce((setAcc, s) => (s.completed ? setAcc + (Number(s.weight) || 0) * (Number(s.reps) || 0) : setAcc), 0)
         );
       }, 0)
     : 0;
 
   const completedSetsCount = activeSession
-    ? activeSession.exercises.reduce((acc, ex) => acc + ex.sets.filter((s) => s.completed).length, 0)
+    ? (activeSession.exercises || []).reduce((acc, ex) => acc + (ex.sets || []).filter((s) => s.completed).length, 0)
     : 0;
 
   const totalSetsCount = activeSession
-    ? activeSession.exercises.reduce((acc, ex) => acc + ex.sets.length, 0)
+    ? (activeSession.exercises || []).reduce((acc, ex) => acc + (ex.sets || []).length, 0)
     : 0;
 
-  if (loading) {
+  // Defensive Guard Clause: Loading spinner when user data or active workout is loading
+  if (loading || !currentUser) {
     return (
-      <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
-        Connecting to Firestore real-time workout stream...
+      <div className="min-h-[450px] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-4 shadow-sm">
+          <Loader2 className="w-7 h-7 text-emerald-500 animate-spin" />
+        </div>
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+          Loading Workout Hub...
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+          Connecting to Cloud Firestore real-time workout stream...
+        </p>
       </div>
     );
   }
@@ -431,15 +512,15 @@ export const Workouts: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {userProfile?.equipment && userProfile.equipment.length > 0
-                  ? `Strictly filtered by your ${userProfile.equipment.length} registered gym machines & platforms.`
-                  : 'No equipment selected yet. Complete onboarding or minimal bodyweight routines will be generated.'}
+                {(userProfile?.equipment || []).length > 0
+                  ? `Strictly filtered by your ${(userProfile?.equipment || []).length} registered gym machines & platforms.`
+                  : 'No equipment registered yet. Minimal bodyweight routines will be generated.'}
               </p>
             </div>
           </div>
 
           <button
-            onClick={() => navigate('/onboarding')}
+            onClick={() => navigate('/profile')}
             className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start md:self-auto"
           >
             <span>Modify Gym Inventory</span>
@@ -865,17 +946,17 @@ export const Workouts: React.FC = () => {
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            Completed Workout History ({completedList.length})
+            Completed Workout History ({(completedList || []).length})
           </h3>
         </div>
 
-        {completedList.length === 0 ? (
+        {(completedList || []).length === 0 ? (
           <div className="p-6 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
             No completed workouts saved yet. Finish your first workout above to record your history!
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {completedList.map((item) => (
+            {(completedList || []).map((item) => (
               <div
                 key={item.id}
                 className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2"
@@ -885,13 +966,13 @@ export const Workouts: React.FC = () => {
                     {item.routineName}
                   </h4>
                   <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20">
-                    {item.totalVolumeKg.toLocaleString()} kg
+                    {(item.totalVolumeKg || 0).toLocaleString()} kg
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>{item.exercises.length} exercises • {item.totalSets} sets</span>
+                  <span>{(item.exercises || []).length} exercises • {item.totalSets || 0} sets</span>
                   <span className="flex items-center gap-1 font-medium">
-                    <Clock className="w-3 h-3 text-slate-400" /> {item.durationMinutes}m
+                    <Clock className="w-3 h-3 text-slate-400" /> {item.durationMinutes || 0}m
                   </span>
                 </div>
               </div>
@@ -901,17 +982,17 @@ export const Workouts: React.FC = () => {
       </div>
 
       {/* SAVED WORKOUT TEMPLATES FROM FIRESTORE (users/{userId}/workouts) */}
-      {savedTemplates.length > 0 && (
+      {(savedTemplates || []).length > 0 && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center gap-2">
             <BookmarkCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Saved Routines Library ({savedTemplates.length})
+              Saved Routines Library ({(savedTemplates || []).length})
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {savedTemplates.slice(0, 6).map((tpl) => (
+            {(savedTemplates || []).slice(0, 6).map((tpl) => (
               <div
                 key={tpl.id}
                 className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2"
@@ -921,7 +1002,7 @@ export const Workouts: React.FC = () => {
                     {tpl.routineName}
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {tpl.exercises?.length || 0} exercises configured
+                    {(tpl.exercises || []).length} exercises configured
                   </p>
                 </div>
                 <button
@@ -930,10 +1011,10 @@ export const Workouts: React.FC = () => {
                       const cloned: WorkoutSession = {
                         routineName: tpl.routineName,
                         startedAt: Date.now(),
-                        exercises: tpl.exercises.map((ex, eIdx) => ({
+                        exercises: (tpl.exercises || []).map((ex, eIdx) => ({
                           ...ex,
                           id: `ex-${Date.now()}-${eIdx}`,
-                          sets: ex.sets.map((s, sIdx) => ({
+                          sets: (ex.sets || []).map((s, sIdx) => ({
                             ...s,
                             id: `s-${Date.now()}-${eIdx}-${sIdx}`,
                             completed: false,
