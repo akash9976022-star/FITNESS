@@ -25,6 +25,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { getPlatform, isNativeApp } from '../../utils/platform';
 import LiveAnimatedBackground from '../common/LiveAnimatedBackground';
 import AlarmManager from '../alarm/AlarmManager';
+import LiveClockHeader from '../common/LiveClockHeader';
 
 interface NavItem {
   name: string;
@@ -253,6 +254,9 @@ export const AppLayout: React.FC = () => {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Real-time Live Clock & Date Display */}
+            <LiveClockHeader />
+
             {/* Theme Toggle in Header */}
             <button
               onClick={toggleTheme}

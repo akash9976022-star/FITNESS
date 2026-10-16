@@ -382,6 +382,19 @@ export const finishAndSaveWorkout = async (
     isCompleted: true,
   });
 
+  // 3. Also log to dedicated workout_logs subcollection
+  const workoutLogsRef = collection(db, 'users', userId, 'workout_logs');
+  await addDoc(workoutLogsRef, {
+    routineName: session.routineName || 'Custom Workout',
+    loggedAt: serverTimestamp(),
+    completedAt: serverTimestamp(),
+    totalVolumeKg,
+    totalSets,
+    durationMinutes: finalDurationMinutes,
+    duration_minutes: finalDurationMinutes,
+    exercises: session.exercises,
+  });
+
   // Clear active workout session
   await saveActiveWorkout(userId, null);
 
@@ -2912,6 +2925,468 @@ export const applyFastingWorkoutAdjustment = async (
   await saveWorkoutToCollection(userId, fastingSession);
 
   return fastingSession;
+};
+
+/* ==================== CUSTOM EXERCISE LIBRARY (DELETABLE) ==================== */
+export interface CustomExercise {
+  id: string;
+  name: string;
+  muscle: string;
+  splitCategory?: 'push' | 'pull' | 'legs' | 'upper' | 'lower' | 'full_body' | 'arms' | 'core';
+  requiredEquipment?: string;
+  defaultWeightKg: number;
+  defaultReps: number;
+  notes?: string;
+  createdAt?: unknown;
+}
+
+export const subscribeCustomExercises = (
+  userId: string,
+  callback: (exercises: CustomExercise[]) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback([]);
+    return () => {};
+  }
+
+  const customExRef = collection(db, 'users', userId, 'custom_exercises');
+  return onSnapshot(
+    customExRef,
+    (snapshot) => {
+      const items: CustomExercise[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<CustomExercise, 'id'>),
+      }));
+
+      // In-memory sort by createdAt descending
+      items.sort((a, b) => {
+        const timeA = (a.createdAt as { toMillis?: () => number })?.toMillis?.() || 0;
+        const timeB = (b.createdAt as { toMillis?: () => number })?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+
+      callback(items);
+    },
+    (err) => {
+      console.warn('subscribeCustomExercises snapshot error:', err);
+      callback([]);
+    }
+  );
+};
+
+export const addCustomExercise = async (
+  userId: string,
+  exercise: Omit<CustomExercise, 'id'>
+): Promise<string> => {
+  if (!db || !userId) throw new Error('User not authenticated');
+  const customExRef = collection(db, 'users', userId, 'custom_exercises');
+  const docRef = await addDoc(customExRef, {
+    ...exercise,
+    defaultWeightKg: Number(exercise.defaultWeightKg) || 0,
+    defaultReps: Number(exercise.defaultReps) || 10,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+export const deleteCustomExercise = async (
+  userId: string,
+  exerciseId: string
+): Promise<void> => {
+  if (!db || !userId) return;
+  const exDocRef = doc(db, 'users', userId, 'custom_exercises', exerciseId);
+  await deleteDoc(exDocRef);
+};
+
+/* ==================== HEVY-STYLE DAY-BY-DAY ROUTINE MANAGEMENT ==================== */
+export type DayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export interface DayRoutineTemplate {
+  dayId: DayOfWeek;
+  dayName: string;
+  routineName: string;
+  splitCategory: 'push' | 'pull' | 'legs' | 'upper' | 'lower' | 'full_body' | 'rest';
+  targetDurationMinutes: number;
+  exercises: ExerciseItem[];
+  notes?: string;
+  isRestDay?: boolean;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
+  monday: {
+    dayId: 'monday',
+    dayName: 'Monday',
+    routineName: 'Monday - Heavy Push Overload',
+    splitCategory: 'push',
+    targetDurationMinutes: 50,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-mon-1',
+        name: 'Incline Dumbbell Chest Press',
+        muscle: 'Upper Chest & Front Delts',
+        sets: [
+          { id: 's-m1-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-m1-2', setNumber: 2, weight: 24, reps: 8, completed: false },
+          { id: 's-m1-3', setNumber: 3, weight: 26, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-mon-2',
+        name: 'Standing Overhead Dumbbell Press',
+        muscle: 'Deltoids & Triceps',
+        sets: [
+          { id: 's-m2-1', setNumber: 1, weight: 16, reps: 10, completed: false },
+          { id: 's-m2-2', setNumber: 2, weight: 18, reps: 8, completed: false },
+          { id: 's-m2-3', setNumber: 3, weight: 18, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-mon-3',
+        name: 'Dumbbell Lateral Raise',
+        muscle: 'Side Delts',
+        sets: [
+          { id: 's-m3-1', setNumber: 1, weight: 10, reps: 15, completed: false },
+          { id: 's-m3-2', setNumber: 2, weight: 10, reps: 12, completed: false },
+          { id: 's-m3-3', setNumber: 3, weight: 10, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-mon-4',
+        name: 'Cable Tricep Pushdown / Rope Pressdown',
+        muscle: 'Triceps Lateral Head',
+        sets: [
+          { id: 's-m4-1', setNumber: 1, weight: 25, reps: 12, completed: false },
+          { id: 's-m4-2', setNumber: 2, weight: 30, reps: 10, completed: false },
+          { id: 's-m4-3', setNumber: 3, weight: 30, reps: 10, completed: false },
+        ],
+      },
+    ],
+  },
+  tuesday: {
+    dayId: 'tuesday',
+    dayName: 'Tuesday',
+    routineName: 'Tuesday - Power Pull & Thickness',
+    splitCategory: 'pull',
+    targetDurationMinutes: 50,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-tue-1',
+        name: 'Wide-Grip Lat Pulldown',
+        muscle: 'Lats & Teres Major',
+        sets: [
+          { id: 's-t1-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-t1-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-t1-3', setNumber: 3, weight: 55, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-tue-2',
+        name: 'Seated Cable Row (Close Grip)',
+        muscle: 'Rhomboids & Mid-Back',
+        sets: [
+          { id: 's-t2-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-t2-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-t2-3', setNumber: 3, weight: 50, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-tue-3',
+        name: 'Rope Face Pulls',
+        muscle: 'Rear Delts & Rotator Cuff',
+        sets: [
+          { id: 's-t3-1', setNumber: 1, weight: 20, reps: 15, completed: false },
+          { id: 's-t3-2', setNumber: 2, weight: 25, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-tue-4',
+        name: 'Incline Dumbbell Bicep Curl',
+        muscle: 'Biceps Long Head',
+        sets: [
+          { id: 's-t4-1', setNumber: 1, weight: 12, reps: 10, completed: false },
+          { id: 's-t4-2', setNumber: 2, weight: 14, reps: 8, completed: false },
+        ],
+      },
+    ],
+  },
+  wednesday: {
+    dayId: 'wednesday',
+    dayName: 'Wednesday',
+    routineName: 'Wednesday - Quad & Posterior Chain Overload',
+    splitCategory: 'legs',
+    targetDurationMinutes: 55,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-wed-1',
+        name: 'Leg Press 45-Degree',
+        muscle: 'Quadriceps & Glute Max',
+        sets: [
+          { id: 's-w1-1', setNumber: 1, weight: 120, reps: 12, completed: false },
+          { id: 's-w1-2', setNumber: 2, weight: 150, reps: 10, completed: false },
+          { id: 's-w1-3', setNumber: 3, weight: 180, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-wed-2',
+        name: 'Dumbbell Romanian Deadlift (RDL)',
+        muscle: 'Hamstrings & Glutes',
+        sets: [
+          { id: 's-w2-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-w2-2', setNumber: 2, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-wed-3',
+        name: 'Seated Leg Extension',
+        muscle: 'Quads Rectus Femoris',
+        sets: [
+          { id: 's-w3-1', setNumber: 1, weight: 45, reps: 12, completed: false },
+          { id: 's-w3-2', setNumber: 2, weight: 50, reps: 10, completed: false },
+        ],
+      },
+      {
+        id: 'ex-wed-4',
+        name: 'Standing Calf Raise',
+        muscle: 'Gastrocnemius & Soleus',
+        sets: [
+          { id: 's-w4-1', setNumber: 1, weight: 40, reps: 15, completed: false },
+          { id: 's-w4-2', setNumber: 2, weight: 40, reps: 15, completed: false },
+        ],
+      },
+    ],
+  },
+  thursday: {
+    dayId: 'thursday',
+    dayName: 'Thursday',
+    routineName: 'Thursday - Active Recovery & Core Stabilization',
+    splitCategory: 'rest',
+    targetDurationMinutes: 30,
+    isRestDay: true,
+    exercises: [
+      {
+        id: 'ex-thu-1',
+        name: 'Hanging Knee Raises / Captains Chair',
+        muscle: 'Lower Rectus Abdominis',
+        sets: [
+          { id: 's-th1-1', setNumber: 1, weight: 0, reps: 15, completed: false },
+          { id: 's-th1-2', setNumber: 2, weight: 0, reps: 15, completed: false },
+        ],
+      },
+      {
+        id: 'ex-thu-2',
+        name: 'Forearm Plank Hold',
+        muscle: 'Transverse Abdominis & Deep Core',
+        sets: [
+          { id: 's-th2-1', setNumber: 1, weight: 0, reps: 45, completed: false },
+          { id: 's-th2-2', setNumber: 2, weight: 0, reps: 45, completed: false },
+        ],
+      },
+      {
+        id: 'ex-thu-3',
+        name: 'Dynamic Thoracic & Hip Mobility Flow',
+        muscle: 'Full Body Mobility',
+        sets: [
+          { id: 's-th3-1', setNumber: 1, weight: 0, reps: 10, completed: false },
+          { id: 's-th3-2', setNumber: 2, weight: 0, reps: 10, completed: false },
+        ],
+      },
+    ],
+  },
+  friday: {
+    dayId: 'friday',
+    dayName: 'Friday',
+    routineName: 'Friday - Upper Body Aesthetics & Hypertrophy',
+    splitCategory: 'upper',
+    targetDurationMinutes: 50,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-fri-1',
+        name: 'Flat Dumbbell Bench Press',
+        muscle: 'Pectoralis Major',
+        sets: [
+          { id: 's-f1-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-f1-2', setNumber: 2, weight: 26, reps: 8, completed: false },
+          { id: 's-f1-3', setNumber: 3, weight: 28, reps: 6, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fri-2',
+        name: 'Chest Supported Dumbbell Row',
+        muscle: 'Mid-Back & Lats',
+        sets: [
+          { id: 's-f2-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-f2-2', setNumber: 2, weight: 24, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fri-3',
+        name: 'Cable Flyes (Middle Peak)',
+        muscle: 'Sternal Pecs',
+        sets: [
+          { id: 's-f3-1', setNumber: 1, weight: 15, reps: 12, completed: false },
+          { id: 's-f3-2', setNumber: 2, weight: 15, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fri-4',
+        name: 'Hammer Curls paired with Overhead Tricep Extension',
+        muscle: 'Brachialis & Triceps Long Head',
+        sets: [
+          { id: 's-f4-1', setNumber: 1, weight: 14, reps: 10, completed: false },
+          { id: 's-f4-2', setNumber: 2, weight: 14, reps: 10, completed: false },
+        ],
+      },
+    ],
+  },
+  saturday: {
+    dayId: 'saturday',
+    dayName: 'Saturday',
+    routineName: 'Saturday - Posterior & Unilateral Leg Drive',
+    splitCategory: 'lower',
+    targetDurationMinutes: 50,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-sat-1',
+        name: 'Dumbbell Walking Lunges',
+        muscle: 'Quads & Glutes',
+        sets: [
+          { id: 's-sa1-1', setNumber: 1, weight: 14, reps: 12, completed: false },
+          { id: 's-sa1-2', setNumber: 2, weight: 16, reps: 10, completed: false },
+        ],
+      },
+      {
+        id: 'ex-sat-2',
+        name: 'Lying Hamstring Leg Curl',
+        muscle: 'Biceps Femoris',
+        sets: [
+          { id: 's-sa2-1', setNumber: 1, weight: 35, reps: 10, completed: false },
+          { id: 's-sa2-2', setNumber: 2, weight: 40, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-sat-3',
+        name: 'Dumbbell Goblet Squats',
+        muscle: 'Quads & Hip Drive',
+        sets: [
+          { id: 's-sa3-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-sa3-2', setNumber: 2, weight: 26, reps: 10, completed: false },
+        ],
+      },
+    ],
+  },
+  sunday: {
+    dayId: 'sunday',
+    dayName: 'Sunday',
+    routineName: 'Sunday - Sacred Rest & Total Rejuvenation',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [
+      {
+        id: 'ex-sun-1',
+        name: 'Full Body Static Stretch & Deep Breathing',
+        muscle: 'Total Body Recovery',
+        sets: [
+          { id: 's-su1-1', setNumber: 1, weight: 0, reps: 10, completed: false },
+        ],
+      },
+    ],
+  },
+};
+
+export const subscribeDailyRoutines = (
+  userId: string,
+  callback: (routines: Record<DayOfWeek, DayRoutineTemplate>) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback(DEFAULT_WEEKLY_SPLIT);
+    return () => {};
+  }
+
+  const routinesRef = collection(db, 'users', userId, 'daily_routines');
+  return onSnapshot(
+    routinesRef,
+    (snapshot) => {
+      const merged: Record<DayOfWeek, DayRoutineTemplate> = { ...DEFAULT_WEEKLY_SPLIT };
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data() as DayRoutineTemplate;
+        const dayId = docSnap.id.toLowerCase() as DayOfWeek;
+        if (merged[dayId]) {
+          merged[dayId] = {
+            ...merged[dayId],
+            ...data,
+            dayId,
+          };
+        }
+      });
+      callback(merged);
+    },
+    (err) => {
+      console.warn('subscribeDailyRoutines snapshot error:', err);
+      callback(DEFAULT_WEEKLY_SPLIT);
+    }
+  );
+};
+
+export const saveDailyRoutine = async (
+  userId: string,
+  dayId: DayOfWeek,
+  routine: Partial<DayRoutineTemplate>
+): Promise<void> => {
+  if (!db || !userId) return;
+  const routineRef = doc(db, 'users', userId, 'daily_routines', dayId.toLowerCase());
+  await setDoc(
+    routineRef,
+    {
+      ...routine,
+      dayId: dayId.toLowerCase(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+export const startDayRoutineWorkout = async (
+  userId: string,
+  routine: DayRoutineTemplate
+): Promise<WorkoutSession> => {
+  if (!db || !userId) throw new Error('User not authenticated');
+
+  const newSession: WorkoutSession = {
+    routineName: routine.routineName,
+    startedAt: Date.now(),
+    isPaused: false,
+    durationMinutes: routine.targetDurationMinutes || 45,
+    duration_minutes: routine.targetDurationMinutes || 45,
+    exercises: (routine.exercises || []).map((ex, exIdx) => ({
+      ...ex,
+      id: ex.id || `ex-${Date.now()}-${exIdx}`,
+      sets: (ex.sets || []).map((s, sIdx) => ({
+        ...s,
+        id: s.id || `s-${Date.now()}-${exIdx}-${sIdx}`,
+        completed: false,
+      })),
+    })),
+  };
+
+  const activeRef = doc(db, 'users', userId, 'data', 'active_workout');
+  await setDoc(activeRef, newSession);
+  await saveWorkoutToCollection(userId, newSession);
+
+  return newSession;
 };
 
 

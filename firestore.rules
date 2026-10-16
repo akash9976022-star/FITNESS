@@ -57,6 +57,15 @@ service cloud.firestore {
     // Subcollection: users/{userId}/streak/{streakId}
     //   - Streak maintenance, daily consistency tracking, and check-in streak counters
     //
+    // Subcollection: users/{userId}/custom_exercises/{exerciseId}
+    //   - Deletable custom movements and exercises created by the user
+    //
+    // Subcollection: users/{userId}/daily_routines/{routineId}
+    //   - Day-by-day Hevy-style routine templates (e.g., monday, tuesday, etc.)
+    //
+    // Subcollection: users/{userId}/workout_logs/{logId}
+    //   - Dedicated workout logs and history
+    //
     // ===============================================================
 
     // Helper Functions
@@ -125,6 +134,21 @@ service cloud.firestore {
 
       // Subcollection: Custom Alarm Video Songs
       match /alarm_videos/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Custom Exercises & Movements
+      match /custom_exercises/{exerciseId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Daily Routine Templates (Hevy-style)
+      match /daily_routines/{routineId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Dedicated Workout Logs & History
+      match /workout_logs/{logId} {
         allow read, write: if isOwner(userId);
       }
     }
