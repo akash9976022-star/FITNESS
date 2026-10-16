@@ -54,6 +54,9 @@ service cloud.firestore {
     // Subcollection: users/{userId}/alarm_videos/{videoId}
     //   - Custom alarm video songs and wake-up media
     //
+    // Subcollection: users/{userId}/streak/{streakId}
+    //   - Streak maintenance, daily consistency tracking, and check-in streak counters
+    //
     // ===============================================================
 
     // Helper Functions
@@ -102,6 +105,11 @@ service cloud.firestore {
 
       // Subcollection: Rewards & Gamified Badges
       match /rewards/{rewardId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Streak Maintenance
+      match /streak/{streakId} {
         allow read, write: if isOwner(userId);
       }
 

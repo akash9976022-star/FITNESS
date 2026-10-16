@@ -34,7 +34,7 @@ import {
   type IndianStaple,
 } from '../services/firestoreService';
 import {
-  fileToBase64,
+  compressImage,
   analyzeFoodImage,
   type FoodAnalysisResult,
   isGeminiConfigured,
@@ -242,7 +242,8 @@ export const Nutrition: React.FC = () => {
     }
 
     try {
-      const base64Part = await fileToBase64(selectedImageFile);
+      // Client-side image compression downscales large phone photos (up to 15MB) to max 800px (<250KB)
+      const { base64Part } = await compressImage(selectedImageFile, 800);
       const result = await analyzeFoodImage(base64Part);
       setScanResult(result);
     } catch (err: unknown) {

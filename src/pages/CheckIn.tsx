@@ -19,6 +19,9 @@ import {
   Heart,
   Moon,
   BatteryCharging,
+  Droplets,
+  Sun,
+  Apple,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -29,51 +32,84 @@ import {
   evaluateAndUnlockBadges,
   subscribeUserProfile,
   logDailySteps,
+  subscribeDailyHydration,
+  logWaterIntake,
+  subscribeDailyActivity,
+  subscribeUserStreak,
+  recordStreakActivity,
+  subscribeDailyFasting,
+  saveDailyFasting,
+  calculateBmbScore,
+  getTodayDateString,
   BADGE_DEFINITIONS,
+  DEFAULT_USER_STREAK,
+  DEFAULT_DAILY_FASTING,
+  FASTING_CONFIGS,
   type CheckInItem,
   type UserReward,
   type UserProfile,
   type AiPhysiqueAnalysis,
+  type UserStreak,
+  type DailyHydration,
+  type DailyActivity,
+  type DailyFastingState,
+  type FastingType,
 } from '../services/firestoreService';
 import { uploadCheckInPhoto } from '../services/storageService';
 import {
   fileToBase64,
   analyzePhysiqueImage,
   isGeminiConfigured,
+  compressImage,
+  type Base64ImagePart,
 } from '../services/geminiService';
 import GhostOverlayCamera from '../components/camera/GhostOverlayCamera';
 import BadgeUnlockModal from '../components/rewards/BadgeUnlockModal';
+import { StreakBadge } from '../components/streak/StreakBadge';
+
+type CheckInTab = 'checkin' | 'end_of_day' | 'gallery' | 'rewards';
 
 export const CheckIn: React.FC = () => {
   const { currentUser } = useAuth();
 
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'checkin' | 'gallery' | 'rewards'>('checkin');
+  const [activeTab, setActiveTab] = useState<CheckInTab>('checkin');
 
   // Firestore Subscriptions (Zero-Mock Data)
   const [checkIns, setCheckIns] = useState<CheckInItem[]>([]);
   const [rewards, setRewards] = useState<UserReward[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userStreak, setUserStreak] = useState<UserStreak>(DEFAULT_USER_STREAK);
+  const [dailyFasting, setDailyFasting] = useState<DailyFastingState>(DEFAULT_DAILY_FASTING);
+  const [dailyHydration, setDailyHydration] = useState<DailyHydration | null>(null);
+  const [dailyActivity, setDailyActivity] = useState<DailyActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // New Check-In Form State
+  // Morning Check-In Form State
   const [showCheckInModal, setShowCheckInModal] = useState(false);
-  const [checkInDate, setCheckInDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [checkInDate, setCheckInDate] = useState<string>(getTodayDateString());
   const [morningWeight, setMorningWeight] = useState<number>(70);
   const [fatigueRating, setFatigueRating] = useState<number>(4); // 1-5
   const [sorenessNotes, setSorenessNotes] = useState<string>('');
   const [restingHeartRate, setRestingHeartRate] = useState<number | ''>(68);
   const [sleepHours, setSleepHours] = useState<number | ''>(7.5);
   const [energyLevel, setEnergyLevel] = useState<'low' | 'moderate' | 'high'>('moderate');
-  const [dailySteps, setDailySteps] = useState<number | ''>(8000);
+  const [observingFast, setObservingFast] = useState<FastingType>('none');
+  const [fastingNotes, setFastingNotes] = useState<string>('');
   const [checkInPhotoBlob, setCheckInPhotoBlob] = useState<Blob | File | null>(null);
   const [checkInPhotoPreview, setCheckInPhotoPreview] = useState<string | null>(null);
   const [runAiAnalysis, setRunAiAnalysis] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+
+  // End-of-Day Review & Steps Form State
+  const [endOfDayDate, setEndOfDayDate] = useState<string>(getTodayDateString());
+  const [endOfDaySteps, setEndOfDaySteps] = useState<number>(8500);
+  const [endOfDayEnergy, setEndOfDayEnergy] = useState<'low' | 'moderate' | 'high'>('moderate');
+  const [endOfDayNotes, setEndOfDayNotes] = useState<string>('');
+  const [isSavingEndOfDay, setIsSavingEndOfDay] = useState(false);
+  const [endOfDaySuccess, setEndOfDaySuccess] = useState<string | null>(null);
 
   // Unlock Animation Modal State
   const [newlyUnlockedBadges, setNewlyUnlockedBadges] = useState<UserReward[]>([]);
@@ -112,10 +148,38 @@ export const CheckIn: React.FC = () => {
       }
     });
 
+    const unsubStreak = subscribeUserStreak(currentUser.uid, (streakData) => {
+      setUserStreak(streakData);
+    });
+
+    const todayStr = getTodayDateString();
+    const unsubFasting = subscribeDailyFasting(currentUser.uid, todayStr, (fastState) => {
+      setDailyFasting(fastState);
+      if (fastState?.isFasting && fastState?.fastingType) {
+        setObservingFast(fastState.fastingType);
+        setFastingNotes(fastState.fastingNotes || '');
+      }
+    });
+
+    const unsubHydration = subscribeDailyHydration(currentUser.uid, todayStr, (hyd) => {
+      setDailyHydration(hyd);
+    });
+
+    const unsubActivity = subscribeDailyActivity(currentUser.uid, todayStr, (act) => {
+      setDailyActivity(act);
+      if (act?.steps) {
+        setEndOfDaySteps(act.steps);
+      }
+    });
+
     return () => {
       unsubCheckIns();
       unsubRewards();
       unsubProfile();
+      unsubStreak();
+      unsubFasting();
+      unsubHydration();
+      unsubActivity();
     };
   }, [currentUser?.uid]);
 
@@ -126,7 +190,7 @@ export const CheckIn: React.FC = () => {
     setShowCamera(false);
   };
 
-  // Submit Check-In
+  // Submit Morning Check-In (with client-side image compression & timeout-safe AI analysis)
   const handleSubmitCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser?.uid) return;
@@ -137,25 +201,38 @@ export const CheckIn: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    setStatusMessage('Uploading photo & running AI physique analysis...');
+    setStatusMessage('Compressing photo for fast analysis...');
 
     try {
-      // 1. Upload photo to Firebase Storage (with base64 fallback)
+      // 1. Client-Side Image Compression: downscale to max 800px width (~150KB)
+      let compressedFile: File;
+      let compressedBase64: Base64ImagePart | null = null;
+      try {
+        const compressed = await compressImage(checkInPhotoBlob, 800, 0.82);
+        compressedFile = compressed.file;
+        compressedBase64 = compressed.base64Part;
+      } catch (compErr) {
+        console.warn('Canvas compression fallback to original photo:', compErr);
+        compressedFile =
+          checkInPhotoBlob instanceof File
+            ? checkInPhotoBlob
+            : new File([checkInPhotoBlob], 'checkin.jpg', { type: 'image/jpeg' });
+      }
+
+      // 2. Upload photo to Firebase Storage
+      setStatusMessage('Uploading photo to storage...');
       const photoUrl = await uploadCheckInPhoto(
         currentUser.uid,
-        checkInPhotoBlob,
+        compressedFile,
         `${checkInDate}_checkin.jpg`
       );
 
-      // 2. AI Body Type & Physique Analysis via Gemini AI Vision
+      // 3. AI Body Type & Physique Analysis via Gemini AI Vision
       let aiAnalysisResult: AiPhysiqueAnalysis | undefined = undefined;
       if (runAiAnalysis && isGeminiConfigured) {
         try {
-          const base64Part = await fileToBase64(
-            checkInPhotoBlob instanceof File
-              ? checkInPhotoBlob
-              : new File([checkInPhotoBlob], 'checkin.jpg', { type: 'image/jpeg' })
-          );
+          setStatusMessage('Analyzing symmetry & posture with Gemini AI...');
+          const base64Part = compressedBase64 || (await fileToBase64(compressedFile));
 
           aiAnalysisResult = await analyzePhysiqueImage(
             base64Part,
@@ -163,11 +240,12 @@ export const CheckIn: React.FC = () => {
             userProfile?.experienceLevel || 'intermediate'
           );
         } catch (aiErr) {
-          console.warn('AI Physique analysis encountered an issue:', aiErr);
+          console.warn('AI Physique analysis encountered an issue (graceful fallback):', aiErr);
         }
       }
 
-      // 3. Save to Firestore (users/{userId}/checkins)
+      // 4. Save to Firestore (users/{userId}/checkins/{date})
+      setStatusMessage('Saving check-in to Firestore...');
       await addCheckIn(currentUser.uid, {
         date: checkInDate,
         weightKg: Number(morningWeight),
@@ -178,15 +256,21 @@ export const CheckIn: React.FC = () => {
         restingHeartRateBpm: restingHeartRate !== '' ? Number(restingHeartRate) : undefined,
         sleepHours: sleepHours !== '' ? Number(sleepHours) : undefined,
         energyLevel,
-        steps: dailySteps !== '' ? Number(dailySteps) : undefined,
+        isFasting: observingFast !== 'none',
+        fastingType: observingFast,
+        fastingNotes: fastingNotes.trim(),
       });
 
-      // Sync steps with daily activity collection
-      if (dailySteps !== '' && Number(dailySteps) > 0) {
-        await logDailySteps(currentUser.uid, checkInDate, Number(dailySteps));
+      // Also record fasting if fast was selected
+      if (observingFast !== 'none') {
+        await saveDailyFasting(currentUser.uid, checkInDate, observingFast, fastingNotes);
       }
 
-      // 4. Automatically Evaluate & Unlock Gamified Badges
+      // Automatically maintain / record consistency streak
+      const updatedStreak = await recordStreakActivity(currentUser.uid, 'checkin', checkInDate);
+      setUserStreak(updatedStreak);
+
+      // 5. Automatically Evaluate & Unlock Gamified Badges
       const updatedCheckIns: CheckInItem[] = [
         {
           id: 'temp',
@@ -198,7 +282,9 @@ export const CheckIn: React.FC = () => {
           restingHeartRateBpm: restingHeartRate !== '' ? Number(restingHeartRate) : undefined,
           sleepHours: sleepHours !== '' ? Number(sleepHours) : undefined,
           energyLevel,
-          steps: dailySteps !== '' ? Number(dailySteps) : undefined,
+          isFasting: observingFast !== 'none',
+          fastingType: observingFast,
+          fastingNotes: fastingNotes.trim(),
         },
         ...checkIns,
       ];
@@ -221,13 +307,64 @@ export const CheckIn: React.FC = () => {
         setNewlyUnlockedBadges(unlocked);
       }
 
-      setStatusMessage('Check-in logged successfully!');
-      setTimeout(() => setStatusMessage(null), 3000);
+      setStatusMessage('Morning check-in logged & streak updated!');
+      setTimeout(() => setStatusMessage(null), 3500);
     } catch (err) {
       console.error('Failed to submit check-in:', err);
       alert('Failed to save check-in. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Submit End-of-Day Daily Summary & Steps Log
+  const handleSaveEndOfDay = async () => {
+    if (!currentUser?.uid) return;
+    setIsSavingEndOfDay(true);
+    try {
+      // 1. Sync steps to activity collection
+      await logDailySteps(currentUser.uid, endOfDayDate, Number(endOfDaySteps));
+
+      // 2. Update checkin doc for today with steps & evening reflection
+      await addCheckIn(currentUser.uid, {
+        date: endOfDayDate,
+        steps: Number(endOfDaySteps),
+        energyLevel: endOfDayEnergy,
+        sorenessNotes: endOfDayNotes ? `[Evening Review] ${endOfDayNotes}` : undefined,
+      });
+
+      // 3. Record streak activity
+      const updatedStreak = await recordStreakActivity(currentUser.uid, 'checkin', endOfDayDate);
+      setUserStreak(updatedStreak);
+
+      // 4. Evaluate badges
+      const unlocked = await evaluateAndUnlockBadges(
+        currentUser.uid,
+        checkIns,
+        rewards,
+        userProfile?.targetWeightKg
+      );
+      if (unlocked.length > 0) {
+        setNewlyUnlockedBadges(unlocked);
+      }
+
+      setEndOfDaySuccess('End-of-day summary & steps saved! Consistency streak protected.');
+      setTimeout(() => setEndOfDaySuccess(null), 4000);
+    } catch (err) {
+      console.error('Failed to save end-of-day review:', err);
+      alert('Could not save end-of-day review. Please try again.');
+    } finally {
+      setIsSavingEndOfDay(false);
+    }
+  };
+
+  // Quick hydration logger helper inside End-of-Day
+  const handleAddWaterQuick = async (amountMl: number) => {
+    if (!currentUser?.uid) return;
+    try {
+      await logWaterIntake(currentUser.uid, endOfDayDate, amountMl);
+    } catch (err) {
+      console.error('Failed to add water in review:', err);
     }
   };
 
@@ -278,6 +415,33 @@ export const CheckIn: React.FC = () => {
     }
   };
 
+  // Computed live maintenance targets for End-of-Day review
+  const dailyTargetCalories = useMemo(() => {
+    const weight = userProfile?.currentWeightKg || morningWeight || 70;
+    const height = userProfile?.heightCm || 175;
+    const age = userProfile?.age || 25;
+    const gender = userProfile?.gender || 'male';
+    const activity = userProfile?.activityMultiplier || 1.375;
+    let bmr = 10 * weight + 6.25 * height - 5 * age;
+    bmr += gender === 'male' ? 5 : -161;
+    return Math.round(bmr * activity);
+  }, [userProfile, morningWeight]);
+
+  // Live BMB Score preview for End-of-Day
+  const endOfDayBmb = useMemo(() => {
+    return calculateBmbScore(
+      dailyTargetCalories,
+      dailyTargetCalories,
+      checkIns[0] || null,
+      [],
+      dailyHydration?.waterMl || 0,
+      dailyHydration?.targetMl || 3000,
+      endOfDaySteps || 0,
+      10000,
+      dailyFasting
+    );
+  }, [dailyTargetCalories, checkIns, dailyHydration, endOfDaySteps, dailyFasting]);
+
   if (loading) {
     return (
       <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
@@ -298,17 +462,30 @@ export const CheckIn: React.FC = () => {
             </span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Consistent ghost overlay photos, Gemini AI symmetry analysis, and gamified streak rewards.
+            Streamlined morning check-in, Ghost Overlay photos, Gemini AI symmetry analysis, and End-of-Day steps review.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {statusMessage && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
               <CheckCircle2 className="w-3.5 h-3.5" />
               {statusMessage}
             </span>
           )}
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('end_of_day')}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-xs font-bold transition active:scale-[0.98] cursor-pointer shadow-sm ${
+              activeTab === 'end_of_day'
+                ? 'bg-teal-600 text-white border-teal-500 shadow-teal-500/20'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            <Footprints className="w-4 h-4 text-teal-400 stroke-[2.5]" />
+            <span>End-of-Day Steps</span>
+          </button>
 
           <button
             type="button"
@@ -321,18 +498,29 @@ export const CheckIn: React.FC = () => {
         </div>
       </div>
 
+      {/* Real-time Streak Maintenance & Consistency Engine Badge */}
+      <StreakBadge
+        streak={userStreak}
+        todayCompleted={checkIns.some((c) => c.date === getTodayDateString())}
+        completedGoals={{
+          checkin: checkIns.some((c) => c.date === getTodayDateString()),
+          meal: false,
+          workout: false,
+        }}
+      />
+
       {/* Main Tabs Navigation */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-2">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-2 overflow-x-auto pb-0.5">
         <button
           onClick={() => setActiveTab('checkin')}
-          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition ${
+          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition ${
             activeTab === 'checkin'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <Activity className="w-4 h-4" />
-          <span>Timeline & Latest Check-In</span>
+          <span>Timeline & History</span>
           {checkIns.length > 0 && (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-extrabold">
               {checkIns.length}
@@ -340,19 +528,35 @@ export const CheckIn: React.FC = () => {
           )}
         </button>
         <button
+          onClick={() => setActiveTab('end_of_day')}
+          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition ${
+            activeTab === 'end_of_day'
+              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          <Footprints className="w-4 h-4" />
+          <span>End-of-Day Review & Steps</span>
+          {dailyActivity?.steps ? (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-teal-100 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 font-extrabold">
+              {dailyActivity.steps.toLocaleString()}
+            </span>
+          ) : null}
+        </button>
+        <button
           onClick={() => setActiveTab('gallery')}
-          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition ${
+          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition ${
             activeTab === 'gallery'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span>Transformation Slider & Gallery</span>
+          <span>Transformation Slider</span>
         </button>
         <button
           onClick={() => setActiveTab('rewards')}
-          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition ${
+          className={`pb-3 px-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition ${
             activeTab === 'rewards'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -605,7 +809,352 @@ export const CheckIn: React.FC = () => {
         </div>
       )}
 
-      {/* ==================== TAB 2: TRANSFORMATION SLIDER & GALLERY ==================== */}
+      {/* ==================== TAB 2: END-OF-DAY DAILY SUMMARY & STEPS LOG ==================== */}
+      {activeTab === 'end_of_day' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header Card */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-slate-900/10 border border-teal-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center flex-shrink-0 text-teal-600 dark:text-teal-400">
+                <Footprints className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-black uppercase text-teal-700 dark:text-teal-400 tracking-wider">
+                    Nightly Maintenance Finalization
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-500/30">
+                    Streak Shield Protected
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  End-of-Day Review & Steps Log
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl">
+                  Log your total daily steps, review today's hydration target, verify your final Body Maintenance Balance score, and protect your streak before midnight.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Review Date:</label>
+              <input
+                type="date"
+                value={endOfDayDate}
+                onChange={(e) => setEndOfDayDate(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          {endOfDaySuccess && (
+            <div className="p-4 rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-400/40 text-emerald-900 dark:text-emerald-300 flex items-center gap-3 text-xs font-bold">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+              <span>{endOfDaySuccess}</span>
+            </div>
+          )}
+
+          {/* Grid Layout: Steps Counter + Hydration Review */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. Steps Counter & Stepper Engine */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                    <Footprints className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Daily Step Counter
+                    </h4>
+                    <span className="text-[10px] text-slate-400">
+                      Standard Maintenance Target: 10,000 steps
+                    </span>
+                  </div>
+                </div>
+
+                <span className="text-xs font-black text-teal-600 dark:text-teal-400 px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60">
+                  {Math.round(((endOfDaySteps || 0) / 10000) * 100)}% of goal
+                </span>
+              </div>
+
+              {/* Steps Value Display & Direct Input */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <div className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-center justify-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={endOfDaySteps}
+                    onChange={(e) => setEndOfDaySteps(Math.max(0, Number(e.target.value)))}
+                    className="w-36 sm:w-44 text-center bg-transparent border-b-2 border-teal-500 font-black text-slate-900 dark:text-white focus:outline-none"
+                  />
+                  <span className="text-sm font-semibold text-slate-400">steps</span>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-teal-500 to-emerald-500 h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${Math.min(100, ((endOfDaySteps || 0) / 10000) * 100)}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                  <span>0</span>
+                  <span>5,000</span>
+                  <span className="font-bold text-teal-600 dark:text-teal-400">10,000+</span>
+                </div>
+              </div>
+
+              {/* Stepper Increment Buttons */}
+              <div className="grid grid-cols-5 gap-1.5 text-xs">
+                {[-1000, -500, 500, 1000, 2500].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => setEndOfDaySteps((prev) => Math.max(0, (prev || 0) + delta))}
+                    className="py-2 px-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-bold text-slate-800 dark:text-slate-200 transition text-center"
+                  >
+                    {delta > 0 ? `+${delta}` : delta}
+                  </button>
+                ))}
+              </div>
+
+              {/* Distance & Burn Badges */}
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Estimated Distance
+                  </span>
+                  <span className="text-sm font-black text-slate-900 dark:text-white block mt-0.5">
+                    {((endOfDaySteps || 0) * 0.000762).toFixed(2)} km
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Active Calorie Burn
+                  </span>
+                  <span className="text-sm font-black text-amber-500 block mt-0.5">
+                    ~{Math.round((endOfDaySteps || 0) * 0.04)} kcal
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Hydration Review & Quick Logger */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <Droplets className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Hydration Engine Review
+                      </h4>
+                      <span className="text-[10px] text-slate-400">
+                        Today's Target: {dailyHydration?.targetMl || 3000} ml
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="text-xs font-black text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60">
+                    {dailyHydration ? `${dailyHydration.waterMl} ml` : '0 ml'}
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span>Logged Water</span>
+                    <span>
+                      {Math.round(
+                        ((dailyHydration?.waterMl || 0) / (dailyHydration?.targetMl || 3000)) * 100
+                      )}
+                      % Completed
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-teal-400 h-full transition-all duration-300 rounded-full"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          ((dailyHydration?.waterMl || 0) / (dailyHydration?.targetMl || 3000)) *
+                            100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {(dailyHydration?.waterMl || 0) >= (dailyHydration?.targetMl || 3000)
+                      ? 'Optimal hydration achieved for cellular recovery and protein synthesis.'
+                      : `Drink ${(dailyHydration?.targetMl || 3000) - (dailyHydration?.waterMl || 0)} ml more to hit your daily hydration target.`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Add Hydration Buttons */}
+              <div className="space-y-2 pt-2">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                  Quick Hydration Entry:
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddWaterQuick(250)}
+                    className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <Droplets className="w-3.5 h-3.5" />
+                    <span>+250 ml (Glass)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddWaterQuick(500)}
+                    className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <Droplets className="w-3.5 h-3.5" />
+                    <span>+500 ml (Bottle)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Evening Energy Level & Daily Reflection Card */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <BatteryCharging className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Evening Energy Level & Readiness
+                </h4>
+                <span className="text-[10px] text-slate-400">
+                  Assess how your nervous system, joints, and muscular recovery feel tonight
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              {(
+                [
+                  { lvl: 'low', label: 'Low Energy', sub: 'High fatigue / Need rest', color: 'bg-rose-600 text-white border-rose-600' },
+                  { lvl: 'moderate', label: 'Moderate Energy', sub: 'Balanced / Normal fatigue', color: 'bg-amber-500 text-slate-950 font-black border-amber-500' },
+                  { lvl: 'high', label: 'High Energy', sub: 'Fresh & High neural drive', color: 'bg-emerald-600 text-white border-emerald-600' },
+                ] as const
+              ).map(({ lvl, label, sub, color }) => (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setEndOfDayEnergy(lvl)}
+                  className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                    endOfDayEnergy === lvl
+                      ? color
+                      : 'bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="font-bold text-xs block">{label}</span>
+                  <span className="text-[10px] opacity-80 mt-1 block">{sub}</span>
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Evening Reflection & Notes (Optional)
+              </label>
+              <textarea
+                rows={2}
+                placeholder="e.g. Completed 10k steps after dinner, good hamstring recovery, feeling ready for tomorrow's pull workout."
+                value={endOfDayNotes}
+                onChange={(e) => setEndOfDayNotes(e.target.value)}
+                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          {/* Live Calculated Body Maintenance Balance (BMB) Score Preview */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-slate-900 text-white border border-teal-500/30 shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-teal-400" />
+                <h4 className="text-sm font-bold">
+                  Live Calculated Body Maintenance Balance (BMB) Score
+                </h4>
+              </div>
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                {endOfDayBmb.statusLabel}
+              </span>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="text-center md:text-left flex-shrink-0">
+                <span className="text-4xl sm:text-5xl font-black text-teal-400">
+                  {endOfDayBmb.score}
+                </span>
+                <span className="text-xs text-slate-400 block mt-0.5">/ 100 Final Daily BMB</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center flex-1 w-full text-xs">
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                  <span className="text-[10px] text-slate-400 uppercase block">Calorie Pillar</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">
+                    {endOfDayBmb.breakdown.calorieScore} / 35
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                  <span className="text-[10px] text-slate-400 uppercase block">Recovery</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">
+                    {endOfDayBmb.breakdown.recoveryScore} / 25
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                  <span className="text-[10px] text-slate-400 uppercase block">Consistency</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">
+                    {endOfDayBmb.breakdown.consistencyScore} / 20
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                  <span className="text-[10px] text-slate-400 uppercase block">Hydration</span>
+                  <span className="font-bold text-slate-200 mt-0.5 block">
+                    {endOfDayBmb.breakdown.hydrationScore} / 10
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                  <span className="text-[10px] text-slate-400 uppercase block">Movement Steps</span>
+                  <span className="font-bold text-teal-400 mt-0.5 block">
+                    {endOfDayBmb.breakdown.activityScore} / 10
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed border-t border-slate-800 pt-3">
+              {endOfDayBmb.recommendation}
+            </p>
+          </div>
+
+          {/* Save Action Button */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleSaveEndOfDay}
+              disabled={isSavingEndOfDay}
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-teal-500/20 transition transform active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{isSavingEndOfDay ? 'Saving End-of-Day Review...' : 'COMPLETE & SAVE END-OF-DAY REVIEW'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB 3: TRANSFORMATION SLIDER & GALLERY ==================== */}
       {activeTab === 'gallery' && (
         <div className="space-y-6">
           {checkIns.length < 2 ? (
@@ -1014,25 +1563,75 @@ export const CheckIn: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Daily Steps */}
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+                  {/* Daily Steps Moved Notice */}
+                  <div className="flex flex-col justify-center p-2 rounded-xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/40 text-[11px] text-teal-800 dark:text-teal-300">
+                    <span className="font-bold flex items-center gap-1">
                       <Footprints className="w-3 h-3 text-teal-500" />
-                      <span>Today's Steps</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="500"
-                      placeholder="e.g. 8500"
-                      value={dailySteps}
-                      onChange={(e) =>
-                        setDailySteps(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white text-xs"
-                    />
+                      <span>Steps Tracking:</span>
+                    </span>
+                    <span className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">
+                      Logged in End-of-Day Review
+                    </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Daily Fasting Observance Engine */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Are you observing a fast today?</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                    Fasting Mode
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {(
+                    [
+                      { type: 'none', label: 'No Fast', sub: 'Standard Fueling', icon: <Sun className="w-3.5 h-3.5 text-amber-500" /> },
+                      { type: 'partial_fruit', label: 'Fruit Fast', sub: 'Satvic Fruits', icon: <Apple className="w-3.5 h-3.5 text-emerald-500" /> },
+                      { type: 'water_only', label: 'Water Fast', sub: 'Autophagy Reset', icon: <Droplets className="w-3.5 h-3.5 text-blue-500" /> },
+                      { type: 'traditional_viratham', label: 'Viratham', sub: 'Sacred Fast', icon: <Sparkles className="w-3.5 h-3.5 text-purple-500" /> },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      onClick={() => setObservingFast(opt.type)}
+                      className={`p-2 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                        observingFast === opt.type
+                          ? 'bg-amber-500/20 border-amber-500 dark:border-amber-400 text-slate-950 dark:text-white shadow-sm'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 mb-1">
+                        {opt.icon}
+                        <span className="font-bold text-[11px] truncate">{opt.label}</span>
+                      </div>
+                      <span className="text-[9px] text-slate-500 dark:text-slate-400 truncate">
+                        {opt.sub}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {observingFast !== 'none' && (
+                  <div className="pt-1">
+                    <input
+                      type="text"
+                      placeholder="Optional fasting notes (e.g., Purattasi Saturday, coconut water allowed)"
+                      value={fastingNotes}
+                      onChange={(e) => setFastingNotes(e.target.value)}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 text-xs text-slate-900 dark:text-white focus:outline-none"
+                    />
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1">
+                      {FASTING_CONFIGS[observingFast]?.description} AI will automatically adjust your workout, water target, and maintenance calorie thresholds.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Ghost Overlay Camera Trigger & Photo Preview */}

@@ -183,6 +183,134 @@ export function fileToBase64(file: File): Promise<Base64ImagePart> {
 }
 
 /**
+ * Canvas-based client-side image compression utility.
+ * Scales down large camera captures (often 5-15MB) to a maximum width (default 800px)
+ * and JPEG quality 0.8 (~100-250KB), ensuring fast uploads and rapid Gemini responses.
+ */
+export async function compressImage(
+  fileOrBlob: File | Blob,
+  maxWidth = 800,
+  quality = 0.8
+): Promise<{ file: File; base64Part: Base64ImagePart }> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      fileToBase64(fileOrBlob as File)
+        .then((b64) => {
+          resolve({
+            file:
+              fileOrBlob instanceof File
+                ? fileOrBlob
+                : new File([fileOrBlob], 'image.jpg', { type: 'image/jpeg' }),
+            base64Part: b64,
+          });
+        })
+        .catch(reject);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          fileToBase64(fileOrBlob as File)
+            .then((b64) => {
+              resolve({
+                file:
+                  fileOrBlob instanceof File
+                    ? fileOrBlob
+                    : new File([fileOrBlob], 'image.jpg', { type: 'image/jpeg' }),
+                base64Part: b64,
+              });
+            })
+            .catch(reject);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const commaIndex = dataUrl.indexOf(',');
+        const base64Data = commaIndex !== -1 ? dataUrl.substring(commaIndex + 1) : dataUrl;
+
+        canvas.toBlob(
+          (blob) => {
+            const compressedFile = new File(
+              [blob || fileOrBlob],
+              fileOrBlob instanceof File ? fileOrBlob.name : 'compressed.jpg',
+              { type: 'image/jpeg' }
+            );
+
+            resolve({
+              file: compressedFile,
+              base64Part: {
+                mimeType: 'image/jpeg',
+                data: base64Data,
+              },
+            });
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = (err) => reject(err);
+      img.src = readerEvent.target?.result as string;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(fileOrBlob);
+  });
+}
+
+/**
+ * Robust timeout and retry wrapper for Gemini API calls.
+ * Wraps an async call in a 10-second timeout with an automatic single retry attempt before erroring.
+ */
+export async function withTimeoutAndRetry<T>(
+  asyncFn: () => Promise<T>,
+  timeoutMs = 10000,
+  maxRetries = 1,
+  operationName = 'Gemini AI Call'
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await Promise.race([
+        asyncFn(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`${operationName} timed out after ${timeoutMs / 1000}s`)),
+            timeoutMs
+          )
+        ),
+      ]);
+      return result;
+    } catch (err) {
+      lastError = err;
+      console.warn(`${operationName} attempt ${attempt + 1} failed:`, err);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 600));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Safe parsing utility implementing markdown stripping (`replace(/```json|```/g, '')`) before calling JSON.parse().
  */
 export function safeParseNutritionJson(rawText: string): FoodAnalysisResult | null {
@@ -298,39 +426,43 @@ Return strictly valid JSON adhering to the schema.`;
     temperature: 0.2,
   };
 
-  // Primary model: gemini-2.5-flash
-  try {
-    const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents,
-      config,
-    });
-    if (response?.text) {
-      const parsed = safeParseNutritionJson(response.text);
-      if (parsed) return parsed;
+  const runFoodScan = async () => {
+    // Primary model: gemini-2.5-flash
+    try {
+      const response = await client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents,
+        config,
+      });
+      if (response?.text) {
+        const parsed = safeParseNutritionJson(response.text);
+        if (parsed) return parsed;
+      }
+    } catch (primaryErr) {
+      console.warn('gemini-2.5-flash scan failed, trying gemini-1.5-flash fallback:', primaryErr);
     }
-  } catch (primaryErr) {
-    console.warn('gemini-2.5-flash scan failed, trying gemini-1.5-flash fallback:', primaryErr);
-  }
 
-  // Fallback model: gemini-1.5-flash
-  try {
-    const fallbackResponse = await client.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents,
-      config,
-    });
+    // Fallback model: gemini-1.5-flash
+    try {
+      const fallbackResponse = await client.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents,
+        config,
+      });
 
-    if (fallbackResponse?.text) {
-      const parsed = safeParseNutritionJson(fallbackResponse.text);
-      if (parsed) return parsed;
+      if (fallbackResponse?.text) {
+        const parsed = safeParseNutritionJson(fallbackResponse.text);
+        if (parsed) return parsed;
+      }
+    } catch (fallbackErr) {
+      console.warn('gemini-1.5-flash scan also failed:', fallbackErr);
+      throw fallbackErr;
     }
-  } catch (fallbackErr) {
-    console.warn('gemini-1.5-flash scan also failed:', fallbackErr);
-    throw fallbackErr;
-  }
 
-  throw new Error('Unable to extract structured nutritional data from scan response.');
+    throw new Error('Unable to extract structured nutritional data from scan response.');
+  };
+
+  return await withTimeoutAndRetry(runFoodScan, 10000, 1, 'Gemini Food Scan');
 }
 
 /* ==================== AI PHYSIQUE & BODY TYPE ANALYSIS ==================== */
@@ -453,37 +585,41 @@ Instructions:
     temperature: 0.3,
   };
 
-  // Primary model: gemini-2.5-flash
-  try {
-    const response = await client.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents,
-      config,
-    });
-    if (response?.text) {
-      const parsed = safeParsePhysiqueJson(response.text);
-      if (parsed) return parsed;
+  const runPhysiqueAnalysis = async () => {
+    // Primary model: gemini-2.5-flash
+    try {
+      const response = await client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents,
+        config,
+      });
+      if (response?.text) {
+        const parsed = safeParsePhysiqueJson(response.text);
+        if (parsed) return parsed;
+      }
+    } catch (primaryErr) {
+      console.warn('gemini-2.5-flash physique analysis failed, trying gemini-1.5-flash fallback:', primaryErr);
     }
-  } catch (primaryErr) {
-    console.warn('gemini-2.5-flash physique analysis failed, trying gemini-1.5-flash fallback:', primaryErr);
-  }
 
-  // Fallback model: gemini-1.5-flash
-  try {
-    const fallbackResponse = await client.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents,
-      config,
-    });
-    if (fallbackResponse?.text) {
-      const parsed = safeParsePhysiqueJson(fallbackResponse.text);
-      if (parsed) return parsed;
+    // Fallback model: gemini-1.5-flash
+    try {
+      const fallbackResponse = await client.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents,
+        config,
+      });
+      if (fallbackResponse?.text) {
+        const parsed = safeParsePhysiqueJson(fallbackResponse.text);
+        if (parsed) return parsed;
+      }
+    } catch (fallbackErr) {
+      console.warn('gemini-1.5-flash physique analysis failed:', fallbackErr);
+      throw fallbackErr;
     }
-  } catch (fallbackErr) {
-    console.warn('gemini-1.5-flash physique analysis failed:', fallbackErr);
-    throw fallbackErr;
-  }
 
-  throw new Error('Unable to generate structured physique analysis from Gemini response.');
+    throw new Error('Unable to generate structured physique analysis from Gemini response.');
+  };
+
+  return await withTimeoutAndRetry(runPhysiqueAnalysis, 10000, 1, 'Gemini Physique Analysis');
 }
 

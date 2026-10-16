@@ -384,6 +384,9 @@ export const finishAndSaveWorkout = async (
 
   // Clear active workout session
   await saveActiveWorkout(userId, null);
+
+  // Automatically record core maintenance goal for streak
+  await recordStreakActivity(userId, 'workout');
 };
 
 export const subscribeCompletedWorkouts = (
@@ -618,6 +621,10 @@ export const addNutritionLog = async (
     ...log,
     loggedAt: serverTimestamp(),
   });
+
+  // Automatically record core maintenance goal for streak
+  await recordStreakActivity(userId, 'meal');
+
   return docRef.id;
 };
 
@@ -680,6 +687,9 @@ export interface CheckInItem {
   sleepHours?: number;
   energyLevel?: 'low' | 'moderate' | 'high';
   steps?: number;
+  isFasting?: boolean;
+  fastingType?: 'none' | 'partial_fruit' | 'water_only' | 'traditional_viratham';
+  fastingNotes?: string;
   createdAt?: unknown;
 }
 
@@ -716,6 +726,27 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     icon: 'Trophy',
   },
   {
+    badgeId: 'streak-14',
+    title: 'Two-Week Titan',
+    description: 'Maintained a 14-day consecutive fitness maintenance streak.',
+    tier: 'gold',
+    icon: 'Shield',
+  },
+  {
+    badgeId: 'streak-30',
+    title: 'Maintenance Legend',
+    description: 'Completed a 30-day uninterrupted maintenance streak.',
+    tier: 'diamond',
+    icon: 'Sparkles',
+  },
+  {
+    badgeId: 'fasting-harmony',
+    title: 'Fasting Harmony',
+    description: 'Observed a scheduled fasting day and aligned training & hydration.',
+    tier: 'silver',
+    icon: 'Flame',
+  },
+  {
     badgeId: 'maintenance-anchor',
     title: 'Maintenance Anchor',
     description: 'Maintained body weight within ±0.75kg target variance over 5 check-ins.',
@@ -740,15 +771,34 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
 
 export const addCheckIn = async (
   userId: string,
-  checkIn: Omit<CheckInItem, 'id' | 'createdAt'>
+  checkIn: Partial<Omit<CheckInItem, 'id' | 'createdAt'>> & { date: string }
 ): Promise<string | null> => {
   if (!db || !userId) return null;
+  const dateStr = checkIn.date || getTodayDateString();
+  const dateDocRef = doc(db, 'users', userId, 'checkins', dateStr);
+  await setDoc(
+    dateDocRef,
+    {
+      ...checkIn,
+      date: dateStr,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  // Also write to collection for legacy auto-id listeners if needed
   const colRef = collection(db, 'users', userId, 'checkins');
-  const docRef = await addDoc(colRef, {
+  await addDoc(colRef, {
     ...checkIn,
+    date: dateStr,
     createdAt: serverTimestamp(),
   });
-  return docRef.id;
+
+  // Automatically record core maintenance goal for streak
+  await recordStreakActivity(userId, 'checkin', dateStr);
+
+  return dateStr;
 };
 
 export const deleteCheckIn = async (
@@ -839,7 +889,8 @@ export const evaluateAndUnlockBadges = async (
   userId: string,
   checkIns: CheckInItem[],
   currentRewards: UserReward[],
-  targetWeightKg?: number
+  targetWeightKg?: number,
+  currentStreak = 0
 ): Promise<UserReward[]> => {
   if (!userId || checkIns.length === 0) return [];
 
@@ -864,25 +915,43 @@ export const evaluateAndUnlockBadges = async (
     if (b) await checkAndUnlock(b);
   }
 
-  // 2. Consistency Ignition (3 checkins)
-  if (checkIns.length >= 3) {
+  // 2. Consistency Ignition (3 checkins or 3-day streak)
+  if (checkIns.length >= 3 || currentStreak >= 3) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-3');
     if (b) await checkAndUnlock(b);
   }
 
-  // 3. Streak Master (7 checkins)
-  if (checkIns.length >= 7) {
+  // 3. Streak Master (7 checkins or 7-day streak)
+  if (checkIns.length >= 7 || currentStreak >= 7) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-7');
     if (b) await checkAndUnlock(b);
   }
 
-  // 4. Physique Pioneer (has at least 1 checkin with aiPhysiqueAnalysis)
+  // 4. Two-Week Titan (14-day streak or 14 checkins)
+  if (currentStreak >= 14 || checkIns.length >= 14) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-14');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 5. Maintenance Legend (30-day streak or 30 checkins)
+  if (currentStreak >= 30 || checkIns.length >= 30) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-30');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 6. Fasting Harmony (has logged at least 1 fasting checkin or observance)
+  if (checkIns.some((c) => Boolean(c.isFasting) || (c.fastingType && c.fastingType !== 'none'))) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'fasting-harmony');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // 7. Physique Pioneer (has at least 1 checkin with aiPhysiqueAnalysis)
   if (checkIns.some((c) => Boolean(c.aiPhysiqueAnalysis))) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'physique-pioneer');
     if (b) await checkAndUnlock(b);
   }
 
-  // 5. Maintenance Anchor (within ±0.75kg target for at least 3 checkins)
+  // 8. Maintenance Anchor (within ±0.75kg target for at least 3 checkins)
   if (targetWeightKg && checkIns.length >= 3) {
     const withinMaintenance = checkIns.filter(
       (c) => Math.abs(c.weightKg - targetWeightKg) <= 0.75
@@ -1146,24 +1215,31 @@ export const calculateBmbScore = (
   todayWaterMl = 0,
   waterTargetMl = 3000,
   todaySteps = 0,
-  stepsGoal = 10000
+  stepsGoal = 10000,
+  fastingState?: { isFasting: boolean; fastingType?: 'none' | 'partial_fruit' | 'water_only' | 'traditional_viratham' }
 ): BmbScoreResult => {
-  const safeTarget = Math.max(1200, targetCalories || 2000);
+  const isFastingActive = Boolean(fastingState?.isFasting && fastingState.fastingType && fastingState.fastingType !== 'none');
+  const isWaterFast = fastingState?.fastingType === 'water_only';
+
+  const safeTarget = isWaterFast ? 0 : Math.max(isFastingActive ? 400 : 1200, targetCalories || (isFastingActive ? 800 : 2000));
   const calorieDiff = todayCalories - safeTarget;
   const calorieDeviationPct =
-    todayCalories > 0
+    isWaterFast
+      ? (todayCalories > 50 ? 100 : 0)
+      : safeTarget > 0 && todayCalories > 0
       ? Math.round(((todayCalories - safeTarget) / safeTarget) * 1000) / 10
       : 0;
 
   // 1. Caloric Alignment (max 35 pts)
   let calorieScore = 30; // Neutral baseline
-  if (todayCalories > 0) {
+  if (isWaterFast) {
+    calorieScore = todayCalories <= 50 ? 35 : todayCalories <= 150 ? 25 : 10;
+  } else if (todayCalories > 0 || isFastingActive) {
     const absDev = Math.abs(calorieDeviationPct);
-    if (absDev <= 5) calorieScore = 35;
-    else if (absDev <= 10) calorieScore = 32;
-    else if (absDev <= 15) calorieScore = 25;
-    else if (absDev <= 25) calorieScore = 15;
-    else calorieScore = 8;
+    if (absDev <= 10) calorieScore = 35;
+    else if (absDev <= 20) calorieScore = 30;
+    else if (absDev <= 30) calorieScore = 22;
+    else calorieScore = 12;
   }
 
   // 2. Recovery & Vitals (max 25 pts)
@@ -1225,15 +1301,21 @@ export const calculateBmbScore = (
     Math.max(0, calorieScore + recoveryScore + consistencyScore + hydrationScore + activityScore)
   );
 
-  // Determine Status & Reactive Alert Criteria (>15% deviation or high fatigue)
+  // Determine Status & Reactive Alert Criteria
   let status: 'optimal' | 'stable' | 'surplus' | 'deficit' | 'fatigue' = 'stable';
   let statusLabel = 'Stable Maintenance';
 
-  const isSurplusAlert = calorieDeviationPct > 15;
-  const isDeficitAlert = calorieDeviationPct < -15 && todayCalories > 0;
+  const isSurplusAlert = !isWaterFast && calorieDeviationPct > 15;
+  const isDeficitAlert = !isFastingActive && calorieDeviationPct < -15 && todayCalories > 0;
   const isFatigueAlert = Boolean(latestCheckIn && (latestCheckIn.fatigueRating <= 2 || latestCheckIn.energyLevel === 'low'));
 
-  if (isFatigueAlert) {
+  if (isWaterFast) {
+    status = 'optimal';
+    statusLabel = 'Water Fast Equilibrium (Autophagy)';
+  } else if (isFastingActive) {
+    status = 'optimal';
+    statusLabel = 'Fasting Mode Balance';
+  } else if (isFatigueAlert) {
     status = 'fatigue';
     statusLabel = 'High Fatigue / Deload Advisory';
   } else if (isSurplusAlert) {
@@ -1257,7 +1339,23 @@ export const calculateBmbScore = (
     actionLabel: 'Preserve Routine Volume',
   };
 
-  if (isSurplusAlert) {
+  if (isWaterFast) {
+    suggestedAdjustment = {
+      type: 'reduce_volume',
+      setsDelta: -1,
+      badgeTitle: 'Fasting Protection Active',
+      message: 'Strict Water Fast active. Heavy compound lifting is scaled back in favor of active recovery and joint mobility to protect lean mass and vital energy.',
+      actionLabel: 'Preserve Recovery Routine',
+    };
+  } else if (isFastingActive) {
+    suggestedAdjustment = {
+      type: 'none',
+      setsDelta: 0,
+      badgeTitle: 'Fasting Equilibrium',
+      message: 'Fasting targets active. Macro and hydration targets have been recalibrated. Maintain moderate training intensity.',
+      actionLabel: 'Preserve Fasting Routine',
+    };
+  } else if (isSurplusAlert) {
     suggestedAdjustment = {
       type: 'increase_volume',
       setsDelta: 2,
@@ -1285,7 +1383,11 @@ export const calculateBmbScore = (
 
   // Dynamic recommendation text
   let recommendation = 'Your body composition maintenance balance is stable. Continue consistent training, hydration, and recovery.';
-  if (isSurplusAlert) {
+  if (isWaterFast) {
+    recommendation = 'Strict Water Fasting protocol active. Emphasize 3.8L+ hydration, pinch of mineral pink salt, and restorative mobility.';
+  } else if (isFastingActive) {
+    recommendation = 'Fasting Mode active. Calorie and macro thresholds adapted. Maintain elevated hydration and avoid extreme fatigue.';
+  } else if (isSurplusAlert) {
     recommendation = `Calorie surplus of +${calorieDiff} kcal detected. Tap "Apply Adjustment" to automatically inject +2 volume sets into your workout.`;
   } else if (isDeficitAlert) {
     recommendation = `Calorie deficit of ${Math.abs(calorieDiff)} kcal detected. Tap "Apply Adjustment" to safely scale down volume by -1 set.`;
@@ -2114,6 +2216,704 @@ export const saveAlarmSettings = async (
   const settingsDocRef = doc(db, 'users', userId, 'data', 'alarm_settings');
   await setDoc(settingsDocRef, updated, { merge: true });
 };
+
+/* ==================== STREAK MAINTENANCE & CONSISTENCY ENGINE ==================== */
+
+export interface UserStreak {
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: string; // YYYY-MM-DD
+  historyDates: string[]; // List of YYYY-MM-DD when a maintenance goal was completed
+  shieldsRemaining: number;
+  shieldUsedToday?: boolean;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_USER_STREAK: UserStreak = {
+  currentStreak: 0,
+  longestStreak: 0,
+  lastActiveDate: '',
+  historyDates: [],
+  shieldsRemaining: 1,
+};
+
+/**
+ * Subscribes in real-time to user's consistency streak stored at users/{userId}/streak/current
+ */
+export const subscribeUserStreak = (
+  userId: string,
+  callback: (streak: UserStreak) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    const cached = localStorage.getItem(`fit_user_streak_${userId}`);
+    if (cached) {
+      try {
+        callback({ ...DEFAULT_USER_STREAK, ...JSON.parse(cached) });
+      } catch {
+        callback(DEFAULT_USER_STREAK);
+      }
+    } else {
+      callback(DEFAULT_USER_STREAK);
+    }
+    return () => {};
+  }
+
+  const streakDocRef = doc(db, 'users', userId, 'streak', 'current');
+  return onSnapshot(
+    streakDocRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as UserStreak;
+        const merged: UserStreak = {
+          currentStreak: Number(data.currentStreak) || 0,
+          longestStreak: Number(data.longestStreak) || 0,
+          lastActiveDate: data.lastActiveDate || '',
+          historyDates: Array.isArray(data.historyDates) ? data.historyDates : [],
+          shieldsRemaining: data.shieldsRemaining !== undefined ? Number(data.shieldsRemaining) : 1,
+          shieldUsedToday: Boolean(data.shieldUsedToday),
+          updatedAt: data.updatedAt,
+        };
+        localStorage.setItem(`fit_user_streak_${userId}`, JSON.stringify(merged));
+        callback(merged);
+      } else {
+        const cached = localStorage.getItem(`fit_user_streak_${userId}`);
+        if (cached) {
+          try {
+            callback({ ...DEFAULT_USER_STREAK, ...JSON.parse(cached) });
+            return;
+          } catch {
+            // Ignored
+          }
+        }
+        callback(DEFAULT_USER_STREAK);
+      }
+    },
+    (err) => {
+      console.warn('Streak snapshot notice:', err);
+      const cached = localStorage.getItem(`fit_user_streak_${userId}`);
+      if (cached) {
+        try {
+          callback({ ...DEFAULT_USER_STREAK, ...JSON.parse(cached) });
+          return;
+        } catch {
+          // Ignored
+        }
+      }
+      callback(DEFAULT_USER_STREAK);
+    }
+  );
+};
+
+/**
+ * Records a core maintenance activity (meal logged, workout completed, check-in, or fasting)
+ * Increments streak by 1 if today is a new active day, protects 1 missed day with shield,
+ * and automatically unlocks celebratory milestone rewards (3, 7, 14, 30 days).
+ */
+export const recordStreakActivity = async (
+  userId: string,
+  _activityType: 'meal' | 'workout' | 'checkin' | 'fasting',
+  dateStr = getTodayDateString()
+): Promise<UserStreak> => {
+  if (!db || !userId) return DEFAULT_USER_STREAK;
+
+  const streakDocRef = doc(db, 'users', userId, 'streak', 'current');
+  let currentStreakData: UserStreak = { ...DEFAULT_USER_STREAK };
+
+  try {
+    const snap = await getDoc(streakDocRef);
+    if (snap.exists()) {
+      currentStreakData = {
+        ...DEFAULT_USER_STREAK,
+        ...(snap.data() as UserStreak),
+      };
+    } else {
+      const cached = localStorage.getItem(`fit_user_streak_${userId}`);
+      if (cached) {
+        currentStreakData = { ...DEFAULT_USER_STREAK, ...JSON.parse(cached) };
+      }
+    }
+  } catch (err) {
+    console.warn('Notice reading streak document:', err);
+  }
+
+  const historySet = new Set(currentStreakData.historyDates || []);
+  const wasAlreadyActiveToday = historySet.has(dateStr);
+
+  let newCurrent = currentStreakData.currentStreak;
+  let newLongest = currentStreakData.longestStreak;
+  let newShields = currentStreakData.shieldsRemaining ?? 1;
+  let shieldUsed = false;
+
+  if (!wasAlreadyActiveToday) {
+    historySet.add(dateStr);
+
+    if (!currentStreakData.lastActiveDate) {
+      newCurrent = 1;
+      newLongest = Math.max(1, newLongest);
+    } else {
+      const lastDate = new Date(currentStreakData.lastActiveDate + 'T00:00:00');
+      const todayDate = new Date(dateStr + 'T00:00:00');
+      const diffMs = todayDate.getTime() - lastDate.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        newCurrent = currentStreakData.currentStreak + 1;
+        newLongest = Math.max(newCurrent, newLongest);
+      } else if (diffDays === 2 && newShields > 0) {
+        newShields = Math.max(0, newShields - 1);
+        shieldUsed = true;
+        newCurrent = currentStreakData.currentStreak + 1;
+        newLongest = Math.max(newCurrent, newLongest);
+      } else if (diffDays > 1) {
+        newCurrent = 1;
+      }
+    }
+  }
+
+  const updatedStreak: UserStreak = {
+    currentStreak: newCurrent,
+    longestStreak: newLongest,
+    lastActiveDate: dateStr,
+    historyDates: Array.from(historySet).slice(-180),
+    shieldsRemaining: newShields,
+    shieldUsedToday: shieldUsed,
+    updatedAt: serverTimestamp(),
+  };
+
+  localStorage.setItem(`fit_user_streak_${userId}`, JSON.stringify(updatedStreak));
+
+  if (db) {
+    try {
+      await setDoc(streakDocRef, updatedStreak, { merge: true });
+      await setDoc(
+        doc(db, 'users', userId),
+        { streak: updatedStreak, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (writeErr) {
+      console.warn('Error saving streak to Firestore:', writeErr);
+    }
+  }
+
+  // Check milestones and unlock badges
+  try {
+    if (newCurrent >= 30) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-30');
+      if (b) await unlockReward(userId, b);
+    }
+    if (newCurrent >= 14) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-14');
+      if (b) await unlockReward(userId, b);
+    }
+    if (newCurrent >= 7) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-7');
+      if (b) await unlockReward(userId, b);
+    }
+    if (newCurrent >= 3) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-3');
+      if (b) await unlockReward(userId, b);
+    }
+  } catch {
+    // Non-blocking
+  }
+
+  return updatedStreak;
+};
+
+/**
+ * Re-synchronizes streak from historical check-ins, workouts, and nutrition logs
+ * ensuring existing users with prior activity retain their full streak credit.
+ */
+export const syncStreakFromHistory = async (
+  userId: string,
+  checkIns: CheckInItem[] = [],
+  completedWorkouts: CompletedWorkout[] = [],
+  nutritionLogs: NutritionLogItem[] = []
+): Promise<UserStreak> => {
+  if (!userId) return DEFAULT_USER_STREAK;
+
+  const dateSet = new Set<string>();
+
+  checkIns.forEach((c) => {
+    if (c.date) dateSet.add(c.date);
+  });
+
+  completedWorkouts.forEach((w) => {
+    if (w.completedAt) {
+      try {
+        let d: Date | null = null;
+        if (typeof (w.completedAt as { toDate?: () => Date }).toDate === 'function') {
+          d = (w.completedAt as { toDate: () => Date }).toDate();
+        } else if (w.completedAt instanceof Date) {
+          d = w.completedAt;
+        } else if (typeof w.completedAt === 'string') {
+          d = new Date(w.completedAt);
+        }
+        if (d && !isNaN(d.getTime())) {
+          dateSet.add(d.toISOString().split('T')[0]);
+        }
+      } catch {
+        // Ignored
+      }
+    }
+  });
+
+  nutritionLogs.forEach((l) => {
+    if (l.loggedAt) {
+      try {
+        let d: Date | null = null;
+        if (typeof (l.loggedAt as { toDate?: () => Date }).toDate === 'function') {
+          d = (l.loggedAt as { toDate: () => Date }).toDate();
+        } else if (l.loggedAt instanceof Date) {
+          d = l.loggedAt;
+        } else if (typeof l.loggedAt === 'string') {
+          d = new Date(l.loggedAt);
+        }
+        if (d && !isNaN(d.getTime())) {
+          dateSet.add(d.toISOString().split('T')[0]);
+        }
+      } catch {
+        // Ignored
+      }
+    }
+  });
+
+  const sortedDates = Array.from(dateSet).sort();
+  if (sortedDates.length === 0) return DEFAULT_USER_STREAK;
+
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let tempStreak = 0;
+
+  for (let i = 0; i < sortedDates.length; i++) {
+    if (i === 0) {
+      tempStreak = 1;
+    } else {
+      const prev = new Date(sortedDates[i - 1] + 'T00:00:00');
+      const curr = new Date(sortedDates[i] + 'T00:00:00');
+      const diff = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diff === 1) {
+        tempStreak += 1;
+      } else {
+        tempStreak = 1;
+      }
+    }
+    if (tempStreak > longestStreak) {
+      longestStreak = tempStreak;
+    }
+  }
+
+  const lastActiveDate = sortedDates[sortedDates.length - 1];
+  const todayStr = getTodayDateString();
+  const todayDate = new Date(todayStr + 'T00:00:00');
+  const lastDate = new Date(lastActiveDate + 'T00:00:00');
+  const diffFromToday = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffFromToday <= 1) {
+    currentStreak = tempStreak;
+  } else {
+    currentStreak = 0;
+  }
+
+  const streakData: UserStreak = {
+    currentStreak,
+    longestStreak,
+    lastActiveDate,
+    historyDates: sortedDates.slice(-180),
+    shieldsRemaining: 1,
+    updatedAt: serverTimestamp(),
+  };
+
+  localStorage.setItem(`fit_user_streak_${userId}`, JSON.stringify(streakData));
+
+  if (db) {
+    try {
+      await setDoc(doc(db, 'users', userId, 'streak', 'current'), streakData, { merge: true });
+      await setDoc(doc(db, 'users', userId), { streak: streakData }, { merge: true });
+    } catch {
+      // Ignored
+    }
+  }
+
+  return streakData;
+};
+
+/* ==================== DAILY FASTING ENGINE & ADAPTATION LOOP ==================== */
+
+export type FastingType = 'none' | 'partial_fruit' | 'water_only' | 'traditional_viratham';
+
+export interface FastingConfig {
+  type: FastingType;
+  title: string;
+  tamilTitle: string;
+  badge: string;
+  description: string;
+  workoutGuideline: string;
+  hydrationTargetMl: number;
+  hydrationGuideline: string;
+  calorieTargetMultiplier: number;
+  macroSplit: {
+    proteinPct: number;
+    carbsPct: number;
+    fatsPct: number;
+  };
+  recommendedFoods: string[];
+}
+
+export const FASTING_CONFIGS: Record<FastingType, FastingConfig> = {
+  none: {
+    type: 'none',
+    title: 'Standard Maintenance (No Fast)',
+    tamilTitle: 'இயல்பு நிலை (விரதம் இல்லை)',
+    badge: 'Standard Diet & Training',
+    description: 'Regular nutrition with full maintenance calories and progressive overload resistance training.',
+    workoutGuideline: 'Execute scheduled compound lifting and full volume routine as planned.',
+    hydrationTargetMl: 3000,
+    hydrationGuideline: 'Standard baseline hydration: 3.0 Liters throughout the day.',
+    calorieTargetMultiplier: 1.0,
+    macroSplit: { proteinPct: 30, carbsPct: 45, fatsPct: 25 },
+    recommendedFoods: ['Dal Tadka', 'Paneer', 'Brown Rice', 'Chana', 'Curd'],
+  },
+  partial_fruit: {
+    type: 'partial_fruit',
+    title: 'Partial / Fruit Fast',
+    tamilTitle: 'பழ விரதம் / சுஹாஹார்',
+    badge: 'Light Satvic & Fruit Intake',
+    description: 'Clean fruit and satvic fasting. Fresh fruits, nuts, seeds, and light dairy only.',
+    workoutGuideline: 'Moderate intensity. Swap heavy compound barbell lifts for moderate dumbbell accessories and mobility (2 sets/exercise, 12-15 reps).',
+    hydrationTargetMl: 3500,
+    hydrationGuideline: 'Elevated hydration: 3.5 Liters. Drink water infused with lemon or coconut water.',
+    calorieTargetMultiplier: 0.65,
+    macroSplit: { proteinPct: 20, carbsPct: 60, fatsPct: 20 },
+    recommendedFoods: ['Apples', 'Pomegranates', 'Papaya', 'Roasted Almonds', 'Fresh Curd', 'Coconut Water'],
+  },
+  water_only: {
+    type: 'water_only',
+    title: 'Strict Water Fast',
+    tamilTitle: 'ஜல விரதம் (முழு விரதம்)',
+    badge: 'Zero Solid Calories / Deep Detox',
+    description: 'Zero caloric intake. Pure hydration, pink salt, electrolyte balance, and autophagy focus.',
+    workoutGuideline: 'Active Recovery & Mobility ONLY. 20-30 min brisk walk, yoga flow, or deep stretching. Avoid heavy lifting.',
+    hydrationTargetMl: 3800,
+    hydrationGuideline: 'Maximum hydration: 3.8 - 4.0 Liters with pinch of Himalayan pink salt or electrolyte minerals.',
+    calorieTargetMultiplier: 0,
+    macroSplit: { proteinPct: 0, carbsPct: 0, fatsPct: 0 },
+    recommendedFoods: ['Filtered Water', 'Warm Lemon Water', 'Electrolyte Mineral Water', 'Herbal Infusions'],
+  },
+  traditional_viratham: {
+    type: 'traditional_viratham',
+    title: 'Traditional Viratham (Ekadashi / Purattasi / Sashti)',
+    tamilTitle: 'புனித விரதம் (ஏகாதசி / சஷ்டி / புரட்டாசி)',
+    badge: 'Spiritual Temple Fasting',
+    description: 'Sacred Hindu observance. No grains/cereals on Ekadashi, no onion/garlic, single evening satvic meal.',
+    workoutGuideline: 'Spiritual Satvic Core & Mobility Flow. Calisthenics, bodyweight squats, Surya Namaskar, and breathwork.',
+    hydrationTargetMl: 3300,
+    hydrationGuideline: '3.3 Liters. Jeera water, tulsi tea, and warm water throughout the day.',
+    calorieTargetMultiplier: 0.50,
+    macroSplit: { proteinPct: 20, carbsPct: 55, fatsPct: 25 },
+    recommendedFoods: ['Sabudana Khichdi (light ghee)', 'Singhara Atta Roti', 'Makhana', 'Fruit Salad', 'Milk / Curd'],
+  },
+};
+
+export interface DailyFastingState {
+  date: string;
+  isFasting: boolean;
+  fastingType: FastingType;
+  fastingNotes?: string;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_DAILY_FASTING: DailyFastingState = {
+  date: getTodayDateString(),
+  isFasting: false,
+  fastingType: 'none',
+};
+
+/**
+ * Subscribes in real-time to user's daily fasting selection stored in users/{userId}/data/fasting_{date}
+ */
+export const subscribeDailyFasting = (
+  userId: string,
+  dateStr: string,
+  callback: (state: DailyFastingState) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    const cached = localStorage.getItem(`fit_fasting_${userId}_${dateStr}`);
+    if (cached) {
+      try {
+        callback({ ...DEFAULT_DAILY_FASTING, ...JSON.parse(cached), date: dateStr });
+      } catch {
+        callback({ ...DEFAULT_DAILY_FASTING, date: dateStr });
+      }
+    } else {
+      callback({ ...DEFAULT_DAILY_FASTING, date: dateStr });
+    }
+    return () => {};
+  }
+
+  const docRef = doc(db, 'users', userId, 'data', `fasting_${dateStr}`);
+  return onSnapshot(
+    docRef,
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const state: DailyFastingState = {
+          date: dateStr,
+          isFasting: Boolean(data.isFasting),
+          fastingType: (data.fastingType as FastingType) || 'none',
+          fastingNotes: data.fastingNotes || '',
+          updatedAt: data.updatedAt,
+        };
+        localStorage.setItem(`fit_fasting_${userId}_${dateStr}`, JSON.stringify(state));
+        callback(state);
+      } else {
+        callback({ ...DEFAULT_DAILY_FASTING, date: dateStr });
+      }
+    },
+    (err) => {
+      console.warn('Daily fasting snapshot error:', err);
+      callback({ ...DEFAULT_DAILY_FASTING, date: dateStr });
+    }
+  );
+};
+
+/**
+ * Saves user's daily fasting selection to today's Firestore checkin document (users/{userId}/checkins/{date})
+ * and adjusts hydration targets and records streak activity.
+ */
+export const saveDailyFasting = async (
+  userId: string,
+  dateStr: string,
+  fastingType: FastingType,
+  fastingNotes = ''
+): Promise<DailyFastingState> => {
+  const isFasting = fastingType !== 'none';
+  const state: DailyFastingState = {
+    date: dateStr,
+    isFasting,
+    fastingType,
+    fastingNotes,
+  };
+
+  localStorage.setItem(`fit_fasting_${userId}_${dateStr}`, JSON.stringify(state));
+
+  if (!userId) return state;
+
+  if (db) {
+    try {
+      const checkinDocRef = doc(db, 'users', userId, 'checkins', dateStr);
+      await setDoc(
+        checkinDocRef,
+        {
+          date: dateStr,
+          isFasting,
+          fastingType,
+          fastingNotes,
+          fastingUpdatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error updating checkins fasting doc:', err);
+    }
+
+    try {
+      const dataDocRef = doc(db, 'users', userId, 'data', `fasting_${dateStr}`);
+      await setDoc(
+        dataDocRef,
+        {
+          ...state,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error updating fasting data doc:', err);
+    }
+
+    try {
+      const targetWaterMl = FASTING_CONFIGS[fastingType].hydrationTargetMl;
+      const hydRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
+      await setDoc(hydRef, { date: dateStr, targetMl: targetWaterMl, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (err) {
+      console.warn('Error adjusting hydration target on fast:', err);
+    }
+  }
+
+  // Record streak activity
+  await recordStreakActivity(userId, 'fasting', dateStr);
+
+  // Unlock fasting-harmony badge if fasting is active
+  if (isFasting) {
+    try {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'fasting-harmony');
+      if (b) await unlockReward(userId, b);
+    } catch {
+      // Ignored
+    }
+  }
+
+  return state;
+};
+
+/**
+ * Generates an active recovery / mobility routine tailored to the fasting style
+ */
+export const generateFastingRecoveryWorkout = (
+  _userEquipment: string[] = [],
+  fastingType: FastingType = 'partial_fruit'
+): WorkoutSession => {
+  let routineName = 'Fasting Active Recovery & Mobility Flow';
+  let exercises: ExerciseItem[] = [];
+
+  if (fastingType === 'water_only') {
+    routineName = 'Water Fast Active Recovery & Joint Decompression';
+    exercises = [
+      {
+        id: 'ex-fast-1',
+        name: 'Low-Pace Walking / Breath Cadence',
+        muscle: 'Cardiovascular / CNS Reset',
+        sets: [{ id: 's-f-1', setNumber: 1, weight: 0, reps: 20, completed: false }],
+      },
+      {
+        id: 'ex-fast-2',
+        name: 'Cat-Cow & Thoracic Spine Flow',
+        muscle: 'Spinal Mobility',
+        sets: [
+          { id: 's-f-2a', setNumber: 1, weight: 0, reps: 15, completed: false },
+          { id: 's-f-2b', setNumber: 2, weight: 0, reps: 15, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-3',
+        name: 'Bodyweight Air Squats (Slow Tempo)',
+        muscle: 'Lower Body Flush',
+        sets: [
+          { id: 's-f-3a', setNumber: 1, weight: 0, reps: 12, completed: false },
+          { id: 's-f-3b', setNumber: 2, weight: 0, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-4',
+        name: 'Forearm Plank Hold',
+        muscle: 'Core Stability',
+        sets: [
+          { id: 's-f-4a', setNumber: 1, weight: 0, reps: 30, completed: false },
+          { id: 's-f-4b', setNumber: 2, weight: 0, reps: 30, completed: false },
+        ],
+      },
+    ];
+  } else if (fastingType === 'traditional_viratham') {
+    routineName = 'Traditional Viratham Satvic Core & Flow';
+    exercises = [
+      {
+        id: 'ex-fast-1',
+        name: 'Surya Namaskar / Sun Salutation Flow',
+        muscle: 'Full Body Mobility & Prana',
+        sets: [
+          { id: 's-f-1a', setNumber: 1, weight: 0, reps: 6, completed: false },
+          { id: 's-f-1b', setNumber: 2, weight: 0, reps: 6, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-2',
+        name: 'Bodyweight Walking Lunges (Gentle)',
+        muscle: 'Quads & Glutes',
+        sets: [
+          { id: 's-f-2a', setNumber: 1, weight: 0, reps: 10, completed: false },
+          { id: 's-f-2b', setNumber: 2, weight: 0, reps: 10, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-3',
+        name: 'Resistance Band Pull-Aparts',
+        muscle: 'Upper Back & Posture',
+        sets: [
+          { id: 's-f-3a', setNumber: 1, weight: 0, reps: 15, completed: false },
+          { id: 's-f-3b', setNumber: 2, weight: 0, reps: 15, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-4',
+        name: 'Hanging Knee Raise / Floor Leg Raise',
+        muscle: 'Core Stability',
+        sets: [
+          { id: 's-f-4a', setNumber: 1, weight: 0, reps: 12, completed: false },
+          { id: 's-f-4b', setNumber: 2, weight: 0, reps: 12, completed: false },
+        ],
+      },
+    ];
+  } else {
+    // partial_fruit
+    routineName = 'Fruit Fast Moderate Hypertrophy & Mobility';
+    exercises = [
+      {
+        id: 'ex-fast-1',
+        name: 'Dumbbell Goblet Squat (Light Tempo)',
+        muscle: 'Quads & Glutes',
+        sets: [
+          { id: 's-f-1a', setNumber: 1, weight: 12, reps: 12, completed: false },
+          { id: 's-f-1b', setNumber: 2, weight: 12, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-2',
+        name: 'Lat Pulldown (Moderate Weight)',
+        muscle: 'Lats & Upper Back',
+        sets: [
+          { id: 's-f-2a', setNumber: 1, weight: 30, reps: 12, completed: false },
+          { id: 's-f-2b', setNumber: 2, weight: 30, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-3',
+        name: 'Push-Ups (Controlled Negative)',
+        muscle: 'Chest & Triceps',
+        sets: [
+          { id: 's-f-3a', setNumber: 1, weight: 0, reps: 12, completed: false },
+          { id: 's-f-3b', setNumber: 2, weight: 0, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-fast-4',
+        name: 'Forearm Plank Hold',
+        muscle: 'Core Stability',
+        sets: [
+          { id: 's-f-4a', setNumber: 1, weight: 0, reps: 35, completed: false },
+          { id: 's-f-4b', setNumber: 2, weight: 0, reps: 35, completed: false },
+        ],
+      },
+    ];
+  }
+
+  return {
+    routineName,
+    startedAt: Date.now(),
+    exercises,
+  };
+};
+
+/**
+ * Applies fasting recovery workout directly into users/{userId}/data/active_workout
+ * and custom workouts collection in Firestore.
+ */
+export const applyFastingWorkoutAdjustment = async (
+  userId: string,
+  fastingType: FastingType,
+  userEquipment: string[] = []
+): Promise<WorkoutSession | null> => {
+  if (!db || !userId) return null;
+
+  const fastingSession = generateFastingRecoveryWorkout(userEquipment, fastingType);
+  const activeRef = doc(db, 'users', userId, 'data', 'active_workout');
+
+  await setDoc(activeRef, fastingSession, { merge: true });
+  await saveWorkoutToCollection(userId, fastingSession);
+
+  return fastingSession;
+};
+
 
 
 

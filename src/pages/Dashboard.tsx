@@ -35,10 +35,17 @@ import {
   subscribeCheckIns,
   subscribeDailyHydration,
   subscribeDailyActivity,
+  subscribeUserStreak,
+  subscribeDailyFasting,
+  saveDailyFasting,
+  applyFastingWorkoutAdjustment,
   getTodayDateString,
   calculateBmbScore,
   applyWorkoutVolumeAdjustment,
   isToday,
+  DEFAULT_USER_STREAK,
+  DEFAULT_DAILY_FASTING,
+  FASTING_CONFIGS,
   type UserBiometrics,
   type UserProfile,
   type WorkoutSession,
@@ -47,9 +54,15 @@ import {
   type CheckInItem,
   type DailyHydration,
   type DailyActivity,
+  type UserStreak,
+  type DailyFastingState,
+  type FastingType,
 } from '../services/firestoreService';
 import WaterIntakeWidget from '../components/hydration/WaterIntakeWidget';
 import StepsCounterWidget from '../components/activity/StepsCounterWidget';
+import { StreakBadge } from '../components/streak/StreakBadge';
+import { DailyFastingCard } from '../components/fasting/DailyFastingCard';
+import { FastingBanner } from '../components/fasting/FastingBanner';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -63,7 +76,13 @@ export const Dashboard: React.FC = () => {
   const [checkIns, setCheckIns] = useState<CheckInItem[]>([]);
   const [dailyHydration, setDailyHydration] = useState<DailyHydration | null>(null);
   const [dailyActivity, setDailyActivity] = useState<DailyActivity | null>(null);
+  const [userStreak, setUserStreak] = useState<UserStreak>(DEFAULT_USER_STREAK);
+  const [dailyFasting, setDailyFasting] = useState<DailyFastingState>(DEFAULT_DAILY_FASTING);
   const [loading, setLoading] = useState(true);
+
+  // Fasting Workout & Mode State
+  const [isApplyingFastingWorkout, setIsApplyingFastingWorkout] = useState(false);
+  const [isChangingFastingMode, setIsChangingFastingMode] = useState(false);
 
   // Volume Adjustment Action State
   const [isApplyingAdjustment, setIsApplyingAdjustment] = useState(false);
@@ -109,6 +128,14 @@ export const Dashboard: React.FC = () => {
       setDailyActivity(data);
     });
 
+    const unsubStreak = subscribeUserStreak(currentUser.uid, (streakData) => {
+      setUserStreak(streakData);
+    });
+
+    const unsubFasting = subscribeDailyFasting(currentUser.uid, todayStr, (fastingData) => {
+      setDailyFasting(fastingData);
+    });
+
     return () => {
       unsubBio();
       unsubProfile();
@@ -118,10 +145,12 @@ export const Dashboard: React.FC = () => {
       unsubCheckIns();
       unsubHydration();
       unsubActivity();
+      unsubStreak();
+      unsubFasting();
     };
   }, [currentUser?.uid]);
 
-  // Compute real maintenance calories & macros from user biometrics / profile doc
+  // Compute real maintenance calories & macros from user biometrics / profile doc, adapted to fasting mode
   const { targetCalories, proteinTargetGrams, carbsTargetGrams, fatsTargetGrams } = React.useMemo(() => {
     const weight = userProfile?.currentWeightKg || biometrics?.weightKg;
     const height = userProfile?.heightCm || biometrics?.heightCm;
@@ -147,6 +176,38 @@ export const Dashboard: React.FC = () => {
     if (goal === 'lean_bulk') target = tdee + 250;
     if (goal === 'cut') target = tdee - 450;
 
+    // Fasting Adaptation Loop: If fasting is active today, scale targets
+    const isFastingActive = Boolean(
+      dailyFasting?.isFasting &&
+      dailyFasting?.fastingType &&
+      dailyFasting.fastingType !== 'none'
+    );
+
+    if (isFastingActive && dailyFasting.fastingType) {
+      const cfg = FASTING_CONFIGS[dailyFasting.fastingType];
+      const adaptedTarget = Math.round(target * cfg.calorieTargetMultiplier);
+
+      if (dailyFasting.fastingType === 'water_only') {
+        return {
+          targetCalories: 0,
+          proteinTargetGrams: 0,
+          carbsTargetGrams: 0,
+          fatsTargetGrams: 0,
+        };
+      }
+
+      const pGrams = Math.round((adaptedTarget * (cfg.macroSplit.proteinPct / 100)) / 4);
+      const cGrams = Math.round((adaptedTarget * (cfg.macroSplit.carbsPct / 100)) / 4);
+      const fGrams = Math.round((adaptedTarget * (cfg.macroSplit.fatsPct / 100)) / 9);
+
+      return {
+        targetCalories: adaptedTarget,
+        proteinTargetGrams: pGrams,
+        carbsTargetGrams: cGrams,
+        fatsTargetGrams: fGrams,
+      };
+    }
+
     const protein = Math.round(weight * 2.0);
     const fats = Math.round((target * 0.25) / 9);
     const carbs = Math.max(0, Math.round((target - protein * 4 - fats * 9) / 4));
@@ -157,7 +218,7 @@ export const Dashboard: React.FC = () => {
       carbsTargetGrams: carbs,
       fatsTargetGrams: fats,
     };
-  }, [biometrics, userProfile]);
+  }, [biometrics, userProfile, dailyFasting]);
 
   // Real volume from completed workouts in the past 7 days
   const weeklyWorkoutsCount = (completedWorkouts || []).length;
@@ -194,7 +255,8 @@ export const Dashboard: React.FC = () => {
       dailyHydration?.waterMl || 0,
       dailyHydration?.targetMl || 3000,
       dailyActivity?.steps || 0,
-      dailyActivity?.goalSteps || 10000
+      dailyActivity?.goalSteps || 10000,
+      dailyFasting
     );
   }, [
     targetCalories,
@@ -205,7 +267,38 @@ export const Dashboard: React.FC = () => {
     dailyHydration?.targetMl,
     dailyActivity?.steps,
     dailyActivity?.goalSteps,
+    dailyFasting,
   ]);
+
+  // Fasting Selection Handler
+  const handleSelectFasting = async (type: FastingType, notes = '') => {
+    if (!currentUser?.uid) return;
+    try {
+      const todayStr = getTodayDateString();
+      await saveDailyFasting(currentUser.uid, todayStr, type, notes);
+      setIsChangingFastingMode(false);
+    } catch (err) {
+      console.error('Failed to save fasting selection:', err);
+    }
+  };
+
+  // Fasting Recovery Workout Handler
+  const handleApplyFastingWorkout = async () => {
+    if (!currentUser?.uid || !dailyFasting?.fastingType) return;
+    setIsApplyingFastingWorkout(true);
+    try {
+      await applyFastingWorkoutAdjustment(
+        currentUser.uid,
+        dailyFasting.fastingType,
+        userProfile?.equipment || []
+      );
+      navigate('/workouts');
+    } catch (err) {
+      console.error('Failed to apply fasting workout:', err);
+    } finally {
+      setIsApplyingFastingWorkout(false);
+    }
+  };
 
   // Handle Reactive Workout Volume Adjustment
   const handleApplyAdjustment = async () => {
@@ -292,6 +385,37 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Real-time Streak Maintenance & Consistency Engine Badge */}
+      <StreakBadge
+        streak={userStreak}
+        todayCompleted={
+          todayCalories > 0 ||
+          (completedWorkouts || []).some((w) => isToday(w.completedAt)) ||
+          (checkIns || []).some((c) => isToday(c.date) || isToday(c.createdAt)) ||
+          Boolean(dailyFasting.isFasting && dailyFasting.fastingType !== 'none')
+        }
+        completedGoals={{
+          meal: todayCalories > 0,
+          workout: (completedWorkouts || []).some((w) => isToday(w.completedAt)),
+          checkin: (checkIns || []).some((c) => isToday(c.date) || isToday(c.createdAt)),
+        }}
+      />
+
+      {/* Daily Fasting Mode & AI Adaptation Engine */}
+      {dailyFasting.isFasting && dailyFasting.fastingType !== 'none' && !isChangingFastingMode ? (
+        <FastingBanner
+          fastingState={dailyFasting}
+          onApplyFastingWorkout={handleApplyFastingWorkout}
+          onChangeFastingMode={() => setIsChangingFastingMode(true)}
+          isApplyingWorkout={isApplyingFastingWorkout}
+        />
+      ) : (
+        <DailyFastingCard
+          currentFasting={dailyFasting}
+          onSelectFasting={handleSelectFasting}
+        />
+      )}
 
       {/* Heavy-Sleeper Max-Volume Alarm & Dual-Language Voice Briefing Card */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 border border-amber-300 dark:border-amber-500/30 p-5 sm:p-6 shadow-sm">
