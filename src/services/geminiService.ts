@@ -1,13 +1,28 @@
 import { GoogleGenAI } from '@google/genai';
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim() || '';
+const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY?.trim() || '';
 
-export const isGeminiConfigured = Boolean(apiKey.length > 0);
+export const isGeminiConfigured = Boolean(getApiKey().length > 0);
 
 let aiClient: GoogleGenAI | null = null;
+
+export function getAiClient(): GoogleGenAI | null {
+  const currentKey = getApiKey();
+  if (!currentKey) return null;
+  if (!aiClient) {
+    try {
+      aiClient = new GoogleGenAI({ apiKey: currentKey });
+    } catch (err) {
+      console.warn('Failed to initialize GoogleGenAI client:', err);
+      return null;
+    }
+  }
+  return aiClient;
+}
+
 if (isGeminiConfigured) {
   try {
-    aiClient = new GoogleGenAI({ apiKey });
+    aiClient = new GoogleGenAI({ apiKey: getApiKey() });
   } catch (err) {
     console.warn('Failed to initialize GoogleGenAI client:', err);
   }
@@ -86,14 +101,15 @@ export async function askFitMaintenanceAI(
   prompt: string,
   profile?: AiUserProfileContext
 ): Promise<string> {
-  if (!aiClient || !apiKey) {
+  const client = getAiClient();
+  if (!client) {
     return fallbackFitnessAnswer(prompt, profile);
   }
 
   try {
     const systemInstruction = buildSystemInstruction(profile);
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -105,11 +121,11 @@ export async function askFitMaintenanceAI(
       return response.text;
     }
   } catch (error) {
-    console.warn('Gemini 3.8 Flash call failed, trying Gemini 3.5 Flash Lite:', error);
+    console.warn('Gemini 2.5 Flash call failed, trying Gemini 1.5 Flash fallback:', error);
     try {
       const systemInstruction = buildSystemInstruction(profile);
-      const fallbackRes = await aiClient.models.generateContent({
-        model: 'gemini-3.5-flash-lite',
+      const fallbackRes = await client.models.generateContent({
+        model: 'gemini-1.5-flash',
         contents: prompt,
         config: {
           systemInstruction,
@@ -118,7 +134,7 @@ export async function askFitMaintenanceAI(
       });
       if (fallbackRes?.text) return fallbackRes.text;
     } catch (fbErr) {
-      console.warn('Gemini fallback failed:', fbErr);
+      console.warn('Gemini 1.5 Flash fallback failed:', fbErr);
     }
   }
 
@@ -254,7 +270,8 @@ const foodAnalysisJsonSchema = {
 export async function analyzeFoodImage(
   imagePart: Base64ImagePart
 ): Promise<FoodAnalysisResult> {
-  if (!aiClient || !apiKey) {
+  const client = getAiClient();
+  if (!client) {
     throw new Error('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your environment.');
   }
 
@@ -281,10 +298,10 @@ Return strictly valid JSON adhering to the schema.`;
     temperature: 0.2,
   };
 
-  // Primary model: gemini-3.8-flash
+  // Primary model: gemini-2.5-flash
   try {
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
       contents,
       config,
     });
@@ -293,13 +310,13 @@ Return strictly valid JSON adhering to the schema.`;
       if (parsed) return parsed;
     }
   } catch (primaryErr) {
-    console.warn('gemini-3.8-flash scan failed, trying gemini-3.5-flash-lite fallback:', primaryErr);
+    console.warn('gemini-2.5-flash scan failed, trying gemini-1.5-flash fallback:', primaryErr);
   }
 
-  // Fallback model: gemini-3.5-flash-lite
+  // Fallback model: gemini-1.5-flash
   try {
-    const fallbackResponse = await aiClient.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
+    const fallbackResponse = await client.models.generateContent({
+      model: 'gemini-1.5-flash',
       contents,
       config,
     });
@@ -309,7 +326,7 @@ Return strictly valid JSON adhering to the schema.`;
       if (parsed) return parsed;
     }
   } catch (fallbackErr) {
-    console.warn('gemini-3.5-flash-lite scan also failed:', fallbackErr);
+    console.warn('gemini-1.5-flash scan also failed:', fallbackErr);
     throw fallbackErr;
   }
 
@@ -400,7 +417,8 @@ export async function analyzePhysiqueImage(
   weightKg: number,
   experienceLevel: 'beginner' | 'intermediate' | 'pro' = 'intermediate'
 ): Promise<AiPhysiqueAnalysis> {
-  if (!aiClient || !apiKey) {
+  const client = getAiClient();
+  if (!client) {
     throw new Error('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your environment.');
   }
 
@@ -435,10 +453,10 @@ Instructions:
     temperature: 0.3,
   };
 
-  // Primary model: gemini-3.8-flash
+  // Primary model: gemini-2.5-flash
   try {
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
       contents,
       config,
     });
@@ -447,13 +465,13 @@ Instructions:
       if (parsed) return parsed;
     }
   } catch (primaryErr) {
-    console.warn('gemini-3.8-flash physique analysis failed, trying gemini-3.5-flash-lite fallback:', primaryErr);
+    console.warn('gemini-2.5-flash physique analysis failed, trying gemini-1.5-flash fallback:', primaryErr);
   }
 
-  // Fallback model: gemini-3.5-flash-lite
+  // Fallback model: gemini-1.5-flash
   try {
-    const fallbackResponse = await aiClient.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
+    const fallbackResponse = await client.models.generateContent({
+      model: 'gemini-1.5-flash',
       contents,
       config,
     });
@@ -462,7 +480,7 @@ Instructions:
       if (parsed) return parsed;
     }
   } catch (fallbackErr) {
-    console.warn('gemini-3.5-flash-lite physique analysis failed:', fallbackErr);
+    console.warn('gemini-1.5-flash physique analysis failed:', fallbackErr);
     throw fallbackErr;
   }
 

@@ -232,6 +232,14 @@ export const Nutrition: React.FC = () => {
     setIsScanning(true);
     setScanError(null);
 
+    // If API key is not configured, gracefully open manual Indian food quick-add modal
+    if (!isGeminiConfigured) {
+      setIsScanning(false);
+      setScanError('Gemini API key is missing or not configured. Activating manual Indian food logger.');
+      setShowQuickAddModal(true);
+      return;
+    }
+
     try {
       const base64Part = await fileToBase64(selectedImageFile);
       const result = await analyzeFoodImage(base64Part);
@@ -240,8 +248,10 @@ export const Nutrition: React.FC = () => {
       const message =
         err instanceof Error
           ? err.message
-          : 'Food scan failed. Check your network connection or API key.';
-      setScanError(message);
+          : 'Food scan failed. Check your network connection or API quota.';
+      console.warn('AI Food Scan failed, opening manual Indian food quick-add fallback:', message);
+      setScanError(`${message} — Quick-Add Indian staples modal opened below.`);
+      setShowQuickAddModal(true);
     } finally {
       setIsScanning(false);
     }
