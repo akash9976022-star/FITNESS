@@ -115,3 +115,4 @@ export const BadgeUnlockModal: React.FC<BadgeUnlockModalProps> = ({
 };
 
 export default BadgeUnlockModal;
+

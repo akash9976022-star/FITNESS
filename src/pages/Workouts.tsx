@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dumbbell,
   Plus,
@@ -10,6 +11,14 @@ import {
   Play,
   CheckCircle,
   History,
+  Sparkles,
+  Wrench,
+  Edit2,
+  BookmarkCheck,
+  Layers,
+  ArrowRight,
+  X,
+  PlusCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -17,25 +26,52 @@ import {
   saveActiveWorkout,
   finishAndSaveWorkout,
   subscribeCompletedWorkouts,
+  subscribeUserProfile,
+  generateEquipmentAwareRoutine,
+  getFilteredExercisesForUser,
+  saveWorkoutToCollection,
+  subscribeWorkoutsCollection,
   type WorkoutSession,
   type ExerciseItem,
   type ExerciseSet,
   type CompletedWorkout,
+  type UserProfile,
+  type EquipmentExerciseDef,
 } from '../services/firestoreService';
 
 export const Workouts: React.FC = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [completedList, setCompletedList] = useState<CompletedWorkout[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<(WorkoutSession & { id: string })[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Form states for adding custom exercises
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newExerciseName, setNewExerciseName] = useState('');
-  const [newExerciseMuscle, setNewExerciseMuscle] = useState('');
-  const [newRoutineName, setNewRoutineName] = useState('Daily Hypertrophy');
+  // Routine Name Inline Editing
+  const [isEditingRoutineTitle, setIsEditingRoutineTitle] = useState(false);
+  const [routineTitleDraft, setRoutineTitleDraft] = useState('');
 
-  // Real-time Firestore subscriptions (Zero Mock Data)
+  // Exercise Inline Editing States
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [exerciseNameDraft, setExerciseNameDraft] = useState('');
+  const [editingMuscleId, setEditingMuscleId] = useState<string | null>(null);
+  const [exerciseMuscleDraft, setExerciseMuscleDraft] = useState('');
+
+  // Inline Custom Movement Inputs (Zero Popups)
+  const [inlineExName, setInlineExName] = useState('');
+  const [inlineExMuscle, setInlineExMuscle] = useState('');
+
+  // Feedback Toast
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setStatusToast(msg);
+    setTimeout(() => setStatusToast(null), 3500);
+  };
+
+  // Real-time Firestore Subscriptions (Zero Mock Data)
   useEffect(() => {
     if (!currentUser?.uid) {
       setLoading(false);
@@ -51,52 +87,96 @@ export const Workouts: React.FC = () => {
       setCompletedList(history);
     });
 
+    const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
+      setUserProfile(profile);
+    });
+
+    const unsubTemplates = subscribeWorkoutsCollection(currentUser.uid, (templates) => {
+      setSavedTemplates(templates);
+    });
+
     return () => {
       unsubActive();
       unsubHistory();
+      unsubProfile();
+      unsubTemplates();
     };
   }, [currentUser?.uid]);
 
-  const handleStartNewSession = async () => {
+  /* ==================== EQUIPMENT-AWARE ROUTINE GENERATION ==================== */
+  const handleGenerateRoutine = async (split: 'full_body' | 'upper' | 'lower') => {
     if (!currentUser?.uid) return;
-    const initialSession: WorkoutSession = {
-      routineName: newRoutineName.trim() || 'Custom Training Session',
-      startedAt: Date.now(),
-      exercises: [],
-    };
-    await saveActiveWorkout(currentUser.uid, initialSession);
+
+    const equipment = userProfile?.equipment || [];
+    const experience = userProfile?.experienceLevel || 'intermediate';
+
+    const generated = generateEquipmentAwareRoutine(equipment, experience, split);
+    await saveActiveWorkout(currentUser.uid, generated);
+    await saveWorkoutToCollection(currentUser.uid, generated);
+
+    showToast(`Generated ${split.replace('_', ' ')} routine tailored to your ${equipment.length} registered gym machines!`);
   };
 
-  const handleAddExercise = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser?.uid || !activeSession || !newExerciseName.trim()) return;
-
-    const newEx: ExerciseItem = {
-      id: `ex-${Date.now()}`,
-      name: newExerciseName.trim(),
-      muscle: newExerciseMuscle.trim() || 'General / Compound',
-      sets: [
-        { id: `s-${Date.now()}-1`, setNumber: 1, weight: 20, reps: 10, completed: false },
-      ],
-    };
-
-    const updatedSession: WorkoutSession = {
-      ...activeSession,
-      exercises: [...activeSession.exercises, newEx],
-    };
-
-    await saveActiveWorkout(currentUser.uid, updatedSession);
-    setNewExerciseName('');
-    setNewExerciseMuscle('');
-    setShowAddModal(false);
+  /* ==================== ROUTINE TITLE EDITING ==================== */
+  const handleStartEditRoutineTitle = () => {
+    if (!activeSession) return;
+    setRoutineTitleDraft(activeSession.routineName);
+    setIsEditingRoutineTitle(true);
   };
 
-  const handleRemoveExercise = async (exerciseId: string) => {
+  const handleSaveRoutineTitle = async () => {
     if (!currentUser?.uid || !activeSession) return;
-    const updatedExercises = activeSession.exercises.filter((ex) => ex.id !== exerciseId);
-    await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+    const trimmed = routineTitleDraft.trim() || 'Custom Training Session';
+    const updated = { ...activeSession, routineName: trimmed };
+    await saveActiveWorkout(currentUser.uid, updated);
+    await saveWorkoutToCollection(currentUser.uid, updated);
+    setIsEditingRoutineTitle(false);
+    showToast('Routine title updated and synced to Firestore.');
   };
 
+  /* ==================== INLINE EXERCISE EDITING ==================== */
+  const handleStartEditExerciseName = (ex: ExerciseItem) => {
+    setEditingExerciseId(ex.id);
+    setExerciseNameDraft(ex.name);
+  };
+
+  const handleSaveExerciseName = async (exerciseId: string) => {
+    if (!currentUser?.uid || !activeSession) return;
+    const trimmed = exerciseNameDraft.trim();
+    if (!trimmed) {
+      setEditingExerciseId(null);
+      return;
+    }
+
+    const updatedExercises = activeSession.exercises.map((ex) =>
+      ex.id === exerciseId ? { ...ex, name: trimmed } : ex
+    );
+    const updated = { ...activeSession, exercises: updatedExercises };
+    await saveActiveWorkout(currentUser.uid, updated);
+    await saveWorkoutToCollection(currentUser.uid, updated);
+    setEditingExerciseId(null);
+    showToast('Exercise name updated in real-time.');
+  };
+
+  const handleStartEditMuscle = (ex: ExerciseItem) => {
+    setEditingMuscleId(ex.id);
+    setExerciseMuscleDraft(ex.muscle);
+  };
+
+  const handleSaveMuscle = async (exerciseId: string) => {
+    if (!currentUser?.uid || !activeSession) return;
+    const trimmed = exerciseMuscleDraft.trim() || 'Compound';
+
+    const updatedExercises = activeSession.exercises.map((ex) =>
+      ex.id === exerciseId ? { ...ex, muscle: trimmed } : ex
+    );
+    const updated = { ...activeSession, exercises: updatedExercises };
+    await saveActiveWorkout(currentUser.uid, updated);
+    await saveWorkoutToCollection(currentUser.uid, updated);
+    setEditingMuscleId(null);
+  };
+
+  /* ==================== SETS MANAGEMENT ==================== */
   const handleToggleSet = async (exerciseId: string, setId: string) => {
     if (!currentUser?.uid || !activeSession) return;
     const updatedExercises = activeSession.exercises.map((ex) => {
@@ -116,11 +196,12 @@ export const Workouts: React.FC = () => {
     value: number
   ) => {
     if (!currentUser?.uid || !activeSession) return;
+    const safeValue = Math.max(0, isNaN(value) ? 0 : value);
     const updatedExercises = activeSession.exercises.map((ex) => {
       if (ex.id !== exerciseId) return ex;
       return {
         ...ex,
-        sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: Math.max(0, value) } : s)),
+        sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: safeValue } : s)),
       };
     });
     await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
@@ -143,6 +224,90 @@ export const Workouts: React.FC = () => {
     await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
   };
 
+  const handleDeleteSet = async (exerciseId: string, setId: string) => {
+    if (!currentUser?.uid || !activeSession) return;
+    const updatedExercises = activeSession.exercises.map((ex) => {
+      if (ex.id !== exerciseId) return ex;
+      if (ex.sets.length <= 1) return ex; // Keep at least 1 set
+      const filtered = ex.sets.filter((s) => s.id !== setId);
+      const renumbered = filtered.map((s, idx) => ({ ...s, setNumber: idx + 1 }));
+      return { ...ex, sets: renumbered };
+    });
+    await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+  };
+
+  const handleRemoveExercise = async (exerciseId: string) => {
+    if (!currentUser?.uid || !activeSession) return;
+    const updatedExercises = activeSession.exercises.filter((ex) => ex.id !== exerciseId);
+    const updated = { ...activeSession, exercises: updatedExercises };
+    await saveActiveWorkout(currentUser.uid, updated);
+    await saveWorkoutToCollection(currentUser.uid, updated);
+    showToast('Exercise removed from active workout.');
+  };
+
+  /* ==================== INLINE CUSTOM MOVEMENT CREATOR ==================== */
+  const handleInlineAddCustomMovement = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentUser?.uid || !activeSession || !inlineExName.trim()) return;
+
+    const newEx: ExerciseItem = {
+      id: `ex-${Date.now()}`,
+      name: inlineExName.trim(),
+      muscle: inlineExMuscle.trim() || 'General / Compound',
+      sets: [
+        { id: `s-${Date.now()}-1`, setNumber: 1, weight: 20, reps: 10, completed: false },
+        { id: `s-${Date.now()}-2`, setNumber: 2, weight: 20, reps: 10, completed: false },
+        { id: `s-${Date.now()}-3`, setNumber: 3, weight: 20, reps: 10, completed: false },
+      ],
+    };
+
+    const updated = {
+      ...activeSession,
+      exercises: [...activeSession.exercises, newEx],
+    };
+
+    await saveActiveWorkout(currentUser.uid, updated);
+    await saveWorkoutToCollection(currentUser.uid, updated);
+
+    setInlineExName('');
+    setInlineExMuscle('');
+    showToast(`Added "${newEx.name}" inline with 3 calibrated sets.`);
+  };
+
+  /* ==================== QUICK-ADD FROM REGISTERED INVENTORY ==================== */
+  const availableInventoryExercises = React.useMemo(() => {
+    const list = getFilteredExercisesForUser(userProfile?.equipment || []);
+    if (!activeSession) return list;
+    const activeNames = new Set(activeSession.exercises.map((e) => e.name.toLowerCase()));
+    return list.filter((e) => !activeNames.has(e.name.toLowerCase()));
+  }, [userProfile?.equipment, activeSession]);
+
+  const handleQuickAddFromInventory = async (def: EquipmentExerciseDef) => {
+    if (!currentUser?.uid || !activeSession) return;
+
+    const newEx: ExerciseItem = {
+      id: `ex-inv-${Date.now()}-${def.id}`,
+      name: def.name,
+      muscle: def.muscle,
+      sets: [
+        { id: `s-${Date.now()}-1`, setNumber: 1, weight: def.defaultWeightKg, reps: def.defaultReps, completed: false },
+        { id: `s-${Date.now()}-2`, setNumber: 2, weight: def.defaultWeightKg, reps: def.defaultReps, completed: false },
+        { id: `s-${Date.now()}-3`, setNumber: 3, weight: def.defaultWeightKg, reps: def.defaultReps, completed: false },
+      ],
+    };
+
+    const updated = {
+      ...activeSession,
+      exercises: [...activeSession.exercises, newEx],
+    };
+
+    await saveActiveWorkout(currentUser.uid, updated);
+    await saveWorkoutToCollection(currentUser.uid, updated);
+
+    showToast(`Added "${def.name}" to session.`);
+  };
+
+  /* ==================== SESSION FINISH & DISCARD ==================== */
   const handleFinishWorkout = async () => {
     if (!currentUser?.uid || !activeSession) return;
     if (activeSession.exercises.length === 0) {
@@ -154,16 +319,24 @@ export const Workouts: React.FC = () => {
       : 45;
 
     await finishAndSaveWorkout(currentUser.uid, activeSession, durationMinutes);
+    showToast('Workout finished and saved to Firestore history!');
   };
 
   const handleDiscardWorkout = async () => {
     if (!currentUser?.uid) return;
     if (window.confirm('Discard active workout session?')) {
       await saveActiveWorkout(currentUser.uid, null);
+      showToast('Active session discarded.');
     }
   };
 
-  // Calculations from real Firestore session
+  const handleSaveAsTemplate = async () => {
+    if (!currentUser?.uid || !activeSession) return;
+    await saveWorkoutToCollection(currentUser.uid, activeSession);
+    showToast('Routine saved to your custom workouts library!');
+  };
+
+  // Calculations
   const totalVolume = activeSession
     ? activeSession.exercises.reduce((acc, ex) => {
         return (
@@ -191,25 +364,37 @@ export const Workouts: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {statusToast && (
+        <div className="fixed top-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 font-bold text-xs shadow-xl flex items-center gap-2 border border-emerald-500/40 animate-fade-in">
+          <Sparkles className="w-4 h-4 text-emerald-400 dark:text-emerald-600 flex-shrink-0" />
+          <span>{statusToast}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Workout Session Tracker
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <span>Workout Session Tracker</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30">
+              Live onSnapshot
+            </span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Real-time Firestore persistence (<code className="text-emerald-600 dark:text-emerald-400 font-mono">onSnapshot</code>). Zero mock presets.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Equipment-aware daily maintenance routines with real-time inline editing. Zero mock data.
           </p>
         </div>
 
         {activeSession && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => setShowAddModal(true)}
-              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition"
+              onClick={handleSaveAsTemplate}
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition"
+              title="Save snapshot to your workouts library"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add Exercise</span>
+              <BookmarkCheck className="w-3.5 h-3.5 text-teal-500" />
+              <span>Save Template</span>
             </button>
             <button
               onClick={handleFinishWorkout}
@@ -229,18 +414,129 @@ export const Workouts: React.FC = () => {
         )}
       </div>
 
+      {/* EQUIPMENT-AWARE ROUTINE GENERATOR CARD */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-emerald-500/20 flex-shrink-0">
+              <Wrench className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  Equipment-Aware Routine Generator
+                </h3>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-500/15 text-teal-800 dark:text-teal-400">
+                  {userProfile?.experienceLevel ? `${userProfile.experienceLevel.toUpperCase()} Tier` : 'Configured'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {userProfile?.equipment && userProfile.equipment.length > 0
+                  ? `Strictly filtered by your ${userProfile.equipment.length} registered gym machines & platforms.`
+                  : 'No equipment selected yet. Complete onboarding or minimal bodyweight routines will be generated.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/onboarding')}
+            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start md:self-auto"
+          >
+            <span>Modify Gym Inventory</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* 3 Generator Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+          <button
+            onClick={() => handleGenerateRoutine('full_body')}
+            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                Full Body Maintenance
+              </span>
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500 opacity-60 group-hover:opacity-100" />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+              Balanced push, pull, leg, and core volume mapped to your equipment.
+            </p>
+          </button>
+
+          <button
+            onClick={() => handleGenerateRoutine('upper')}
+            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                Upper Body Hypertrophy
+              </span>
+              <Dumbbell className="w-3.5 h-3.5 text-teal-500 opacity-60 group-hover:opacity-100" />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+              Chest, back, shoulder, and arm focus strictly using registered machines.
+            </p>
+          </button>
+
+          <button
+            onClick={() => handleGenerateRoutine('lower')}
+            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                Lower Body & Core
+              </span>
+              <Layers className="w-3.5 h-3.5 text-amber-500 opacity-60 group-hover:opacity-100" />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+              Quadriceps, hamstrings, glute drives, and posterior chain stabilization.
+            </p>
+          </button>
+        </div>
+      </div>
+
       {/* ACTIVE WORKOUT SESSION */}
       {activeSession ? (
         <div className="space-y-4">
-          {/* Real-time Session Metrics Banner */}
+          {/* Active Routine Title & Metrics Bar */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4">
-            <div>
+            <div className="flex-1 min-w-[220px]">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block mb-0.5">
-                Active Routine
+                Active Routine (Inline Editable)
               </span>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                {activeSession.routineName}
-              </h3>
+
+              {isEditingRoutineTitle ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="text"
+                    value={routineTitleDraft}
+                    onChange={(e) => setRoutineTitleDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveRoutineTitle()}
+                    className="px-2.5 py-1 text-sm font-bold rounded-lg bg-slate-50 dark:bg-slate-950 border border-emerald-500 text-slate-900 dark:text-white focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveRoutineTitle}
+                    className="p-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  </button>
+                  <button
+                    onClick={() => setIsEditingRoutineTitle(false)}
+                    className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group cursor-pointer" onClick={handleStartEditRoutineTitle}>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
+                    {activeSession.routineName}
+                  </h3>
+                  <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-500 opacity-60 group-hover:opacity-100 transition" />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-6">
@@ -270,23 +566,16 @@ export const Workouts: React.FC = () => {
             </div>
           </div>
 
-          {/* Exercise List */}
+          {/* Exercise List with Full Inline Editing */}
           {activeSession.exercises.length === 0 ? (
             <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
                 <Dumbbell className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200">Session Started!</h4>
+              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200">Empty Workout Session</h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                Add your first exercise to begin logging real sets, reps, and volume.
+                Click one of the Equipment-Aware Routine Generator buttons above or add your custom movements below!
               </p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs inline-flex items-center gap-2 shadow"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add First Exercise</span>
-              </button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -295,18 +584,81 @@ export const Workouts: React.FC = () => {
                   key={exercise.id}
                   className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm"
                 >
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  {/* Exercise Header (Inline Editable Name & Muscle) */}
+                  <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100 dark:border-slate-800/80">
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0">
                         <Dumbbell className="w-4 h-4" />
                       </div>
-                      <div>
-                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                          {exercise.name}
-                        </h3>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                          {exercise.muscle}
-                        </span>
+
+                      <div className="flex-1 min-w-0">
+                        {/* INLINE EDIT EXERCISE NAME */}
+                        {editingExerciseId === exercise.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={exerciseNameDraft}
+                              onChange={(e) => setExerciseNameDraft(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSaveExerciseName(exercise.id)}
+                              className="px-2 py-0.5 text-xs sm:text-sm font-bold rounded bg-slate-50 dark:bg-slate-950 border border-emerald-500 text-slate-900 dark:text-white focus:outline-none"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveExerciseName(exercise.id)}
+                              className="p-1 rounded bg-emerald-500 text-slate-950 text-xs font-bold"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setEditingExerciseId(null)}
+                              className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-400"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleStartEditExerciseName(exercise)}
+                            className="flex items-center gap-1.5 group cursor-pointer"
+                            title="Click to inline edit exercise name"
+                          >
+                            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
+                              {exercise.name}
+                            </h3>
+                            <Edit2 className="w-3 h-3 text-slate-400 opacity-40 group-hover:opacity-100 transition" />
+                          </div>
+                        )}
+
+                        {/* INLINE EDIT MUSCLE GROUP */}
+                        {editingMuscleId === exercise.id ? (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <input
+                              type="text"
+                              value={exerciseMuscleDraft}
+                              onChange={(e) => setExerciseMuscleDraft(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSaveMuscle(exercise.id)}
+                              className="px-1.5 py-0.5 text-[11px] rounded bg-slate-50 dark:bg-slate-950 border border-teal-500 text-slate-700 dark:text-slate-300 focus:outline-none"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveMuscle(exercise.id)}
+                              className="p-1 rounded bg-teal-500 text-slate-950"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleStartEditMuscle(exercise)}
+                            className="flex items-center gap-1 cursor-pointer group"
+                            title="Click to inline edit muscle group"
+                          >
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                              {exercise.muscle}
+                            </span>
+                            <Edit2 className="w-2.5 h-2.5 text-slate-400 opacity-30 group-hover:opacity-80" />
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -331,12 +683,13 @@ export const Workouts: React.FC = () => {
                   {/* Sets Header */}
                   <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-slate-400 px-2 py-1">
                     <span className="col-span-2 text-center">SET</span>
-                    <span className="col-span-4 text-center">KG</span>
-                    <span className="col-span-4 text-center">REPS</span>
+                    <span className="col-span-4 text-center">TARGET KG</span>
+                    <span className="col-span-3 text-center">REPS</span>
                     <span className="col-span-2 text-center">DONE</span>
+                    <span className="col-span-1 text-center"></span>
                   </div>
 
-                  {/* Sets Rows */}
+                  {/* Sets Rows with Direct Inline Editing & Delete */}
                   <div className="space-y-1.5">
                     {exercise.sets.map((set) => (
                       <div
@@ -348,6 +701,7 @@ export const Workouts: React.FC = () => {
                         }`}
                       >
                         <span className="col-span-2 text-center text-xs font-bold">{set.setNumber}</span>
+
                         <div className="col-span-4 px-1">
                           <input
                             type="number"
@@ -360,7 +714,8 @@ export const Workouts: React.FC = () => {
                             className="w-full text-center py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold focus:outline-none focus:border-emerald-500"
                           />
                         </div>
-                        <div className="col-span-4 px-1">
+
+                        <div className="col-span-3 px-1">
                           <input
                             type="number"
                             min="0"
@@ -371,6 +726,7 @@ export const Workouts: React.FC = () => {
                             className="w-full text-center py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold focus:outline-none focus:border-emerald-500"
                           />
                         </div>
+
                         <div className="col-span-2 flex justify-center">
                           <button
                             onClick={() => handleToggleSet(exercise.id, set.id)}
@@ -383,6 +739,17 @@ export const Workouts: React.FC = () => {
                             <Check className="w-4 h-4 stroke-[2.5]" />
                           </button>
                         </div>
+
+                        <div className="col-span-1 flex justify-center">
+                          <button
+                            onClick={() => handleDeleteSet(exercise.id, set.id)}
+                            className="text-slate-300 hover:text-rose-500 transition p-1"
+                            title="Delete this set"
+                            disabled={exercise.sets.length <= 1}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -390,37 +757,104 @@ export const Workouts: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* INLINE ADD CUSTOM MOVEMENT BAR (ZERO POPUPS) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <PlusCircle className="w-4 h-4 text-emerald-500" />
+                <span>Add Custom Movement (Inline)</span>
+              </span>
+              <span className="text-[11px] text-slate-400">Zero popups required</span>
+            </div>
+
+            <form onSubmit={handleInlineAddCustomMovement} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <input
+                type="text"
+                placeholder="Exercise Name (e.g. Incline DB Fly, Nordic Curl)"
+                value={inlineExName}
+                onChange={(e) => setInlineExName(e.target.value)}
+                className="sm:col-span-6 px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+              />
+              <input
+                type="text"
+                placeholder="Target Muscle (e.g. Upper Chest, Hamstrings)"
+                value={inlineExMuscle}
+                onChange={(e) => setInlineExMuscle(e.target.value)}
+                className="sm:col-span-4 px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={!inlineExName.trim()}
+                className="sm:col-span-2 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+            </form>
+
+            {/* QUICK-ADD FROM REGISTERED INVENTORY */}
+            {availableInventoryExercises.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-[11px] font-semibold text-slate-400 block mb-1.5">
+                  1-Tap Add from Registered Gym Inventory:
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {availableInventoryExercises.slice(0, 8).map((ex) => (
+                    <button
+                      key={ex.id}
+                      onClick={() => handleQuickAddFromInventory(ex)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-slate-700 dark:text-slate-300 hover:text-emerald-800 dark:hover:text-emerald-300 text-[11px] font-semibold border border-slate-200 dark:border-slate-700/60 transition flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3 text-emerald-500" />
+                      <span>{ex.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         /* ZERO MOCK EMPTY STATE: User starts their own real session */
-        <div className="p-8 sm:p-10 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+        <div className="p-8 sm:p-10 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-5">
+          <div className="w-16 h-16 rounded-3xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
             <Play className="w-8 h-8 ml-0.5" />
           </div>
 
           <div className="max-w-md mx-auto">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
               No Active Workout In Progress
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Start an empty session to log your live sets, reps, and weights. Everything syncs straight to your Firestore account in real-time.
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              Generate an equipment-calibrated routine above or start a blank live tracker. Every set, rep, and target weight is saved directly to Firestore.
             </p>
           </div>
 
-          <div className="max-w-xs mx-auto flex items-center gap-2 pt-2">
-            <input
-              type="text"
-              value={newRoutineName}
-              onChange={(e) => setNewRoutineName(e.target.value)}
-              placeholder="Session Title (e.g. Upper Hypertrophy)"
-              className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-            />
+          <div className="flex flex-wrap justify-center gap-3 pt-1">
             <button
-              onClick={handleStartNewSession}
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 whitespace-nowrap transition"
+              onClick={() => handleGenerateRoutine('full_body')}
+              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition"
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Start Session</span>
+              <Sparkles className="w-4 h-4" />
+              <span>Generate Equipment Routine</span>
+            </button>
+            <button
+              onClick={() => {
+                const emptySession: WorkoutSession = {
+                  routineName: 'Custom Session',
+                  startedAt: Date.now(),
+                  exercises: [],
+                };
+                if (currentUser?.uid) {
+                  saveActiveWorkout(currentUser.uid, emptySession);
+                  saveWorkoutToCollection(currentUser.uid, emptySession);
+                }
+              }}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Blank Custom Session</span>
             </button>
           </div>
         </div>
@@ -466,64 +900,56 @@ export const Workouts: React.FC = () => {
         )}
       </div>
 
-      {/* ADD EXERCISE MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Add New Exercise</h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+      {/* SAVED WORKOUT TEMPLATES FROM FIRESTORE (users/{userId}/workouts) */}
+      {savedTemplates.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center gap-2">
+            <BookmarkCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Saved Routines Library ({savedTemplates.length})
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {savedTemplates.slice(0, 6).map((tpl) => (
+              <div
+                key={tpl.id}
+                className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2"
               >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddExercise} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Exercise Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Barbell Squat, Pull-Ups"
-                  value={newExerciseName}
-                  onChange={(e) => setNewExerciseName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Target Muscle Group
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Quads, Back, Chest"
-                  value={newExerciseMuscle}
-                  onChange={(e) => setNewExerciseMuscle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {tpl.routineName}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {tpl.exercises?.length || 0} exercises configured
+                  </p>
+                </div>
                 <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  onClick={() => {
+                    if (currentUser?.uid) {
+                      const cloned: WorkoutSession = {
+                        routineName: tpl.routineName,
+                        startedAt: Date.now(),
+                        exercises: tpl.exercises.map((ex, eIdx) => ({
+                          ...ex,
+                          id: `ex-${Date.now()}-${eIdx}`,
+                          sets: ex.sets.map((s, sIdx) => ({
+                            ...s,
+                            id: `s-${Date.now()}-${eIdx}-${sIdx}`,
+                            completed: false,
+                          })),
+                        })),
+                      };
+                      saveActiveWorkout(currentUser.uid, cloned);
+                      showToast(`Loaded routine "${tpl.routineName}"!`);
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-bold text-[11px] whitespace-nowrap transition"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow"
-                >
-                  Add Exercise
+                  Load
                 </button>
               </div>
-            </form>
+            ))}
           </div>
         </div>
       )}

@@ -406,3 +406,4 @@ export const GhostOverlayCamera: React.FC<GhostOverlayCameraProps> = ({
 };
 
 export default GhostOverlayCamera;
+

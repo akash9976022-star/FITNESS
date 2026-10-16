@@ -38,3 +38,4 @@ export async function uploadCheckInPhoto(
     reader.readAsDataURL(fileOrBlob);
   });
 }
+

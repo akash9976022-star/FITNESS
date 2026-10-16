@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Flame,
@@ -15,6 +15,9 @@ import {
   Wrench,
   Layers,
   Camera,
+  Activity,
+  Zap,
+  ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -22,10 +25,17 @@ import {
   subscribeUserProfile,
   subscribeActiveWorkout,
   subscribeCompletedWorkouts,
+  subscribeNutritionLogs,
+  subscribeCheckIns,
+  calculateBmbScore,
+  applyWorkoutVolumeAdjustment,
+  isToday,
   type UserBiometrics,
   type UserProfile,
   type WorkoutSession,
   type CompletedWorkout,
+  type NutritionLogItem,
+  type CheckInItem,
 } from '../services/firestoreService';
 
 export const Dashboard: React.FC = () => {
@@ -36,7 +46,13 @@ export const Dashboard: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
+  const [nutritionLogs, setNutritionLogs] = useState<NutritionLogItem[]>([]);
+  const [checkIns, setCheckIns] = useState<CheckInItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Volume Adjustment Action State
+  const [isApplyingAdjustment, setIsApplyingAdjustment] = useState(false);
+  const [adjustmentApplied, setAdjustmentApplied] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.uid) {
@@ -61,11 +77,21 @@ export const Dashboard: React.FC = () => {
       setCompletedWorkouts(workouts);
     });
 
+    const unsubNutrition = subscribeNutritionLogs(currentUser.uid, (logs) => {
+      setNutritionLogs(logs);
+    });
+
+    const unsubCheckIns = subscribeCheckIns(currentUser.uid, (items) => {
+      setCheckIns(items);
+    });
+
     return () => {
       unsubBio();
       unsubProfile();
       unsubActive();
       unsubCompleted();
+      unsubNutrition();
+      unsubCheckIns();
     };
   }, [currentUser?.uid]);
 
@@ -111,6 +137,66 @@ export const Dashboard: React.FC = () => {
   const weeklyWorkoutsCount = completedWorkouts.length;
   const weeklyVolumeKg = completedWorkouts.reduce((acc, w) => acc + (w.totalVolumeKg || 0), 0);
 
+  // Real today's calories from Firestore nutrition_logs (Zero Mock Data)
+  const todaysNutritionLogs = useMemo(() => {
+    return nutritionLogs.filter((l) => isToday(l.loggedAt));
+  }, [nutritionLogs]);
+
+  const todayCalories = useMemo(() => {
+    return todaysNutritionLogs.reduce((acc, log) => acc + (log.calories || 0), 0);
+  }, [todaysNutritionLogs]);
+
+  // Latest check-in from Firestore
+  const latestCheckIn = checkIns[0] || null;
+
+  // Real Body Maintenance Balance (BMB) Score
+  const bmbResult = useMemo(() => {
+    return calculateBmbScore(
+      targetCalories,
+      todayCalories,
+      latestCheckIn,
+      completedWorkouts
+    );
+  }, [targetCalories, todayCalories, latestCheckIn, completedWorkouts]);
+
+  // Handle Reactive Workout Volume Adjustment
+  const handleApplyAdjustment = async () => {
+    if (!currentUser?.uid) return;
+    setIsApplyingAdjustment(true);
+    try {
+      await applyWorkoutVolumeAdjustment(
+        currentUser.uid,
+        bmbResult.suggestedAdjustment.setsDelta,
+        userProfile?.equipment || [],
+        userProfile?.experienceLevel || 'intermediate'
+      );
+      setAdjustmentApplied(true);
+      setTimeout(() => setAdjustmentApplied(false), 6000);
+    } catch (err) {
+      console.error('Failed to apply volume adjustment:', err);
+    } finally {
+      setIsApplyingAdjustment(false);
+    }
+  };
+
+  const dialStrokeColor =
+    bmbResult.status === 'optimal'
+      ? 'text-emerald-500'
+      : bmbResult.status === 'stable'
+      ? 'text-teal-500'
+      : bmbResult.status === 'surplus' || bmbResult.status === 'deficit'
+      ? 'text-amber-500'
+      : 'text-rose-500';
+
+  const statusBadgeClass =
+    bmbResult.status === 'optimal'
+      ? 'bg-emerald-100 dark:bg-emerald-500/15 border-emerald-500/30 text-emerald-800 dark:text-emerald-400'
+      : bmbResult.status === 'stable'
+      ? 'bg-teal-100 dark:bg-teal-500/15 border-teal-500/30 text-teal-800 dark:text-teal-400'
+      : bmbResult.status === 'surplus' || bmbResult.status === 'deficit'
+      ? 'bg-amber-100 dark:bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-400'
+      : 'bg-rose-100 dark:bg-rose-500/15 border-rose-500/30 text-rose-800 dark:text-rose-400';
+
   if (loading) {
     return (
       <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
@@ -148,6 +234,198 @@ export const Dashboard: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Central Body Maintenance Balance (BMB) Score Card */}
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          {/* Left: Dial & Meta */}
+          <div className="flex items-center gap-5 sm:gap-6">
+            <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 flex items-center justify-center">
+              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  className="text-slate-100 dark:text-slate-800"
+                  fill="transparent"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  strokeDasharray={264}
+                  strokeDashoffset={264 - (264 * bmbResult.score) / 100}
+                  strokeLinecap="round"
+                  className={`${dialStrokeColor} transition-all duration-1000 ease-out`}
+                  fill="transparent"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                  {bmbResult.score}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  BMB Score
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border mb-2 ${statusBadgeClass}`}>
+                <Activity className="w-3.5 h-3.5" />
+                <span>{bmbResult.statusLabel}</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Body Maintenance Balance
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md leading-relaxed">
+                {bmbResult.recommendation}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: Real-time 3-Pillar Breakdown */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 w-full lg:w-auto">
+            {/* Pillar 1: Caloric Alignment */}
+            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Caloric Adherence
+              </span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
+                {todayCalories} / {targetCalories}
+              </span>
+              <span className={`text-[11px] font-semibold block mt-0.5 ${
+                Math.abs(bmbResult.calorieDeviationPct) > 15 ? 'text-amber-500' : 'text-emerald-500'
+              }`}>
+                {todayCalories === 0
+                  ? 'Pending Meals'
+                  : bmbResult.calorieDeviationPct > 0
+                  ? `+${bmbResult.calorieDeviationPct}%`
+                  : `${bmbResult.calorieDeviationPct}%`}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                {bmbResult.breakdown.calorieScore} / 40 pts
+              </span>
+            </div>
+
+            {/* Pillar 2: Recovery / Readiness */}
+            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Readiness Rating
+              </span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
+                {latestCheckIn ? `${latestCheckIn.fatigueRating} / 5` : 'N/A'}
+              </span>
+              <span className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 block mt-0.5">
+                {latestCheckIn
+                  ? latestCheckIn.fatigueRating >= 4
+                    ? 'High Ready'
+                    : latestCheckIn.fatigueRating >= 3
+                    ? 'Moderate'
+                    : 'Fatigued'
+                  : 'Check-In Due'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                {bmbResult.breakdown.recoveryScore} / 30 pts
+              </span>
+            </div>
+
+            {/* Pillar 3: Volume Stimulus */}
+            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Volume Stimulus
+              </span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
+                {weeklyWorkoutsCount} sessions
+              </span>
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                {weeklyVolumeKg > 0 ? `${(weeklyVolumeKg / 1000).toFixed(1)}t load` : '0 kg'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                {bmbResult.breakdown.consistencyScore} / 30 pts
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* REACTIVE ALERT BANNER (>15% Calorie Deviation or Fatigue Alert) */}
+        {(bmbResult.suggestedAdjustment.type !== 'none' ||
+          bmbResult.status === 'surplus' ||
+          bmbResult.status === 'deficit') && (
+          <div
+            className={`mt-6 p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+              bmbResult.status === 'surplus'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200'
+                : bmbResult.status === 'deficit'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-950 dark:text-rose-200'
+            }`}
+          >
+            <div className="flex items-start gap-3.5">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  bmbResult.status === 'surplus' || bmbResult.status === 'deficit'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'bg-rose-500 text-white shadow-sm'
+                }`}
+              >
+                <Zap className="w-5 h-5 fill-current" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                    {bmbResult.suggestedAdjustment.badgeTitle}
+                  </span>
+                  <span className="text-xs font-bold">
+                    {bmbResult.calorieDeviationPct > 0
+                      ? `+${bmbResult.calorieDeviationPct}% deviation from maintenance`
+                      : `${bmbResult.calorieDeviationPct}% deviation from maintenance`}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm mt-1.5 leading-relaxed text-slate-700 dark:text-slate-300">
+                  {bmbResult.suggestedAdjustment.message}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 flex items-center gap-2">
+              {adjustmentApplied ? (
+                <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold shadow">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Volume Adjusted!</span>
+                  <button
+                    onClick={() => navigate('/workouts')}
+                    className="underline ml-1 hover:opacity-80"
+                  >
+                    Open Session
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleApplyAdjustment}
+                  disabled={isApplyingAdjustment}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition ${
+                    bmbResult.status === 'surplus' || bmbResult.status === 'deficit'
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                      : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
+                  }`}
+                >
+                  <span>
+                    {isApplyingAdjustment
+                      ? 'Adjusting Volume in Firestore...'
+                      : bmbResult.suggestedAdjustment.actionLabel}
+                  </span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Onboarding Callout if incomplete */}

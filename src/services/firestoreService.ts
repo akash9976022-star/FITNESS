@@ -2,6 +2,7 @@ import {
   doc,
   collection,
   setDoc,
+  getDoc,
   addDoc,
   deleteDoc,
   onSnapshot,
@@ -799,13 +800,739 @@ export const evaluateAndUnlockBadges = async (
     }
   }
 
-  // 6. Iron Will (10 checkins)
   if (checkIns.length >= 10) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'iron-will');
     if (b) await checkAndUnlock(b);
   }
 
   return newlyUnlocked;
+};
+
+/* ==================== DATE UTILITIES ==================== */
+export const isToday = (timestamp: unknown): boolean => {
+  if (!timestamp) return false;
+  let date: Date;
+  if (typeof (timestamp as { toDate?: () => Date }).toDate === 'function') {
+    date = (timestamp as { toDate: () => Date }).toDate();
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (typeof timestamp === 'number') {
+    date = new Date(timestamp);
+  } else if (typeof timestamp === 'string') {
+    date = new Date(timestamp);
+  } else {
+    return false;
+  }
+  const today = new Date();
+  return (
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear()
+  );
+};
+
+/* ==================== BODY MAINTENANCE BALANCE (BMB) SCORE ==================== */
+export interface BmbScoreResult {
+  score: number; // 0 - 100
+  status: 'optimal' | 'stable' | 'surplus' | 'deficit' | 'fatigue';
+  statusLabel: string;
+  calorieDeviationPct: number;
+  calorieDiff: number;
+  todayCalories: number;
+  targetCalories: number;
+  breakdown: {
+    calorieScore: number;
+    recoveryScore: number;
+    consistencyScore: number;
+  };
+  recommendation: string;
+  suggestedAdjustment: {
+    type: 'increase_volume' | 'reduce_volume' | 'none';
+    setsDelta: number;
+    badgeTitle: string;
+    message: string;
+    actionLabel: string;
+  };
+}
+
+export const calculateBmbScore = (
+  targetCalories: number,
+  todayCalories: number,
+  latestCheckIn?: CheckInItem | null,
+  recentWorkouts?: CompletedWorkout[]
+): BmbScoreResult => {
+  const safeTarget = Math.max(1200, targetCalories || 2000);
+  const calorieDiff = todayCalories - safeTarget;
+  const calorieDeviationPct =
+    todayCalories > 0
+      ? Math.round(((todayCalories - safeTarget) / safeTarget) * 1000) / 10
+      : 0;
+
+  // 1. Caloric Alignment (max 40 pts)
+  let calorieScore = 35; // Neutral default if not logged yet
+  if (todayCalories > 0) {
+    const absDev = Math.abs(calorieDeviationPct);
+    if (absDev <= 5) calorieScore = 40;
+    else if (absDev <= 10) calorieScore = 36;
+    else if (absDev <= 15) calorieScore = 28;
+    else if (absDev <= 25) calorieScore = 18;
+    else calorieScore = 10;
+  }
+
+  // 2. Recovery & Readiness (max 30 pts)
+  let recoveryScore = 22;
+  if (latestCheckIn?.fatigueRating) {
+    const rating = Math.min(5, Math.max(1, latestCheckIn.fatigueRating));
+    if (rating === 5) recoveryScore = 30;
+    else if (rating === 4) recoveryScore = 26;
+    else if (rating === 3) recoveryScore = 20;
+    else if (rating === 2) recoveryScore = 12;
+    else recoveryScore = 5;
+  }
+
+  // 3. Training Consistency & Volume Stimulus (max 30 pts)
+  const workoutsLast7Days = (recentWorkouts || []).length;
+  let consistencyScore = 10;
+  if (workoutsLast7Days >= 3 && workoutsLast7Days <= 5) {
+    consistencyScore = 30;
+  } else if (workoutsLast7Days === 2) {
+    consistencyScore = 22;
+  } else if (workoutsLast7Days === 1) {
+    consistencyScore = 15;
+  } else if (workoutsLast7Days > 5) {
+    consistencyScore = 22;
+  }
+
+  const score = Math.min(100, Math.max(0, calorieScore + recoveryScore + consistencyScore));
+
+  // Determine Status & Reactive Alert Criteria (>15% deviation)
+  let status: 'optimal' | 'stable' | 'surplus' | 'deficit' | 'fatigue' = 'stable';
+  let statusLabel = 'Stable Maintenance';
+
+  const isSurplusAlert = calorieDeviationPct > 15;
+  const isDeficitAlert = calorieDeviationPct < -15 && todayCalories > 0;
+  const isFatigueAlert = Boolean(latestCheckIn && latestCheckIn.fatigueRating <= 2);
+
+  if (isFatigueAlert) {
+    status = 'fatigue';
+    statusLabel = 'High Fatigue / Deload Advisory';
+  } else if (isSurplusAlert) {
+    status = 'surplus';
+    statusLabel = 'Caloric Surplus Alert (>15%)';
+  } else if (isDeficitAlert) {
+    status = 'deficit';
+    statusLabel = 'Deficit Drift Alert (>15%)';
+  } else if (score >= 82) {
+    status = 'optimal';
+    statusLabel = 'Optimal Maintenance Equilibrium';
+  }
+
+  // Dynamic Suggestion & Adjustment
+  let suggestedAdjustment: BmbScoreResult['suggestedAdjustment'] = {
+    type: 'none',
+    setsDelta: 0,
+    badgeTitle: 'Equilibrium Maintained',
+    message:
+      'Energy intake and recovery readiness are within nominal maintenance tolerances (±15%). Execute scheduled workout volume as planned.',
+    actionLabel: 'Preserve Routine Volume',
+  };
+
+  if (isSurplusAlert) {
+    suggestedAdjustment = {
+      type: 'increase_volume',
+      setsDelta: 2,
+      badgeTitle: 'Surplus Buffer Active',
+      message: `Intake is +${calorieDeviationPct}% above maintenance (+${calorieDiff} kcal). FitMaintenance AI recommends +2 volume sets across your active workout exercises to accelerate glycogen replenishment and maintain baseline leanness.`,
+      actionLabel: 'Apply Volume Adjustment (+2 Sets)',
+    };
+  } else if (isDeficitAlert) {
+    suggestedAdjustment = {
+      type: 'reduce_volume',
+      setsDelta: -1,
+      badgeTitle: 'Deficit Protection Active',
+      message: `Intake is ${Math.abs(calorieDeviationPct)}% below maintenance (${calorieDiff} kcal). FitMaintenance AI recommends trimming 1 set per exercise to conserve central nervous system resources and prevent lean tissue catabolism.`,
+      actionLabel: 'Apply Volume Reduction (-1 Set)',
+    };
+  } else if (isFatigueAlert) {
+    suggestedAdjustment = {
+      type: 'reduce_volume',
+      setsDelta: -1,
+      badgeTitle: 'Fatigue Mitigation Active',
+      message: `Readiness rating is low (${latestCheckIn?.fatigueRating}/5). Reduce training intensity or volume by 1 set to prevent overtraining syndrome.`,
+      actionLabel: 'Apply Volume Reduction (-1 Set)',
+    };
+  }
+
+  // Dynamic recommendation text
+  let recommendation = 'Your body composition maintenance balance is stable. Continue consistent training.';
+  if (isSurplusAlert) {
+    recommendation = `Calorie surplus of +${calorieDiff} kcal detected. Tap "Apply Adjustment" to automatically inject +2 volume sets into your workout.`;
+  } else if (isDeficitAlert) {
+    recommendation = `Calorie deficit of ${Math.abs(calorieDiff)} kcal detected. Tap "Apply Adjustment" to safely scale down volume by -1 set.`;
+  } else if (isFatigueAlert) {
+    recommendation = 'Fatigue rating indicates elevated strain. Focus on hydration, 8 hours of sleep, and lighter training loads today.';
+  } else if (score >= 85) {
+    recommendation = 'Exceptional maintenance adherence. Both energy intake and movement volume are perfectly synchronized.';
+  }
+
+  return {
+    score,
+    status,
+    statusLabel,
+    calorieDeviationPct,
+    calorieDiff,
+    todayCalories,
+    targetCalories: safeTarget,
+    breakdown: {
+      calorieScore,
+      recoveryScore,
+      consistencyScore,
+    },
+    recommendation,
+    suggestedAdjustment,
+  };
+};
+
+/* ==================== EQUIPMENT-AWARE EXERCISE CATALOG & ROUTINES ==================== */
+export interface EquipmentExerciseDef {
+  id: string;
+  name: string;
+  muscle: string;
+  splitCategory: 'Push' | 'Pull' | 'Legs' | 'Core';
+  requiredEquipment: string[]; // Strict: user must own ALL of these items, or ['None']
+  defaultWeightKg: number;
+  defaultReps: number;
+}
+
+export const EQUIPMENT_EXERCISE_DB: EquipmentExerciseDef[] = [
+  // --- Cables & Pulleys ---
+  {
+    id: 'lat-pulldown-wide',
+    name: 'Lat Pulldown (Wide Grip)',
+    muscle: 'Back / Lats',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Lat Pulldown'],
+    defaultWeightKg: 45,
+    defaultReps: 10,
+  },
+  {
+    id: 'close-grip-pulldown',
+    name: 'Close-Grip Neutral Lat Pulldown',
+    muscle: 'Back / Lower Lats',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Lat Pulldown'],
+    defaultWeightKg: 40,
+    defaultReps: 10,
+  },
+  {
+    id: 'seated-cable-row',
+    name: 'Seated Cable Row',
+    muscle: 'Mid-Back / Rhomboids',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Seated Cable Row'],
+    defaultWeightKg: 45,
+    defaultReps: 10,
+  },
+  {
+    id: 'cable-chest-fly',
+    name: 'Cable Crossover Chest Fly',
+    muscle: 'Chest / Pectorals',
+    splitCategory: 'Push',
+    requiredEquipment: ['Cable Crossover'],
+    defaultWeightKg: 15,
+    defaultReps: 12,
+  },
+  {
+    id: 'cable-face-pull',
+    name: 'Cable Face Pull',
+    muscle: 'Rear Delts & Rotators',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Cable Crossover'],
+    defaultWeightKg: 17.5,
+    defaultReps: 15,
+  },
+  {
+    id: 'cable-tricep-pushdown',
+    name: 'Cable Tricep Pushdown',
+    muscle: 'Triceps',
+    splitCategory: 'Push',
+    requiredEquipment: ['Cable Crossover'],
+    defaultWeightKg: 20,
+    defaultReps: 12,
+  },
+  {
+    id: 'cable-bicep-curl',
+    name: 'Cable Bicep Curl',
+    muscle: 'Biceps',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Cable Crossover'],
+    defaultWeightKg: 17.5,
+    defaultReps: 12,
+  },
+
+  // --- Machines ---
+  {
+    id: 'machine-chest-press',
+    name: 'Machine Chest Press',
+    muscle: 'Chest / Anterior Deltoid',
+    splitCategory: 'Push',
+    requiredEquipment: ['Chest/Shoulder Press'],
+    defaultWeightKg: 50,
+    defaultReps: 10,
+  },
+  {
+    id: 'machine-shoulder-press',
+    name: 'Machine Overhead Shoulder Press',
+    muscle: 'Shoulders / Deltoids',
+    splitCategory: 'Push',
+    requiredEquipment: ['Chest/Shoulder Press'],
+    defaultWeightKg: 35,
+    defaultReps: 10,
+  },
+  {
+    id: 'leg-press-45',
+    name: '45° Leg Press',
+    muscle: 'Quads & Glutes',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Leg Press'],
+    defaultWeightKg: 120,
+    defaultReps: 10,
+  },
+  {
+    id: 'leg-extension',
+    name: 'Leg Extension',
+    muscle: 'Quadriceps',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Leg Extension'],
+    defaultWeightKg: 40,
+    defaultReps: 12,
+  },
+  {
+    id: 'hamstring-curl',
+    name: 'Lying / Seated Hamstring Curl',
+    muscle: 'Hamstrings',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Hamstring Curl'],
+    defaultWeightKg: 35,
+    defaultReps: 12,
+  },
+  {
+    id: 'smith-machine-squat',
+    name: 'Smith Machine Squat',
+    muscle: 'Quads & Glutes',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Smith Machine'],
+    defaultWeightKg: 60,
+    defaultReps: 10,
+  },
+  {
+    id: 'smith-machine-incline',
+    name: 'Smith Machine Incline Press',
+    muscle: 'Upper Chest',
+    splitCategory: 'Push',
+    requiredEquipment: ['Smith Machine', 'Adjustable Bench'],
+    defaultWeightKg: 45,
+    defaultReps: 8,
+  },
+
+  // --- Free Weights & Benches ---
+  {
+    id: 'barbell-bench-press',
+    name: 'Barbell Flat Bench Press',
+    muscle: 'Chest & Triceps',
+    splitCategory: 'Push',
+    requiredEquipment: ['Barbell', 'Adjustable Bench'],
+    defaultWeightKg: 60,
+    defaultReps: 8,
+  },
+  {
+    id: 'incline-dumbbell-press',
+    name: 'Incline Dumbbell Press',
+    muscle: 'Upper Chest & Shoulders',
+    splitCategory: 'Push',
+    requiredEquipment: ['Dumbbells', 'Adjustable Bench'],
+    defaultWeightKg: 22,
+    defaultReps: 10,
+  },
+  {
+    id: 'flat-dumbbell-press',
+    name: 'Flat Dumbbell Press',
+    muscle: 'Chest',
+    splitCategory: 'Push',
+    requiredEquipment: ['Dumbbells', 'Adjustable Bench'],
+    defaultWeightKg: 24,
+    defaultReps: 10,
+  },
+  {
+    id: 'barbell-back-squat',
+    name: 'Barbell Back Squat',
+    muscle: 'Quads, Glutes & Adductors',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Barbell'],
+    defaultWeightKg: 70,
+    defaultReps: 8,
+  },
+  {
+    id: 'barbell-rdl',
+    name: 'Barbell Romanian Deadlift (RDL)',
+    muscle: 'Hamstrings & Posterior Chain',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Barbell'],
+    defaultWeightKg: 65,
+    defaultReps: 10,
+  },
+  {
+    id: 'barbell-bent-row',
+    name: 'Barbell Bent-Over Row',
+    muscle: 'Back & Rhomboids',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Barbell'],
+    defaultWeightKg: 50,
+    defaultReps: 8,
+  },
+  {
+    id: 'barbell-overhead-press',
+    name: 'Standing Barbell Overhead Press',
+    muscle: 'Shoulders & Core',
+    splitCategory: 'Push',
+    requiredEquipment: ['Barbell'],
+    defaultWeightKg: 40,
+    defaultReps: 8,
+  },
+  {
+    id: 'dumbbell-goblet-squat',
+    name: 'Dumbbell Goblet Squat',
+    muscle: 'Quads & Glutes',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Dumbbells'],
+    defaultWeightKg: 24,
+    defaultReps: 12,
+  },
+  {
+    id: 'dumbbell-rdl',
+    name: 'Dumbbell Romanian Deadlift',
+    muscle: 'Hamstrings & Glutes',
+    splitCategory: 'Legs',
+    requiredEquipment: ['Dumbbells'],
+    defaultWeightKg: 22,
+    defaultReps: 10,
+  },
+  {
+    id: 'dumbbell-shoulder-press',
+    name: 'Seated Dumbbell Shoulder Press',
+    muscle: 'Shoulders',
+    splitCategory: 'Push',
+    requiredEquipment: ['Dumbbells', 'Adjustable Bench'],
+    defaultWeightKg: 18,
+    defaultReps: 10,
+  },
+  {
+    id: 'dumbbell-lateral-raise',
+    name: 'Dumbbell Lateral Raise',
+    muscle: 'Lateral Deltoids',
+    splitCategory: 'Push',
+    requiredEquipment: ['Dumbbells'],
+    defaultWeightKg: 8,
+    defaultReps: 15,
+  },
+  {
+    id: 'dumbbell-bicep-curl',
+    name: 'Standing Dumbbell Bicep Curl',
+    muscle: 'Biceps',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Dumbbells'],
+    defaultWeightKg: 12,
+    defaultReps: 12,
+  },
+  {
+    id: 'pull-ups',
+    name: 'Overhand Pull-Ups',
+    muscle: 'Lats & Upper Back',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Pull-up Bar'],
+    defaultWeightKg: 0,
+    defaultReps: 8,
+  },
+  {
+    id: 'hanging-leg-raise',
+    name: 'Hanging Knee / Leg Raise',
+    muscle: 'Abdominals & Core',
+    splitCategory: 'Core',
+    requiredEquipment: ['Pull-up Bar'],
+    defaultWeightKg: 0,
+    defaultReps: 12,
+  },
+
+  // --- Bodyweight / Minimal ---
+  {
+    id: 'band-pushups',
+    name: 'Resistance Band Push-Ups',
+    muscle: 'Chest & Triceps',
+    splitCategory: 'Push',
+    requiredEquipment: ['Resistance Bands'],
+    defaultWeightKg: 0,
+    defaultReps: 12,
+  },
+  {
+    id: 'band-pull-aparts',
+    name: 'Band Pull-Aparts',
+    muscle: 'Rear Delts & Postural Traps',
+    splitCategory: 'Pull',
+    requiredEquipment: ['Resistance Bands'],
+    defaultWeightKg: 0,
+    defaultReps: 20,
+  },
+  {
+    id: 'bodyweight-pushups',
+    name: 'Standard Push-Ups',
+    muscle: 'Chest & Core',
+    splitCategory: 'Push',
+    requiredEquipment: ['None'],
+    defaultWeightKg: 0,
+    defaultReps: 15,
+  },
+  {
+    id: 'bodyweight-squats',
+    name: 'Bodyweight Air Squats',
+    muscle: 'Quads & Glutes',
+    splitCategory: 'Legs',
+    requiredEquipment: ['None'],
+    defaultWeightKg: 0,
+    defaultReps: 20,
+  },
+  {
+    id: 'walking-lunges',
+    name: 'Bodyweight Walking Lunges',
+    muscle: 'Quads & Glutes',
+    splitCategory: 'Legs',
+    requiredEquipment: ['None'],
+    defaultWeightKg: 0,
+    defaultReps: 12,
+  },
+  {
+    id: 'plank-hold',
+    name: 'Forearm Plank Hold',
+    muscle: 'Core Stability',
+    splitCategory: 'Core',
+    requiredEquipment: ['Yoga Mat'],
+    defaultWeightKg: 0,
+    defaultReps: 45,
+  },
+];
+
+/**
+ * Filter exercises strictly matching the user's registered gym equipment inventory.
+ */
+export const getFilteredExercisesForUser = (userEquipment: string[] = []): EquipmentExerciseDef[] => {
+  const eqSet = new Set(userEquipment);
+  return EQUIPMENT_EXERCISE_DB.filter((ex) => {
+    if (ex.requiredEquipment.includes('None')) return true;
+    return ex.requiredEquipment.every((item) => eqSet.has(item));
+  });
+};
+
+/**
+ * Generates a calibrated daily maintenance routine strictly tailored to available equipment
+ * and experience level volume constraints.
+ */
+export const generateEquipmentAwareRoutine = (
+  userEquipment: string[] = [],
+  experienceLevel: ExperienceLevel = 'intermediate',
+  split: 'full_body' | 'upper' | 'lower' = 'full_body'
+): WorkoutSession => {
+  const available = getFilteredExercisesForUser(userEquipment);
+
+  // Volume parameters per experience level
+  let baseSets = 3;
+  let repTarget = 10;
+  if (experienceLevel === 'beginner') {
+    baseSets = 3;
+    repTarget = 12;
+  } else if (experienceLevel === 'pro') {
+    baseSets = 4;
+    repTarget = 8;
+  }
+
+  // Filter by split category
+  const pushExercises = available.filter((e) => e.splitCategory === 'Push');
+  const pullExercises = available.filter((e) => e.splitCategory === 'Pull');
+  const legExercises = available.filter((e) => e.splitCategory === 'Legs');
+  const coreExercises = available.filter((e) => e.splitCategory === 'Core');
+
+  const selectedDefs: EquipmentExerciseDef[] = [];
+
+  if (split === 'full_body') {
+    if (pushExercises.length > 0) selectedDefs.push(pushExercises[0]);
+    if (pullExercises.length > 0) selectedDefs.push(pullExercises[0]);
+    if (legExercises.length > 0) selectedDefs.push(legExercises[0]);
+    if (pushExercises.length > 1) selectedDefs.push(pushExercises[1]);
+    else if (pullExercises.length > 1) selectedDefs.push(pullExercises[1]);
+    else if (legExercises.length > 1) selectedDefs.push(legExercises[1]);
+    if (coreExercises.length > 0) selectedDefs.push(coreExercises[0]);
+  } else if (split === 'upper') {
+    pushExercises.slice(0, 3).forEach((e) => selectedDefs.push(e));
+    pullExercises.slice(0, 3).forEach((e) => selectedDefs.push(e));
+  } else {
+    legExercises.slice(0, 4).forEach((e) => selectedDefs.push(e));
+    coreExercises.slice(0, 2).forEach((e) => selectedDefs.push(e));
+  }
+
+  // If equipment pool is very sparse, fall back to safe minimal bodyweight
+  if (selectedDefs.length < 3) {
+    const minimalFallbacks = EQUIPMENT_EXERCISE_DB.filter((e) => e.requiredEquipment.includes('None'));
+    minimalFallbacks.forEach((fb) => {
+      if (!selectedDefs.some((s) => s.id === fb.id) && selectedDefs.length < 4) {
+        selectedDefs.push(fb);
+      }
+    });
+  }
+
+  const routineTitle =
+    split === 'full_body'
+      ? `Equipment Maintenance Full Body (${experienceLevel.toUpperCase()})`
+      : split === 'upper'
+      ? `Equipment Maintenance Upper Body (${experienceLevel.toUpperCase()})`
+      : `Equipment Maintenance Lower & Core (${experienceLevel.toUpperCase()})`;
+
+  const exercises: ExerciseItem[] = selectedDefs.map((def, exIndex) => {
+    const sets: ExerciseSet[] = Array.from({ length: baseSets }, (_, sIdx) => ({
+      id: `s-${Date.now()}-${exIndex}-${sIdx + 1}`,
+      setNumber: sIdx + 1,
+      weight: def.defaultWeightKg,
+      reps: def.defaultReps || repTarget,
+      completed: false,
+    }));
+
+    return {
+      id: `ex-${Date.now()}-${exIndex}`,
+      name: def.name,
+      muscle: def.muscle,
+      sets,
+    };
+  });
+
+  return {
+    routineName: routineTitle,
+    startedAt: Date.now(),
+    exercises,
+  };
+};
+
+/**
+ * Saves a workout routine to users/{userId}/workouts collection
+ */
+export const saveWorkoutToCollection = async (
+  userId: string,
+  session: WorkoutSession
+): Promise<string | null> => {
+  if (!db || !userId) return null;
+  const colRef = collection(db, 'users', userId, 'workouts');
+  const docRef = await addDoc(colRef, {
+    ...session,
+    savedAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+/**
+ * Subscribes to custom workouts saved in users/{userId}/workouts
+ */
+export const subscribeWorkoutsCollection = (
+  userId: string,
+  callback: (workouts: (WorkoutSession & { id: string })[]) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    callback([]);
+    return () => {};
+  }
+  const colRef = collection(db, 'users', userId, 'workouts');
+  const q = query(colRef, orderBy('savedAt', 'desc'), limit(20));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as WorkoutSession),
+      }));
+      callback(items);
+    },
+    (err) => {
+      console.warn('Firestore workouts collection snapshot error:', err);
+      callback([]);
+    }
+  );
+};
+
+/**
+ * Applies reactive workout volume adjustment (+2 sets on caloric surplus, or -1 set on deficit)
+ * directly to the active workout session in Firestore (and syncs to users/{userId}/workouts).
+ */
+export const applyWorkoutVolumeAdjustment = async (
+  userId: string,
+  setsDelta: number,
+  fallbackEquipment: string[] = [],
+  fallbackExperienceLevel: ExperienceLevel = 'intermediate'
+): Promise<WorkoutSession | null> => {
+  if (!db || !userId) return null;
+
+  const activeRef = doc(db, 'users', userId, 'data', 'active_workout');
+  const snap = await getDoc(activeRef);
+
+  let currentSession: WorkoutSession | null = null;
+  if (snap.exists()) {
+    currentSession = snap.data() as WorkoutSession;
+  }
+
+  // If no active workout session exists, generate one from user's equipment inventory
+  if (!currentSession || currentSession.exercises.length === 0) {
+    currentSession = generateEquipmentAwareRoutine(
+      fallbackEquipment,
+      fallbackExperienceLevel,
+      'full_body'
+    );
+  }
+
+  const updatedExercises = currentSession.exercises.map((ex, exIdx) => {
+    const newSets = [...ex.sets];
+
+    if (setsDelta > 0) {
+      // Add volume sets
+      for (let i = 0; i < setsDelta; i++) {
+        const lastSet = newSets[newSets.length - 1];
+        newSets.push({
+          id: `s-adj-${Date.now()}-${exIdx}-${newSets.length + 1}`,
+          setNumber: newSets.length + 1,
+          weight: lastSet ? lastSet.weight : 20,
+          reps: lastSet ? lastSet.reps : 10,
+          completed: false,
+        });
+      }
+    } else if (setsDelta < 0) {
+      // Reduce volume set (preserve minimum 2 sets)
+      if (newSets.length > 2) {
+        newSets.pop();
+      }
+    }
+
+    return {
+      ...ex,
+      sets: newSets,
+    };
+  });
+
+  const adjustmentTag = setsDelta > 0 ? ` (+${setsDelta} Vol Adj)` : ` (${setsDelta} Vol Deficit Adj)`;
+  const cleanedName = currentSession.routineName.replace(/\s\([+-]\d+\sVol.*\)/g, '');
+  const updatedSession: WorkoutSession = {
+    ...currentSession,
+    routineName: `${cleanedName}${adjustmentTag}`,
+    exercises: updatedExercises,
+  };
+
+  // Sync to active_workout and workouts collection
+  await setDoc(activeRef, updatedSession, { merge: true });
+  await saveWorkoutToCollection(userId, updatedSession);
+
+  return updatedSession;
 };
 
 
