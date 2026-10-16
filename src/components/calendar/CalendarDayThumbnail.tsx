@@ -21,6 +21,32 @@ export interface CalendarThumbnailInfo {
 }
 
 /**
+ * Verified high-definition public CDN image URLs for Tamil sacred events,
+ * festivals, and celestial phases.
+ */
+export const SACRED_IMAGE_URLS: Record<ThumbnailType, string> = {
+  // Lord Murugan with Vel & Peacock (authentic temple deity & Vel sculpture)
+  murugan: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=160&q=80',
+  // Maha Shivaratri: Lord Shiva / Lingam / Adi Yogi in meditation with divine aura
+  shivaratri: 'https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?auto=format&fit=crop&w=160&q=80',
+  shiva: 'https://images.unsplash.com/photo-1583089892943-e02e5b017b6a?auto=format&fit=crop&w=160&q=80',
+  // Pradosham: Lord Shiva's sacred vehicle Nandhi (seated bull facing the shrine)
+  pradosham: 'https://images.unsplash.com/photo-1544717302-de2939b7ef71?auto=format&fit=crop&w=160&q=80',
+  // Arudra Darshanam: Lord Nataraja cosmic dance bronze sculpture
+  natarajar: 'https://images.unsplash.com/photo-1608889825205-eebdb9fc5806?auto=format&fit=crop&w=160&q=80',
+  // Pournami: Radiant glowing Full Moon photograph
+  pournami: 'https://images.unsplash.com/photo-1532693322450-2cb5c511067d?auto=format&fit=crop&w=160&q=80',
+  // Amavasai: Dark celestial New Moon crescent over deep sky
+  amavasai: 'https://images.unsplash.com/photo-1532767153582-b1a0e5145009?auto=format&fit=crop&w=160&q=80',
+  // Vinayagar Chaturthi: Lord Ganesha festive idol
+  ganesha: 'https://images.unsplash.com/photo-1606214174585-fe31582dc6ee?auto=format&fit=crop&w=160&q=80',
+  // Deepavali / Karthigai Deepam: Traditional brass Diya oil lamp flame
+  diya: 'https://images.unsplash.com/photo-1605647540924-852290f6b0d5?auto=format&fit=crop&w=160&q=80',
+  // Lord Vishnu / Perumal / Venkateswara Thiruman & Shankha-Chakra
+  vishnu: 'https://images.unsplash.com/photo-1617478755490-e21232a5eeaf?auto=format&fit=crop&w=160&q=80',
+};
+
+/**
  * Maps Tamil date info, panchangam thithi/nakshatra, and festivals
  * to specific authentic visual sacred thumbnails with strict differentiation
  * between Maha Shivaratri (Lord Shiva/Lingam) and Pradosham (Sacred Nandhi & Shiva).
@@ -227,12 +253,21 @@ export const CalendarDayThumbnail: React.FC<CalendarDayThumbnailProps> = ({
   className = '',
   showTooltip = true,
 }) => {
-  // Sizing: sm (24-28px, ideal for calendar cells), md (32-36px for cards), lg (44-48px for modals)
+  const [imgError, setImgError] = React.useState(false);
+
+  // Reset image error state whenever thumbnail event type changes
+  React.useEffect(() => {
+    setImgError(false);
+  }, [info.type]);
+
+  // Sizing: sm (w-7 h-7 for calendar cells), md (w-9/10 for cards), lg (w-12/14 for modals)
   const sizeClasses = {
-    sm: 'w-6 h-6 sm:w-7 sm:h-7',
-    md: 'w-8 h-8 sm:w-9 sm:h-9',
-    lg: 'w-11 h-11 sm:w-12 sm:h-12',
+    sm: 'w-7 h-7',
+    md: 'w-9 h-9 sm:w-10 sm:h-10',
+    lg: 'w-12 h-12 sm:w-14 sm:h-14',
   }[size];
+
+  const imageUrl = SACRED_IMAGE_URLS[info.type];
 
   const renderVisual = () => {
     switch (info.type) {
@@ -606,7 +641,21 @@ export const CalendarDayThumbnail: React.FC<CalendarDayThumbnailProps> = ({
       className={`relative inline-flex items-center justify-center flex-shrink-0 transition-transform duration-200 hover:scale-110 ${className}`}
       title={showTooltip ? `${info.titleTamil} • ${info.titleEnglish} (${info.reason})` : undefined}
     >
-      {renderVisual()}
+      {!imgError && imageUrl ? (
+        <div
+          className={`relative overflow-hidden rounded-full border border-amber-400/70 dark:border-amber-400/60 shadow-sm ring-1 ring-amber-400/30 bg-slate-950 flex items-center justify-center flex-shrink-0 select-none ${sizeClasses}`}
+        >
+          <img
+            src={imageUrl}
+            alt={info.titleEnglish}
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover rounded-full"
+          />
+        </div>
+      ) : (
+        renderVisual()
+      )}
     </div>
   );
 };

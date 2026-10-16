@@ -388,7 +388,7 @@ export const CalendarPage: React.FC = () => {
                         <CalendarDayThumbnail info={thumbnail} size="sm" />
                       </div>
                     ) : (
-                      <div className="w-full h-6 sm:h-7" />
+                      <div className="w-full h-7 my-0.5 sm:my-1" />
                     )}
 
                     {/* Festival / Fasting Indicators */}
