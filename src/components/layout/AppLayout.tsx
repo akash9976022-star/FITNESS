@@ -142,10 +142,10 @@ export const AppLayout: React.FC = () => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold btn-tactile transition-all duration-200 ${
+                  `group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold btn-tactile transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-emerald-500/15 to-teal-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-md shadow-emerald-500/10'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/80 dark:hover:bg-slate-850/70 border border-transparent'
+                      ? 'bg-gradient-to-r from-emerald-500/20 via-emerald-500/10 to-teal-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 shadow-lg shadow-emerald-500/10 backdrop-blur-md'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60 hover:border-slate-300/60 dark:hover:border-slate-700/60 border border-transparent hover:translate-x-1'
                   }`
                 }
               >
@@ -154,7 +154,7 @@ export const AppLayout: React.FC = () => {
                     className={`w-5 h-5 transition-transform duration-200 ${
                       isActive
                         ? 'text-emerald-600 dark:text-emerald-400 scale-105'
-                        : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300'
+                        : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-emerald-400 group-hover:scale-105'
                     }`}
                   />
                   <span>{item.name}</span>
@@ -282,8 +282,12 @@ export const AppLayout: React.FC = () => {
               )}
             </button>
 
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100/80 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-700/60 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            {/* Live Synced Status Badge (Eliminated white box bug) */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 shadow-sm backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
               <span>Live Synced</span>
             </div>
 
@@ -299,7 +303,7 @@ export const AppLayout: React.FC = () => {
             {/* User Avatar Chip */}
             <div
               onClick={() => navigate('/profile')}
-              className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-800/90 hover:bg-slate-200/90 dark:hover:bg-slate-750 border border-slate-200/80 dark:border-slate-700/60 cursor-pointer transition shadow-xs btn-tactile"
+              className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/90 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 cursor-pointer transition shadow-xs btn-tactile"
               title="View & Edit Profile"
             >
               <span className="hidden sm:inline text-xs font-bold text-slate-700 dark:text-slate-200 pl-1">

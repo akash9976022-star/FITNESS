@@ -760,8 +760,8 @@ export const Workouts: React.FC = () => {
     <div className="space-y-6">
       {/* Toast Notification */}
       {statusToast && (
-        <div className="fixed top-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 font-bold text-xs shadow-xl flex items-center gap-2 border border-emerald-500/40 animate-fade-in">
-          <Sparkles className="w-4 h-4 text-emerald-400 dark:text-emerald-600 flex-shrink-0" />
+        <div className="fixed top-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-slate-900/95 dark:bg-slate-900/95 text-white font-bold text-xs shadow-2xl flex items-center gap-2 border border-emerald-500/50 backdrop-blur-md animate-fade-in">
+          <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <span>{statusToast}</span>
         </div>
       )}

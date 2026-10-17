@@ -69,10 +69,10 @@ export const StreakBadge: React.FC<StreakBadgeProps> = ({
       {/* Prominent Streak Shield & Count Card */}
       <div
         onClick={() => setShowDetailModal(true)}
-        className={`group relative overflow-hidden rounded-2xl cursor-pointer p-3 sm:p-4 transition-all duration-300 transform active:scale-98 border shadow-xs hover:shadow-md ${
+        className={`group relative overflow-hidden rounded-2xl cursor-pointer p-3 sm:p-4 transition-all duration-300 transform active:scale-98 border shadow-sm hover:shadow-xl card-3d backdrop-blur-xl ${
           todayCompleted
             ? 'bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-emerald-500/15 border-amber-400/40 dark:border-amber-500/30'
-            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-amber-400/50'
+            : 'bg-white/85 dark:bg-slate-900/85 border-slate-200/80 dark:border-slate-800/80 hover:border-amber-400/50'
         } ${className}`}
         role="button"
         tabIndex={0}

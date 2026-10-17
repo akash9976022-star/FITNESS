@@ -363,7 +363,7 @@ export const Dashboard: React.FC = () => {
       <Card3D
         glowColor="emerald"
         intensity={5}
-        className="relative overflow-hidden bg-gradient-to-r from-emerald-500/15 via-white/80 dark:via-slate-900/80 to-teal-500/10 backdrop-blur-xl border border-emerald-500/30 p-6 md:p-8 shadow-xl shadow-emerald-500/5"
+        className="relative overflow-hidden bg-gradient-to-r from-emerald-500/15 via-white/80 to-teal-500/10 dark:from-emerald-950/40 dark:via-slate-900/90 dark:to-teal-950/30 backdrop-blur-xl border border-emerald-500/30 dark:border-emerald-500/25 p-6 md:p-8 shadow-xl shadow-emerald-500/5"
       >
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>

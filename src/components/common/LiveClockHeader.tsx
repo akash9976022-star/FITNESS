@@ -31,7 +31,7 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
 
   return (
     <div
-      className={`inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/70 shadow-sm backdrop-blur-md select-none transition-all duration-200 ${className}`}
+      className={`inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm backdrop-blur-md select-none transition-all duration-200 ${className}`}
       title={`Live System Clock & Tamil Calendar Engine: ${tamilDetails.tamilYearName} ஆண்டு, ${tamilDetails.tamilMonthName} ${tamilDetails.tamilDate}`}
     >
       {/* Live Ticking Time with Glowing Pulse */}
@@ -44,7 +44,7 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
         <span>{timeString}</span>
       </div>
 
-      <div className="hidden xs:block h-3.5 w-px bg-slate-300 dark:bg-slate-700" />
+      <div className="hidden xs:block h-3.5 w-px bg-slate-300 dark:bg-slate-800" />
 
       {/* English Date */}
       <div className="hidden md:flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
@@ -52,7 +52,7 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
         <span>{englishDateString}</span>
       </div>
 
-      <div className="hidden md:block h-3.5 w-px bg-slate-300 dark:bg-slate-700" />
+      <div className="hidden md:block h-3.5 w-px bg-slate-300 dark:bg-slate-800" />
 
       {/* Tamil Month & Date Pill */}
       <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-lg border border-amber-500/25">
