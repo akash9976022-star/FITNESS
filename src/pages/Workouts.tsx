@@ -20,6 +20,7 @@ import {
   X,
   PlusCircle,
   Loader2,
+  Timer,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -53,8 +54,10 @@ import {
   type DayRoutineTemplate,
   type UserWorkoutStats,
   type UserStreak,
+  applyModernSplitPreset,
 } from '../services/firestoreService';
 import WorkoutTimer from '../components/workout/WorkoutTimer';
+import RestTimerBanner from '../components/workout/RestTimerBanner';
 import CustomExerciseLibraryModal from '../components/workout/CustomExerciseLibraryModal';
 import HevyDaySplitSelector, { getTodayDayOfWeek } from '../components/workout/HevyDaySplitSelector';
 import WorkoutCompletionModal, {
@@ -96,6 +99,12 @@ export const Workouts: React.FC = () => {
 
   // Workout Elapsed Timer State
   const [workoutElapsedSeconds, setWorkoutElapsedSeconds] = useState(0);
+
+  // Smart Rest Timer State
+  const [isRestTimerActive, setIsRestTimerActive] = useState<boolean>(false);
+  const [restTimerTargetSeconds, setRestTimerTargetSeconds] = useState<number>(90);
+  const [restTimerExName, setRestTimerExName] = useState<string>('');
+  const [restTimerSetNum, setRestTimerSetNum] = useState<number | undefined>(undefined);
 
   // Feedback Toast
   const [statusToast, setStatusToast] = useState<string | null>(null);
@@ -394,20 +403,61 @@ export const Workouts: React.FC = () => {
     }
   };
 
-  /* ==================== SETS MANAGEMENT ==================== */
+  /* ==================== SETS MANAGEMENT & SMART REST TIMER ==================== */
   const handleToggleSet = async (exerciseId: string, setId: string) => {
     if (!currentUser?.uid || !activeSession) return;
     try {
+      let isNowCompleted = false;
+      let targetExName = '';
+      let targetSetNumber = 1;
+      let targetRest = 90;
+
       const updatedExercises = (activeSession.exercises || []).map((ex) => {
         if (ex.id !== exerciseId) return ex;
+        targetExName = ex.name;
+        targetRest = ex.targetRestSeconds || 90;
         return {
           ...ex,
-          sets: (ex.sets || []).map((s) => (s.id === setId ? { ...s, completed: !s.completed } : s)),
+          sets: (ex.sets || []).map((s) => {
+            if (s.id === setId) {
+              isNowCompleted = !s.completed;
+              targetSetNumber = s.setNumber;
+              return { ...s, completed: isNowCompleted };
+            }
+            return s;
+          }),
         };
       });
+
       await saveActiveWorkout(currentUser.uid, { ...activeSession, exercises: updatedExercises });
+
+      // Automatically trigger smart rest timer upon completing a set
+      if (isNowCompleted) {
+        setRestTimerTargetSeconds(targetRest);
+        setRestTimerExName(targetExName);
+        setRestTimerSetNum(targetSetNumber);
+        setIsRestTimerActive(true);
+      }
     } catch (err) {
       console.error('Failed to toggle set:', err);
+    }
+  };
+
+  const handleStartManualRest = (exerciseName: string, restSecs = 90) => {
+    setRestTimerTargetSeconds(restSecs);
+    setRestTimerExName(exerciseName);
+    setRestTimerSetNum(undefined);
+    setIsRestTimerActive(true);
+  };
+
+  const handleApplyModernSplitPreset = async (presetId: '2day' | '3day' | '4day') => {
+    if (!currentUser?.uid) return;
+    try {
+      await applyModernSplitPreset(currentUser.uid, presetId);
+      showToast(`Applied ${presetId.replace('day', '-Day')} Modern Split!`);
+    } catch (err) {
+      console.error('Failed to apply preset:', err);
+      showToast('Failed to apply preset.');
     }
   };
 
@@ -846,6 +896,7 @@ export const Workouts: React.FC = () => {
         onSelectDay={(day) => setSelectedDay(day)}
         onStartRoutine={handleStartDayRoutine}
         onUpdateRoutine={handleUpdateDailyRoutine}
+        onApplyPreset={handleApplyModernSplitPreset}
         onOpenCustomLibrary={() => setIsCustomLibraryOpen(true)}
         customExercises={customExercises}
         isWorkoutActive={!!activeSession}
@@ -1104,7 +1155,23 @@ export const Workouts: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      {/* Manual Rest Button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleStartManualRest(
+                            exercise.name,
+                            exercise.targetRestSeconds || 90
+                          )
+                        }
+                        className="text-xs font-bold px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1 transition"
+                        title="Start Rest Timer for this exercise"
+                      >
+                        <Timer className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Rest ({exercise.targetRestSeconds || 90}s)</span>
+                      </button>
+
                       <button
                         onClick={() => handleAddSet(exercise.id)}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-1 transition"
@@ -1566,6 +1633,19 @@ export const Workouts: React.FC = () => {
         onClose={handleCloseCompletionModal}
         metrics={completionMetrics}
         onShareSuccess={showToast}
+      />
+
+      {/* SMART FLOATING REST TIMER BANNER */}
+      <RestTimerBanner
+        isActive={isRestTimerActive}
+        targetSeconds={restTimerTargetSeconds}
+        exerciseName={restTimerExName}
+        setNumber={restTimerSetNum}
+        onFinish={() => {
+          setIsRestTimerActive(false);
+          showToast('Rest complete! Ready for next set.');
+        }}
+        onDismiss={() => setIsRestTimerActive(false)}
       />
     </div>
   );

@@ -396,6 +396,7 @@ export interface ExerciseItem {
   name: string;
   muscle: string;
   sets: ExerciseSet[];
+  targetRestSeconds?: number;
 }
 
 export interface WorkoutSession {
@@ -3970,19 +3971,26 @@ export interface DayRoutineTemplate {
   updatedAt?: unknown;
 }
 
-export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
+export type ModernSplitPresetId = '2day' | '3day' | '4day' | 'custom';
+
+/**
+ * 3-Day Athletic Tri-Phase Split (Mon/Wed/Fri) - Recommended default for modern busy people
+ * 3 High-efficiency training days + 4 restorative rest days.
+ */
+export const THREE_DAY_MODERN_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
   monday: {
     dayId: 'monday',
     dayName: 'Monday',
-    routineName: 'Monday - Heavy Push Overload',
+    routineName: 'Monday - Push Power & Shoulder Cap',
     splitCategory: 'push',
-    targetDurationMinutes: 50,
+    targetDurationMinutes: 40,
     isRestDay: false,
     exercises: [
       {
-        id: 'ex-mon-1',
+        id: 'ex-m-1',
         name: 'Incline Dumbbell Chest Press',
         muscle: 'Upper Chest & Front Delts',
+        targetRestSeconds: 90,
         sets: [
           { id: 's-m1-1', setNumber: 1, weight: 22, reps: 10, completed: false },
           { id: 's-m1-2', setNumber: 2, weight: 24, reps: 8, completed: false },
@@ -3990,9 +3998,10 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
         ],
       },
       {
-        id: 'ex-mon-2',
+        id: 'ex-m-2',
         name: 'Standing Overhead Dumbbell Press',
         muscle: 'Deltoids & Triceps',
+        targetRestSeconds: 90,
         sets: [
           { id: 's-m2-1', setNumber: 1, weight: 16, reps: 10, completed: false },
           { id: 's-m2-2', setNumber: 2, weight: 18, reps: 8, completed: false },
@@ -4000,9 +4009,10 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
         ],
       },
       {
-        id: 'ex-mon-3',
+        id: 'ex-m-3',
         name: 'Dumbbell Lateral Raise',
         muscle: 'Side Delts',
+        targetRestSeconds: 60,
         sets: [
           { id: 's-m3-1', setNumber: 1, weight: 10, reps: 15, completed: false },
           { id: 's-m3-2', setNumber: 2, weight: 10, reps: 12, completed: false },
@@ -4010,9 +4020,10 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
         ],
       },
       {
-        id: 'ex-mon-4',
-        name: 'Cable Tricep Pushdown / Rope Pressdown',
+        id: 'ex-m-4',
+        name: 'Rope Tricep Pressdown',
         muscle: 'Triceps Lateral Head',
+        targetRestSeconds: 60,
         sets: [
           { id: 's-m4-1', setNumber: 1, weight: 25, reps: 12, completed: false },
           { id: 's-m4-2', setNumber: 2, weight: 30, reps: 10, completed: false },
@@ -4024,94 +4035,60 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
   tuesday: {
     dayId: 'tuesday',
     dayName: 'Tuesday',
-    routineName: 'Tuesday - Power Pull & Thickness',
-    splitCategory: 'pull',
-    targetDurationMinutes: 50,
-    isRestDay: false,
-    exercises: [
-      {
-        id: 'ex-tue-1',
-        name: 'Wide-Grip Lat Pulldown',
-        muscle: 'Lats & Teres Major',
-        sets: [
-          { id: 's-t1-1', setNumber: 1, weight: 45, reps: 10, completed: false },
-          { id: 's-t1-2', setNumber: 2, weight: 50, reps: 8, completed: false },
-          { id: 's-t1-3', setNumber: 3, weight: 55, reps: 8, completed: false },
-        ],
-      },
-      {
-        id: 'ex-tue-2',
-        name: 'Seated Cable Row (Close Grip)',
-        muscle: 'Rhomboids & Mid-Back',
-        sets: [
-          { id: 's-t2-1', setNumber: 1, weight: 45, reps: 10, completed: false },
-          { id: 's-t2-2', setNumber: 2, weight: 50, reps: 8, completed: false },
-          { id: 's-t2-3', setNumber: 3, weight: 50, reps: 8, completed: false },
-        ],
-      },
-      {
-        id: 'ex-tue-3',
-        name: 'Rope Face Pulls',
-        muscle: 'Rear Delts & Rotator Cuff',
-        sets: [
-          { id: 's-t3-1', setNumber: 1, weight: 20, reps: 15, completed: false },
-          { id: 's-t3-2', setNumber: 2, weight: 25, reps: 12, completed: false },
-        ],
-      },
-      {
-        id: 'ex-tue-4',
-        name: 'Incline Dumbbell Bicep Curl',
-        muscle: 'Biceps Long Head',
-        sets: [
-          { id: 's-t4-1', setNumber: 1, weight: 12, reps: 10, completed: false },
-          { id: 's-t4-2', setNumber: 2, weight: 14, reps: 8, completed: false },
-        ],
-      },
-    ],
+    routineName: 'Tuesday - Rest & Muscle Recovery',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
   },
   wednesday: {
     dayId: 'wednesday',
     dayName: 'Wednesday',
-    routineName: 'Wednesday - Quad & Posterior Chain Overload',
-    splitCategory: 'legs',
-    targetDurationMinutes: 55,
+    routineName: 'Wednesday - Power Pull & Thickness',
+    splitCategory: 'pull',
+    targetDurationMinutes: 40,
     isRestDay: false,
     exercises: [
       {
-        id: 'ex-wed-1',
-        name: 'Leg Press 45-Degree',
-        muscle: 'Quadriceps & Glute Max',
+        id: 'ex-w-1',
+        name: 'Wide-Grip Lat Pulldown',
+        muscle: 'Lats & Teres Major',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-w1-1', setNumber: 1, weight: 120, reps: 12, completed: false },
-          { id: 's-w1-2', setNumber: 2, weight: 150, reps: 10, completed: false },
-          { id: 's-w1-3', setNumber: 3, weight: 180, reps: 8, completed: false },
+          { id: 's-w1-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-w1-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-w1-3', setNumber: 3, weight: 55, reps: 8, completed: false },
         ],
       },
       {
-        id: 'ex-wed-2',
-        name: 'Dumbbell Romanian Deadlift (RDL)',
-        muscle: 'Hamstrings & Glutes',
+        id: 'ex-w-2',
+        name: 'Seated Cable Row (Close Grip)',
+        muscle: 'Rhomboids & Mid-Back',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-w2-1', setNumber: 1, weight: 24, reps: 10, completed: false },
-          { id: 's-w2-2', setNumber: 2, weight: 28, reps: 8, completed: false },
+          { id: 's-w2-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-w2-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-w2-3', setNumber: 3, weight: 50, reps: 8, completed: false },
         ],
       },
       {
-        id: 'ex-wed-3',
-        name: 'Seated Leg Extension',
-        muscle: 'Quads Rectus Femoris',
+        id: 'ex-w-3',
+        name: 'Rope Face Pulls',
+        muscle: 'Rear Delts & Rotator Cuff',
+        targetRestSeconds: 60,
         sets: [
-          { id: 's-w3-1', setNumber: 1, weight: 45, reps: 12, completed: false },
-          { id: 's-w3-2', setNumber: 2, weight: 50, reps: 10, completed: false },
+          { id: 's-w3-1', setNumber: 1, weight: 20, reps: 15, completed: false },
+          { id: 's-w3-2', setNumber: 2, weight: 25, reps: 12, completed: false },
         ],
       },
       {
-        id: 'ex-wed-4',
-        name: 'Standing Calf Raise',
-        muscle: 'Gastrocnemius & Soleus',
+        id: 'ex-w-4',
+        name: 'Incline Dumbbell Bicep Curl',
+        muscle: 'Biceps Long Head',
+        targetRestSeconds: 60,
         sets: [
-          { id: 's-w4-1', setNumber: 1, weight: 40, reps: 15, completed: false },
-          { id: 's-w4-2', setNumber: 2, weight: 40, reps: 15, completed: false },
+          { id: 's-w4-1', setNumber: 1, weight: 12, reps: 10, completed: false },
+          { id: 's-w4-2', setNumber: 2, weight: 14, reps: 8, completed: false },
         ],
       },
     ],
@@ -4119,83 +4096,59 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
   thursday: {
     dayId: 'thursday',
     dayName: 'Thursday',
-    routineName: 'Thursday - Active Recovery & Core Stabilization',
+    routineName: 'Thursday - Rest & CNS Recovery',
     splitCategory: 'rest',
-    targetDurationMinutes: 30,
+    targetDurationMinutes: 20,
     isRestDay: true,
-    exercises: [
-      {
-        id: 'ex-thu-1',
-        name: 'Hanging Knee Raises / Captains Chair',
-        muscle: 'Lower Rectus Abdominis',
-        sets: [
-          { id: 's-th1-1', setNumber: 1, weight: 0, reps: 15, completed: false },
-          { id: 's-th1-2', setNumber: 2, weight: 0, reps: 15, completed: false },
-        ],
-      },
-      {
-        id: 'ex-thu-2',
-        name: 'Forearm Plank Hold',
-        muscle: 'Transverse Abdominis & Deep Core',
-        sets: [
-          { id: 's-th2-1', setNumber: 1, weight: 0, reps: 45, completed: false },
-          { id: 's-th2-2', setNumber: 2, weight: 0, reps: 45, completed: false },
-        ],
-      },
-      {
-        id: 'ex-thu-3',
-        name: 'Dynamic Thoracic & Hip Mobility Flow',
-        muscle: 'Full Body Mobility',
-        sets: [
-          { id: 's-th3-1', setNumber: 1, weight: 0, reps: 10, completed: false },
-          { id: 's-th3-2', setNumber: 2, weight: 0, reps: 10, completed: false },
-        ],
-      },
-    ],
+    exercises: [],
   },
   friday: {
     dayId: 'friday',
     dayName: 'Friday',
-    routineName: 'Friday - Upper Body Aesthetics & Hypertrophy',
-    splitCategory: 'upper',
-    targetDurationMinutes: 50,
+    routineName: 'Friday - Legs & Core Athletic Drive',
+    splitCategory: 'legs',
+    targetDurationMinutes: 45,
     isRestDay: false,
     exercises: [
       {
-        id: 'ex-fri-1',
-        name: 'Flat Dumbbell Bench Press',
-        muscle: 'Pectoralis Major',
+        id: 'ex-f-1',
+        name: 'Leg Press 45-Degree / Squats',
+        muscle: 'Quadriceps & Glute Max',
+        targetRestSeconds: 120,
         sets: [
-          { id: 's-f1-1', setNumber: 1, weight: 24, reps: 10, completed: false },
-          { id: 's-f1-2', setNumber: 2, weight: 26, reps: 8, completed: false },
-          { id: 's-f1-3', setNumber: 3, weight: 28, reps: 6, completed: false },
+          { id: 's-f1-1', setNumber: 1, weight: 120, reps: 12, completed: false },
+          { id: 's-f1-2', setNumber: 2, weight: 150, reps: 10, completed: false },
+          { id: 's-f1-3', setNumber: 3, weight: 180, reps: 8, completed: false },
         ],
       },
       {
-        id: 'ex-fri-2',
-        name: 'Chest Supported Dumbbell Row',
-        muscle: 'Mid-Back & Lats',
+        id: 'ex-f-2',
+        name: 'Dumbbell Romanian Deadlift (RDL)',
+        muscle: 'Hamstrings & Glutes',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-f2-1', setNumber: 1, weight: 22, reps: 10, completed: false },
-          { id: 's-f2-2', setNumber: 2, weight: 24, reps: 8, completed: false },
+          { id: 's-f2-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-f2-2', setNumber: 2, weight: 28, reps: 8, completed: false },
         ],
       },
       {
-        id: 'ex-fri-3',
-        name: 'Cable Flyes (Middle Peak)',
-        muscle: 'Sternal Pecs',
+        id: 'ex-f-3',
+        name: 'Standing Calf Raise',
+        muscle: 'Gastrocnemius & Soleus',
+        targetRestSeconds: 60,
         sets: [
-          { id: 's-f3-1', setNumber: 1, weight: 15, reps: 12, completed: false },
-          { id: 's-f3-2', setNumber: 2, weight: 15, reps: 12, completed: false },
+          { id: 's-f3-1', setNumber: 1, weight: 40, reps: 15, completed: false },
+          { id: 's-f3-2', setNumber: 2, weight: 40, reps: 15, completed: false },
         ],
       },
       {
-        id: 'ex-fri-4',
-        name: 'Hammer Curls paired with Overhead Tricep Extension',
-        muscle: 'Brachialis & Triceps Long Head',
+        id: 'ex-f-4',
+        name: 'Hanging Knee Raises / Plank',
+        muscle: 'Core & Rectus Abdominis',
+        targetRestSeconds: 60,
         sets: [
-          { id: 's-f4-1', setNumber: 1, weight: 14, reps: 10, completed: false },
-          { id: 's-f4-2', setNumber: 2, weight: 14, reps: 10, completed: false },
+          { id: 's-f4-1', setNumber: 1, weight: 0, reps: 15, completed: false },
+          { id: 's-f4-2', setNumber: 2, weight: 0, reps: 15, completed: false },
         ],
       },
     ],
@@ -4203,36 +4156,206 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
   saturday: {
     dayId: 'saturday',
     dayName: 'Saturday',
-    routineName: 'Saturday - Posterior & Unilateral Leg Drive',
-    splitCategory: 'lower',
-    targetDurationMinutes: 50,
+    routineName: 'Saturday - Active Recovery & Steps',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  sunday: {
+    dayId: 'sunday',
+    dayName: 'Sunday',
+    routineName: 'Sunday - Sacred Rest & Total Rejuvenation',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+};
+
+/**
+ * 2-Day Time-Crunched Full-Body Split (Tue/Sat)
+ * 2 Powerful full-body workouts + 5 rest days for ultra-busy modern lifestyles.
+ */
+export const TWO_DAY_MODERN_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
+  monday: {
+    dayId: 'monday',
+    dayName: 'Monday',
+    routineName: 'Monday - Rest & Work Focus',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  tuesday: {
+    dayId: 'tuesday',
+    dayName: 'Tuesday',
+    routineName: 'Tuesday - Full Body Power A',
+    splitCategory: 'full_body',
+    targetDurationMinutes: 45,
     isRestDay: false,
     exercises: [
       {
-        id: 'ex-sat-1',
-        name: 'Dumbbell Walking Lunges',
-        muscle: 'Quads & Glutes',
+        id: 'ex-2t-1',
+        name: 'Incline Dumbbell Chest Press',
+        muscle: 'Upper Chest',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-sa1-1', setNumber: 1, weight: 14, reps: 12, completed: false },
-          { id: 's-sa1-2', setNumber: 2, weight: 16, reps: 10, completed: false },
+          { id: 's-2t1-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-2t1-2', setNumber: 2, weight: 24, reps: 8, completed: false },
+          { id: 's-2t1-3', setNumber: 3, weight: 26, reps: 8, completed: false },
         ],
       },
       {
-        id: 'ex-sat-2',
-        name: 'Lying Hamstring Leg Curl',
-        muscle: 'Biceps Femoris',
+        id: 'ex-2t-2',
+        name: 'Wide-Grip Lat Pulldown',
+        muscle: 'Lats & Back',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-sa2-1', setNumber: 1, weight: 35, reps: 10, completed: false },
-          { id: 's-sa2-2', setNumber: 2, weight: 40, reps: 8, completed: false },
+          { id: 's-2t2-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-2t2-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-2t2-3', setNumber: 3, weight: 55, reps: 8, completed: false },
         ],
       },
       {
-        id: 'ex-sat-3',
+        id: 'ex-2t-3',
         name: 'Dumbbell Goblet Squats',
-        muscle: 'Quads & Hip Drive',
+        muscle: 'Quads & Glutes',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-sa3-1', setNumber: 1, weight: 24, reps: 10, completed: false },
-          { id: 's-sa3-2', setNumber: 2, weight: 26, reps: 10, completed: false },
+          { id: 's-2t3-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-2t3-2', setNumber: 2, weight: 26, reps: 10, completed: false },
+          { id: 's-2t3-3', setNumber: 3, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2t-4',
+        name: 'Dumbbell Romanian Deadlift',
+        muscle: 'Hamstrings & Glutes',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-2t4-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-2t4-2', setNumber: 2, weight: 26, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2t-5',
+        name: 'Dumbbell Lateral Raise',
+        muscle: 'Side Delts',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-2t5-1', setNumber: 1, weight: 10, reps: 12, completed: false },
+          { id: 's-2t5-2', setNumber: 2, weight: 10, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2t-6',
+        name: 'Rope Tricep Pressdown',
+        muscle: 'Triceps',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-2t6-1', setNumber: 1, weight: 25, reps: 12, completed: false },
+          { id: 's-2t6-2', setNumber: 2, weight: 30, reps: 10, completed: false },
+        ],
+      },
+    ],
+  },
+  wednesday: {
+    dayId: 'wednesday',
+    dayName: 'Wednesday',
+    routineName: 'Wednesday - Rest & Recovery',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  thursday: {
+    dayId: 'thursday',
+    dayName: 'Thursday',
+    routineName: 'Thursday - Rest & Hydration',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  friday: {
+    dayId: 'friday',
+    dayName: 'Friday',
+    routineName: 'Friday - Rest & Pre-Weekend Walk',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  saturday: {
+    dayId: 'saturday',
+    dayName: 'Saturday',
+    routineName: 'Saturday - Full Body Hypertrophy B',
+    splitCategory: 'full_body',
+    targetDurationMinutes: 45,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-2s-1',
+        name: 'Flat Dumbbell Bench Press',
+        muscle: 'Pectoralis Major',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-2s1-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-2s1-2', setNumber: 2, weight: 26, reps: 8, completed: false },
+          { id: 's-2s1-3', setNumber: 3, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2s-2',
+        name: 'Seated Cable Row (Neutral Grip)',
+        muscle: 'Mid-Back & Lats',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-2s2-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-2s2-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-2s2-3', setNumber: 3, weight: 55, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2s-3',
+        name: 'Leg Press 45-Degree',
+        muscle: 'Quads & Glutes',
+        targetRestSeconds: 120,
+        sets: [
+          { id: 's-2s3-1', setNumber: 1, weight: 120, reps: 12, completed: false },
+          { id: 's-2s3-2', setNumber: 2, weight: 150, reps: 10, completed: false },
+          { id: 's-2s3-3', setNumber: 3, weight: 170, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2s-4',
+        name: 'Standing Dumbbell Overhead Press',
+        muscle: 'Delts & Shoulders',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-2s4-1', setNumber: 1, weight: 16, reps: 10, completed: false },
+          { id: 's-2s4-2', setNumber: 2, weight: 18, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2s-5',
+        name: 'Incline Dumbbell Bicep Curl',
+        muscle: 'Biceps',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-2s5-1', setNumber: 1, weight: 12, reps: 10, completed: false },
+          { id: 's-2s5-2', setNumber: 2, weight: 14, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-2s-6',
+        name: 'Forearm Plank Hold',
+        muscle: 'Deep Core',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-2s6-1', setNumber: 1, weight: 0, reps: 45, completed: false },
+          { id: 's-2s6-2', setNumber: 2, weight: 0, reps: 45, completed: false },
         ],
       },
     ],
@@ -4244,19 +4367,297 @@ export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
     splitCategory: 'rest',
     targetDurationMinutes: 20,
     isRestDay: true,
+    exercises: [],
+  },
+};
+
+/**
+ * 4-Day Upper / Lower Split (Mon/Tue/Thu/Fri)
+ * 4 Focused training days + 3 recovery days (Wed/Sat/Sun).
+ */
+export const FOUR_DAY_MODERN_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = {
+  monday: {
+    dayId: 'monday',
+    dayName: 'Monday',
+    routineName: 'Monday - Upper Body Power A',
+    splitCategory: 'upper',
+    targetDurationMinutes: 42,
+    isRestDay: false,
     exercises: [
       {
-        id: 'ex-sun-1',
-        name: 'Full Body Static Stretch & Deep Breathing',
-        muscle: 'Total Body Recovery',
+        id: 'ex-4m-1',
+        name: 'Incline Dumbbell Chest Press',
+        muscle: 'Upper Chest',
+        targetRestSeconds: 90,
         sets: [
-          { id: 's-su1-1', setNumber: 1, weight: 0, reps: 10, completed: false },
+          { id: 's-4m1-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-4m1-2', setNumber: 2, weight: 26, reps: 8, completed: false },
+          { id: 's-4m1-3', setNumber: 3, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4m-2',
+        name: 'Wide-Grip Lat Pulldown',
+        muscle: 'Lats & Upper Back',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4m2-1', setNumber: 1, weight: 45, reps: 10, completed: false },
+          { id: 's-4m2-2', setNumber: 2, weight: 50, reps: 8, completed: false },
+          { id: 's-4m2-3', setNumber: 3, weight: 55, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4m-3',
+        name: 'Standing Overhead Dumbbell Press',
+        muscle: 'Delts',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4m3-1', setNumber: 1, weight: 16, reps: 10, completed: false },
+          { id: 's-4m3-2', setNumber: 2, weight: 18, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4m-4',
+        name: 'Dumbbell Lateral Raise',
+        muscle: 'Side Delts',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4m4-1', setNumber: 1, weight: 10, reps: 15, completed: false },
+          { id: 's-4m4-2', setNumber: 2, weight: 10, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4m-5',
+        name: 'Rope Tricep Pressdown',
+        muscle: 'Triceps',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4m5-1', setNumber: 1, weight: 25, reps: 12, completed: false },
+          { id: 's-4m5-2', setNumber: 2, weight: 30, reps: 10, completed: false },
         ],
       },
     ],
   },
+  tuesday: {
+    dayId: 'tuesday',
+    dayName: 'Tuesday',
+    routineName: 'Tuesday - Lower Body Power A',
+    splitCategory: 'lower',
+    targetDurationMinutes: 45,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-4t-1',
+        name: 'Leg Press 45-Degree',
+        muscle: 'Quadriceps',
+        targetRestSeconds: 120,
+        sets: [
+          { id: 's-4t1-1', setNumber: 1, weight: 120, reps: 12, completed: false },
+          { id: 's-4t1-2', setNumber: 2, weight: 150, reps: 10, completed: false },
+          { id: 's-4t1-3', setNumber: 3, weight: 180, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4t-2',
+        name: 'Dumbbell Romanian Deadlift',
+        muscle: 'Hamstrings & Glutes',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4t2-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-4t2-2', setNumber: 2, weight: 28, reps: 8, completed: false },
+          { id: 's-4t2-3', setNumber: 3, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4t-3',
+        name: 'Standing Calf Raise',
+        muscle: 'Calves',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4t3-1', setNumber: 1, weight: 40, reps: 15, completed: false },
+          { id: 's-4t3-2', setNumber: 2, weight: 40, reps: 15, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4t-4',
+        name: 'Hanging Knee Raises',
+        muscle: 'Abs & Core',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4t4-1', setNumber: 1, weight: 0, reps: 15, completed: false },
+          { id: 's-4t4-2', setNumber: 2, weight: 0, reps: 15, completed: false },
+        ],
+      },
+    ],
+  },
+  wednesday: {
+    dayId: 'wednesday',
+    dayName: 'Wednesday',
+    routineName: 'Wednesday - Mid-Week Active Recovery',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  thursday: {
+    dayId: 'thursday',
+    dayName: 'Thursday',
+    routineName: 'Thursday - Upper Body Hypertrophy B',
+    splitCategory: 'upper',
+    targetDurationMinutes: 42,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-4th-1',
+        name: 'Flat Dumbbell Bench Press',
+        muscle: 'Chest',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4th1-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-4th1-2', setNumber: 2, weight: 26, reps: 8, completed: false },
+          { id: 's-4th1-3', setNumber: 3, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4th-2',
+        name: 'Chest-Supported Dumbbell Row',
+        muscle: 'Mid-Back & Lats',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4th2-1', setNumber: 1, weight: 22, reps: 10, completed: false },
+          { id: 's-4th2-2', setNumber: 2, weight: 24, reps: 8, completed: false },
+          { id: 's-4th2-3', setNumber: 3, weight: 24, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4th-3',
+        name: 'Rope Face Pulls',
+        muscle: 'Rear Delts & Upper Back',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4th3-1', setNumber: 1, weight: 20, reps: 15, completed: false },
+          { id: 's-4th3-2', setNumber: 2, weight: 25, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4th-4',
+        name: 'Incline Dumbbell Bicep Curl',
+        muscle: 'Biceps',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4th4-1', setNumber: 1, weight: 12, reps: 10, completed: false },
+          { id: 's-4th4-2', setNumber: 2, weight: 14, reps: 8, completed: false },
+        ],
+      },
+    ],
+  },
+  friday: {
+    dayId: 'friday',
+    dayName: 'Friday',
+    routineName: 'Friday - Lower Body Athletic B',
+    splitCategory: 'lower',
+    targetDurationMinutes: 45,
+    isRestDay: false,
+    exercises: [
+      {
+        id: 'ex-4f-1',
+        name: 'Dumbbell Goblet Squats',
+        muscle: 'Quads',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4f1-1', setNumber: 1, weight: 24, reps: 10, completed: false },
+          { id: 's-4f1-2', setNumber: 2, weight: 26, reps: 10, completed: false },
+          { id: 's-4f1-3', setNumber: 3, weight: 28, reps: 8, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4f-2',
+        name: 'Dumbbell Walking Lunges',
+        muscle: 'Quads & Glutes',
+        targetRestSeconds: 90,
+        sets: [
+          { id: 's-4f2-1', setNumber: 1, weight: 14, reps: 12, completed: false },
+          { id: 's-4f2-2', setNumber: 2, weight: 16, reps: 10, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4f-3',
+        name: 'Seated Calf Raise',
+        muscle: 'Calves',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4f3-1', setNumber: 1, weight: 35, reps: 15, completed: false },
+          { id: 's-4f3-2', setNumber: 2, weight: 40, reps: 12, completed: false },
+        ],
+      },
+      {
+        id: 'ex-4f-4',
+        name: 'Forearm Plank Hold',
+        muscle: 'Deep Core',
+        targetRestSeconds: 60,
+        sets: [
+          { id: 's-4f4-1', setNumber: 1, weight: 0, reps: 45, completed: false },
+          { id: 's-4f4-2', setNumber: 2, weight: 0, reps: 45, completed: false },
+        ],
+      },
+    ],
+  },
+  saturday: {
+    dayId: 'saturday',
+    dayName: 'Saturday',
+    routineName: 'Saturday - Active Rest & Step Goal',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
+  sunday: {
+    dayId: 'sunday',
+    dayName: 'Sunday',
+    routineName: 'Sunday - Sacred Rest & Total Rejuvenation',
+    splitCategory: 'rest',
+    targetDurationMinutes: 20,
+    isRestDay: true,
+    exercises: [],
+  },
 };
 
+export const MODERN_SPLIT_PRESETS: Record<'2day' | '3day' | '4day', Record<DayOfWeek, DayRoutineTemplate>> = {
+  '3day': THREE_DAY_MODERN_SPLIT,
+  '2day': TWO_DAY_MODERN_SPLIT,
+  '4day': FOUR_DAY_MODERN_SPLIT,
+};
+
+/**
+ * Default weekly split defaults to the modern 3-day split (3 training days + 4 rest days)
+ */
+export const DEFAULT_WEEKLY_SPLIT: Record<DayOfWeek, DayRoutineTemplate> = THREE_DAY_MODERN_SPLIT;
+
+/**
+ * Applies a modern split preset to the user's Firestore daily routines.
+ */
+export const applyModernSplitPreset = async (
+  userId: string,
+  presetId: '2day' | '3day' | '4day'
+): Promise<void> => {
+  if (!db || !userId) return;
+  const preset = MODERN_SPLIT_PRESETS[presetId];
+  if (!preset) return;
+
+  const days: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  for (const day of days) {
+    const routineRef = doc(db, 'users', userId, 'daily_routines', day);
+    await setDoc(
+      routineRef,
+      {
+        ...preset[day],
+        dayId: day,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+};
 export const subscribeDailyRoutines = (
   userId: string,
   callback: (routines: Record<DayOfWeek, DayRoutineTemplate>) => void
