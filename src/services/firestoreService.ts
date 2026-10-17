@@ -14,7 +14,7 @@ import {
   serverTimestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
 import { clearAllStoredVideos } from '../utils/indexedDBVideoStore';
 
 /* ==================== USER PROFILE & ONBOARDING ==================== */
@@ -100,30 +100,49 @@ export const ensureUserProfileExists = async (
   userId: string,
   defaults?: Partial<UserProfile>
 ): Promise<UserProfile> => {
-  if (!db || !userId) return DEFAULT_USER_PROFILE;
+  if (!userId) return DEFAULT_USER_PROFILE;
+
+  const cacheKey = `fit_user_profile_${userId}`;
+  let cachedProfile: UserProfile = { ...DEFAULT_USER_PROFILE, ...defaults };
+  try {
+    const stored = localStorage.getItem(cacheKey);
+    if (stored) {
+      cachedProfile = { ...cachedProfile, ...JSON.parse(stored) };
+    } else {
+      localStorage.setItem(cacheKey, JSON.stringify(cachedProfile));
+    }
+  } catch {
+    // Ignored
+  }
+
+  // If local guest or no db or unauthenticated, return cached profile immediately
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) {
+    return cachedProfile;
+  }
+
   try {
     const userDocRef = doc(db, 'users', userId);
     const snap = await getDoc(userDocRef);
     if (!snap.exists()) {
-      const defaultProfile: UserProfile = {
-        ...DEFAULT_USER_PROFILE,
-        ...defaults,
-      };
       await setDoc(
         userDocRef,
         {
-          ...defaultProfile,
+          ...cachedProfile,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
-      return defaultProfile;
+      return cachedProfile;
     }
-    return snap.data() as UserProfile;
+    const data = snap.data() as UserProfile;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    } catch {}
+    return data;
   } catch (err) {
-    console.warn('Failed to ensure user profile exists in Firestore:', err);
-    return DEFAULT_USER_PROFILE;
+    console.warn('Notice while ensuring user profile in Firestore, using cache:', err);
+    return cachedProfile;
   }
 };
 
@@ -131,9 +150,33 @@ export const subscribeUserProfile = (
   userId: string,
   callback: (profile: UserProfile | null) => void
 ): Unsubscribe => {
-  if (!db || !userId) {
+  if (!userId) {
     callback(null);
     return () => {};
+  }
+
+  const cacheKey = `fit_user_profile_${userId}`;
+  const getCachedProfile = (): UserProfile => {
+    try {
+      const stored = localStorage.getItem(cacheKey);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return DEFAULT_USER_PROFILE;
+  };
+
+  const initial = getCachedProfile();
+  callback(initial);
+
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === cacheKey && e.newValue) {
+        try {
+          callback(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }
 
   const userDocRef = doc(db, 'users', userId);
@@ -142,31 +185,32 @@ export const subscribeUserProfile = (
     async (snapshot) => {
       try {
         if (snapshot.exists()) {
-          callback(snapshot.data() as UserProfile);
+          const data = snapshot.data() as UserProfile;
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(data));
+          } catch {}
+          callback(data);
         } else {
           // Auto-initialize missing Firestore user documents
-          const defaultProfile: UserProfile = {
-            ...DEFAULT_USER_PROFILE,
-          };
           await setDoc(
             userDocRef,
             {
-              ...defaultProfile,
+              ...initial,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             },
             { merge: true }
           );
-          callback(defaultProfile);
+          callback(initial);
         }
       } catch (err) {
-        console.error('Error in subscribeUserProfile onSnapshot handler:', err);
-        callback(null);
+        console.warn('Notice in subscribeUserProfile onSnapshot handler, using cache:', err);
+        callback(getCachedProfile());
       }
     },
     (error) => {
-      console.warn('Firestore user profile snapshot error:', error);
-      callback(null);
+      console.warn('Firestore user profile snapshot notice, falling back to local store:', error);
+      callback(getCachedProfile());
     }
   );
 };
@@ -175,38 +219,56 @@ export const saveUserProfile = async (
   userId: string,
   profile: Partial<UserProfile>
 ): Promise<void> => {
-  if (!db || !userId) return;
+  if (!userId) return;
 
-  const userDocRef = doc(db, 'users', userId);
-  const dataToSave = {
-    ...profile,
-    updatedAt: serverTimestamp(),
-  };
+  const cacheKey = `fit_user_profile_${userId}`;
+  let merged = { ...DEFAULT_USER_PROFILE, ...profile };
+  try {
+    const existing = localStorage.getItem(cacheKey);
+    if (existing) {
+      merged = { ...JSON.parse(existing), ...profile };
+    }
+    localStorage.setItem(cacheKey, JSON.stringify(merged));
+  } catch (err) {
+    console.warn('Notice caching user profile to localStorage:', err);
+  }
 
-  await setDoc(userDocRef, dataToSave, { merge: true });
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) return;
 
-  // Sync to biometrics subdocument for backwards-compatibility with nutrition engine
-  if (
-    profile.gender &&
-    profile.currentWeightKg &&
-    profile.heightCm &&
-    profile.age &&
-    profile.activityMultiplier
-  ) {
-    const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
-    await setDoc(
-      biometricsRef,
-      {
-        gender: profile.gender,
-        weightKg: profile.currentWeightKg,
-        heightCm: profile.heightCm,
-        age: profile.age,
-        activityMultiplier: profile.activityMultiplier,
-        goal: 'maintain',
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    const dataToSave = {
+      ...profile,
+      updatedAt: serverTimestamp(),
+    };
+
+    await setDoc(userDocRef, dataToSave, { merge: true });
+
+    // Sync to biometrics subdocument for backwards-compatibility with nutrition engine
+    if (
+      profile.gender &&
+      profile.currentWeightKg &&
+      profile.heightCm &&
+      profile.age &&
+      profile.activityMultiplier
+    ) {
+      const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
+      await setDoc(
+        biometricsRef,
+        {
+          gender: profile.gender,
+          weightKg: profile.currentWeightKg,
+          heightCm: profile.heightCm,
+          age: profile.age,
+          activityMultiplier: profile.activityMultiplier,
+          goal: 'maintain',
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.warn('Notice saving profile to Firestore, preserved locally:', err);
   }
 };
 
@@ -225,9 +287,52 @@ export const subscribeUserBiometrics = (
   userId: string,
   callback: (biometrics: UserBiometrics | null) => void
 ): Unsubscribe => {
-  if (!db || !userId) {
+  if (!userId) {
     callback(null);
     return () => {};
+  }
+
+  const cacheKey = `fit_biometrics_${userId}`;
+  const getCachedBio = (): UserBiometrics => {
+    try {
+      const stored = localStorage.getItem(cacheKey);
+      if (stored) return JSON.parse(stored);
+      const profileStr = localStorage.getItem(`fit_user_profile_${userId}`);
+      if (profileStr) {
+        const p = JSON.parse(profileStr);
+        return {
+          gender: p.gender || 'male',
+          weightKg: p.currentWeightKg || 75,
+          heightCm: p.heightCm || 175,
+          age: p.age || 25,
+          activityMultiplier: p.activityMultiplier || 1.55,
+          goal: 'maintain',
+        };
+      }
+    } catch {}
+    return {
+      gender: 'male',
+      weightKg: 75,
+      heightCm: 175,
+      age: 25,
+      activityMultiplier: 1.55,
+      goal: 'maintain',
+    };
+  };
+
+  const initial = getCachedBio();
+  callback(initial);
+
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === cacheKey && e.newValue) {
+        try {
+          callback(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }
 
   const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
@@ -235,14 +340,18 @@ export const subscribeUserBiometrics = (
     biometricsRef,
     (snapshot) => {
       if (snapshot.exists()) {
-        callback(snapshot.data() as UserBiometrics);
+        const data = snapshot.data() as UserBiometrics;
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch {}
+        callback(data);
       } else {
-        callback(null);
+        callback(initial);
       }
     },
     (error) => {
-      console.warn('Firestore biometrics snapshot error:', error);
-      callback(null);
+      console.warn('Firestore biometrics snapshot notice, using local cache:', error);
+      callback(getCachedBio());
     }
   );
 };
@@ -251,16 +360,26 @@ export const saveUserBiometrics = async (
   userId: string,
   biometrics: UserBiometrics
 ): Promise<void> => {
-  if (!db || !userId) return;
-  const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
-  await setDoc(
-    biometricsRef,
-    {
-      ...biometrics,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  if (!userId) return;
+  const cacheKey = `fit_biometrics_${userId}`;
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(biometrics));
+  } catch {}
+
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) return;
+  try {
+    const biometricsRef = doc(db, 'users', userId, 'data', 'biometrics');
+    await setDoc(
+      biometricsRef,
+      {
+        ...biometrics,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Notice saving biometrics to Firestore, preserved locally:', err);
+  }
 };
 
 /* ==================== ACTIVE & COMPLETED WORKOUTS ==================== */
@@ -1545,9 +1664,44 @@ export const subscribeDailyHydration = (
   dateStr: string,
   callback: (hydration: DailyHydration) => void
 ): Unsubscribe => {
-  if (!db || !userId) {
+  if (!userId) {
     callback({ ...DEFAULT_DAILY_HYDRATION, date: dateStr });
     return () => {};
+  }
+
+  const cacheKey = `fit_hydration_${userId}_${dateStr}`;
+  const getCachedHydration = (): DailyHydration => {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          date: dateStr,
+          waterMl: Number(parsed.waterMl) || 0,
+          targetMl: Number(parsed.targetMl) || 3000,
+        };
+      }
+    } catch {}
+    return { ...DEFAULT_DAILY_HYDRATION, date: dateStr };
+  };
+
+  callback(getCachedHydration());
+
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === cacheKey && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          callback({
+            date: dateStr,
+            waterMl: Number(parsed.waterMl) || 0,
+            targetMl: Number(parsed.targetMl) || 3000,
+          });
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }
 
   const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
@@ -1556,19 +1710,23 @@ export const subscribeDailyHydration = (
     (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        callback({
+        const obj = {
           date: dateStr,
           waterMl: Number(data.waterMl) || 0,
           targetMl: Number(data.targetMl) || 3000,
           updatedAt: data.updatedAt,
-        });
+        };
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(obj));
+        } catch {}
+        callback(obj);
       } else {
-        callback({ ...DEFAULT_DAILY_HYDRATION, date: dateStr });
+        callback(getCachedHydration());
       }
     },
     (err) => {
-      console.warn('Daily hydration snapshot error:', err);
-      callback({ ...DEFAULT_DAILY_HYDRATION, date: dateStr });
+      console.warn('Daily hydration snapshot notice, falling back to local cache:', err);
+      callback(getCachedHydration());
     }
   );
 };
@@ -1579,24 +1737,36 @@ export const logWaterIntake = async (
   deltaMl: number,
   targetMl = 3000
 ): Promise<number> => {
-  if (!db || !userId) return 0;
-  const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
-  const snap = await getDoc(docRef);
+  if (!userId) return 0;
+  const cacheKey = `fit_hydration_${userId}_${dateStr}`;
   let currentMl = 0;
-  if (snap.exists()) {
-    currentMl = Number(snap.data()?.waterMl) || 0;
-  }
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) currentMl = Number(JSON.parse(cached).waterMl) || 0;
+  } catch {}
+
   const newAmount = Math.max(0, currentMl + deltaMl);
-  await setDoc(
-    docRef,
-    {
-      date: dateStr,
-      waterMl: newAmount,
-      targetMl,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ date: dateStr, waterMl: newAmount, targetMl }));
+  } catch {}
+
+  if (db && !userId.startsWith('guest_') && auth?.currentUser) {
+    try {
+      const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
+      await setDoc(
+        docRef,
+        {
+          date: dateStr,
+          waterMl: newAmount,
+          targetMl,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Notice saving water intake to Firestore, preserved locally:', err);
+    }
+  }
 
   if (newAmount >= 3000) {
     try {
@@ -1615,18 +1785,29 @@ export const resetWaterIntake = async (
   dateStr: string,
   targetMl = 3000
 ): Promise<void> => {
-  if (!db || !userId) return;
-  const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
-  await setDoc(
-    docRef,
-    {
-      date: dateStr,
-      waterMl: 0,
-      targetMl,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  if (!userId) return;
+  const cacheKey = `fit_hydration_${userId}_${dateStr}`;
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ date: dateStr, waterMl: 0, targetMl }));
+  } catch {}
+
+  if (db && !userId.startsWith('guest_') && auth?.currentUser) {
+    try {
+      const docRef = doc(db, 'users', userId, 'data', `hydration_${dateStr}`);
+      await setDoc(
+        docRef,
+        {
+          date: dateStr,
+          waterMl: 0,
+          targetMl,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Notice resetting water intake in Firestore, preserved locally:', err);
+    }
+  }
 };
 
 /* ==================== DAILY STEPS & ACTIVITY TRACKER ==================== */
@@ -1652,9 +1833,32 @@ export const subscribeDailyActivity = (
   dateStr: string,
   callback: (activity: DailyActivity) => void
 ): Unsubscribe => {
-  if (!db || !userId) {
+  if (!userId) {
     callback({ ...DEFAULT_DAILY_ACTIVITY, date: dateStr });
     return () => {};
+  }
+
+  const cacheKey = `fit_activity_${userId}_${dateStr}`;
+  const getCachedActivity = (): DailyActivity => {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return { ...DEFAULT_DAILY_ACTIVITY, date: dateStr };
+  };
+
+  callback(getCachedActivity());
+
+  if (!db || userId.startsWith('guest_') || !auth?.currentUser) {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === cacheKey && e.newValue) {
+        try {
+          callback(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }
 
   const docRef = doc(db, 'users', userId, 'data', `activity_${dateStr}`);
@@ -1665,21 +1869,25 @@ export const subscribeDailyActivity = (
         const data = snapshot.data();
         const steps = Number(data.steps) || 0;
         const goalSteps = Number(data.goalSteps) || 10000;
-        callback({
+        const obj = {
           date: dateStr,
           steps,
           goalSteps,
           distanceKm: parseFloat((steps * 0.00076).toFixed(2)),
           caloriesBurned: Math.round(steps * 0.04),
           updatedAt: data.updatedAt,
-        });
+        };
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(obj));
+        } catch {}
+        callback(obj);
       } else {
-        callback({ ...DEFAULT_DAILY_ACTIVITY, date: dateStr });
+        callback(getCachedActivity());
       }
     },
     (err) => {
-      console.warn('Daily activity snapshot error:', err);
-      callback({ ...DEFAULT_DAILY_ACTIVITY, date: dateStr });
+      console.warn('Daily activity snapshot notice, falling back to local cache:', err);
+      callback(getCachedActivity());
     }
   );
 };
@@ -1690,21 +1898,36 @@ export const logDailySteps = async (
   steps: number,
   goalSteps = 10000
 ): Promise<void> => {
-  if (!db || !userId) return;
-  const docRef = doc(db, 'users', userId, 'data', `activity_${dateStr}`);
+  if (!userId) return;
   const safeSteps = Math.max(0, Math.round(steps));
-  await setDoc(
-    docRef,
-    {
-      date: dateStr,
-      steps: safeSteps,
-      goalSteps,
-      distanceKm: parseFloat((safeSteps * 0.00076).toFixed(2)),
-      caloriesBurned: Math.round(safeSteps * 0.04),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const activityData: DailyActivity = {
+    date: dateStr,
+    steps: safeSteps,
+    goalSteps,
+    distanceKm: parseFloat((safeSteps * 0.00076).toFixed(2)),
+    caloriesBurned: Math.round(safeSteps * 0.04),
+  };
+
+  const cacheKey = `fit_activity_${userId}_${dateStr}`;
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(activityData));
+  } catch {}
+
+  if (db && !userId.startsWith('guest_') && auth?.currentUser) {
+    try {
+      const docRef = doc(db, 'users', userId, 'data', `activity_${dateStr}`);
+      await setDoc(
+        docRef,
+        {
+          ...activityData,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Notice saving steps to Firestore, preserved locally:', err);
+    }
+  }
 };
 
 /* ==================== BODY MAINTENANCE BALANCE (BMB) SCORE ==================== */

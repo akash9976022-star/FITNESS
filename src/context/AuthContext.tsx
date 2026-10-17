@@ -41,8 +41,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!auth) {
+    // 1. Instantly check if there is an active local guest session
+    let localGuest: AppUser | null = null;
+    try {
+      const stored = localStorage.getItem('fit_guest_session');
+      if (stored) {
+        localGuest = JSON.parse(stored);
+      }
+    } catch {}
+
+    if (localGuest && localGuest.uid) {
+      setCurrentUser(localGuest);
       setLoading(false);
+    }
+
+    if (!auth) {
+      if (!localGuest) setLoading(false);
       return;
     }
 
@@ -50,6 +64,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       auth,
       (user: User | null) => {
         if (user) {
+          try {
+            localStorage.removeItem('fit_guest_session');
+          } catch {}
           setCurrentUser({
             uid: user.uid,
             email: user.email,
@@ -62,13 +79,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.warn('Auto-initialize profile on login error:', err);
           });
         } else {
-          setCurrentUser(null);
+          // If no Firebase user, check if we still have an active local guest session
+          let activeGuest: AppUser | null = null;
+          try {
+            const stored = localStorage.getItem('fit_guest_session');
+            if (stored) activeGuest = JSON.parse(stored);
+          } catch {}
+
+          if (activeGuest && activeGuest.uid) {
+            setCurrentUser(activeGuest);
+          } else {
+            setCurrentUser(null);
+          }
         }
         setLoading(false);
       },
       (err) => {
         console.error('Firebase Auth state error:', err);
-        setError(err.message);
+        let activeGuest: AppUser | null = null;
+        try {
+          const stored = localStorage.getItem('fit_guest_session');
+          if (stored) activeGuest = JSON.parse(stored);
+        } catch {}
+
+        if (activeGuest && activeGuest.uid) {
+          setCurrentUser(activeGuest);
+        } else {
+          setError(err.message);
+        }
         setLoading(false);
       }
     );
@@ -146,18 +184,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loginAnonymously = async () => {
     setError(null);
-    if (!auth) {
-      throw new Error('Firebase Auth is not initialized. Please verify your .env credentials.');
-    }
     try {
-      const result = await signInAnonymously(auth);
-      setCurrentUser({
-        uid: result.user.uid,
+      // 1. Try real Firebase anonymous auth first if available
+      if (auth) {
+        try {
+          const result = await signInAnonymously(auth);
+          const firebaseGuestUser: AppUser = {
+            uid: result.user.uid,
+            email: null,
+            displayName: 'Guest Athlete',
+            photoURL: null,
+            isAnonymous: true,
+          };
+          try {
+            localStorage.removeItem('fit_guest_session');
+          } catch {}
+          setCurrentUser(firebaseGuestUser);
+          ensureUserProfileExists(result.user.uid).catch(() => {});
+          return;
+        } catch (firebaseErr: unknown) {
+          console.warn(
+            'Firebase anonymous authentication not enabled in console or network unavailable. Launching instant persistent guest session:',
+            firebaseErr
+          );
+        }
+      }
+
+      // 2. Seamless Instant Guest Session fallback
+      // Ensures the user can ALWAYS log in immediately without being blocked by Firebase config
+      let guestUid = '';
+      try {
+        guestUid = localStorage.getItem('fit_guest_uid') || '';
+      } catch {}
+
+      if (!guestUid) {
+        guestUid = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        try {
+          localStorage.setItem('fit_guest_uid', guestUid);
+        } catch {}
+      }
+
+      const localGuestUser: AppUser = {
+        uid: guestUid,
         email: null,
         displayName: 'Guest Athlete',
         photoURL: null,
         isAnonymous: true,
-      });
+      };
+
+      try {
+        localStorage.setItem('fit_guest_session', JSON.stringify(localGuestUser));
+      } catch {}
+
+      setCurrentUser(localGuestUser);
+      ensureUserProfileExists(guestUid).catch(() => {});
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start guest session';
       setError(message);
@@ -167,6 +247,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     setError(null);
+    try {
+      localStorage.removeItem('fit_guest_session');
+      localStorage.removeItem('fit_guest_uid');
+    } catch {}
     if (auth) {
       try {
         await signOut(auth);

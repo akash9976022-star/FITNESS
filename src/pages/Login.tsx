@@ -288,16 +288,16 @@ export const Login: React.FC = () => {
           <span>Sign In with Google</span>
         </button>
 
-        {/* Real Anonymous Guest Access (Real Firebase UID, Real Firestore sync) */}
+        {/* Instant Guest Access */}
         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={handleGuestSignIn}
             disabled={submitting}
-            className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold text-xs flex items-center justify-center gap-2 transition disabled:opacity-50"
+            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-emerald-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition disabled:opacity-50 active:scale-[0.99] shadow-sm"
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Instant Guest Session (Real Firestore Sync)</span>
+            <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>{submitting ? 'Connecting Guest Session...' : 'Instant Guest Session (Direct App Access)'}</span>
           </button>
         </div>
       </div>
