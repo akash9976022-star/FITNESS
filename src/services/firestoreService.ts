@@ -3979,6 +3979,306 @@ export const dismissRoutineForToday = async (
   });
 };
 
+/* ==================== CUSTOM ROUTINES & DAILY VOICE REMINDERS ==================== */
+
+export type RoutineRepeatFrequency = 'daily' | 'weekdays' | 'weekends';
+
+export interface CustomRoutineItem {
+  id: string;
+  name: string;
+  nameTamil?: string;
+  time: string; // '07:00' (24-hour format HH:mm)
+  voicePrompt?: string; // Optional custom voice prompt, e.g. "{name}, time for your evening meditation!"
+  repeat: RoutineRepeatFrequency; // 'daily' | 'weekdays' | 'weekends'
+  enabled: boolean;
+  category?: string; // 'Wake-Up' | 'Cardio' | 'Workout' | 'Bedtime' | 'Nutrition' | 'Meditation' | 'Hydration' | 'Custom'
+  icon?: string; // e.g. '🌅', '🚶', '🏋️', '🌙', '💧', '🧘', '🥗', '⏰'
+  isDefault?: boolean;
+  lastDismissedDate?: string; // YYYY-MM-DD
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_CUSTOM_ROUTINES: Omit<CustomRoutineItem, 'id' | 'createdAt' | 'updatedAt'>[] = [
+  {
+    name: 'Wake-Up Routine',
+    nameTamil: 'காலை விழிப்பு',
+    time: '06:00',
+    voicePrompt: 'Good morning {name}! It is time to wake up, hydrate, and start your day energized. Have a wonderful and productive day ahead!',
+    repeat: 'daily',
+    enabled: true,
+    category: 'Wake-Up',
+    icon: '🌅',
+    isDefault: true,
+  },
+  {
+    name: 'Morning Walk & Cardio',
+    nameTamil: 'காலை நடைப்பயிற்சி',
+    time: '06:30',
+    voicePrompt: '{name}, it is time for your morning walking and cardio session! Step outside, breathe in the fresh air, and let us get those steps in.',
+    repeat: 'daily',
+    enabled: true,
+    category: 'Cardio',
+    icon: '🚶',
+    isDefault: true,
+  },
+  {
+    name: 'Exercise & Workout',
+    nameTamil: 'உடற்பயிற்சி நேரம்',
+    time: '17:00',
+    voicePrompt: '{name}, it is time for your scheduled exercise and strength training session! Let us get moving, hit your sets, and stay consistent with your fitness goals.',
+    repeat: 'daily',
+    enabled: true,
+    category: 'Workout',
+    icon: '🏋️',
+    isDefault: true,
+  },
+  {
+    name: 'Bedtime & Night Recovery',
+    nameTamil: 'இரவு உறக்கம்',
+    time: '22:00',
+    voicePrompt: 'Good evening {name}. It is time for your bedtime routine. Dim the lights, put away your screens, and enjoy deep, restorative sleep for tomorrow.',
+    repeat: 'daily',
+    enabled: true,
+    category: 'Bedtime',
+    icon: '🌙',
+    isDefault: true,
+  },
+];
+
+/**
+ * Subscribes in real-time to user's custom daily routines stored at users/{userId}/custom_routines
+ * Seeds defaults automatically if collection is empty.
+ */
+export const subscribeCustomRoutines = (
+  userId: string,
+  callback: (routines: CustomRoutineItem[]) => void
+): Unsubscribe => {
+  if (!userId) {
+    callback([]);
+    return () => {};
+  }
+
+  // Load from local storage cache initially for fast render
+  const cacheKey = `fit_custom_routines_${userId}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        callback(parsed);
+      }
+    } catch {
+      // Ignored
+    }
+  }
+
+  if (!db) {
+    if (!cached) {
+      const seedRoutines: CustomRoutineItem[] = DEFAULT_CUSTOM_ROUTINES.map((item, idx) => ({
+        id: `default-${idx + 1}`,
+        ...item,
+      }));
+      callback(seedRoutines);
+    }
+    return () => {};
+  }
+
+  const routinesRef = collection(db, 'users', userId, 'custom_routines');
+  const q = query(routinesRef, orderBy('time', 'asc'));
+
+  return onSnapshot(
+    q,
+    async (snapshot) => {
+      if (snapshot.empty) {
+        // If collection is completely empty, automatically seed baseline defaults
+        const seedRoutines: CustomRoutineItem[] = [];
+        for (let i = 0; i < DEFAULT_CUSTOM_ROUTINES.length; i++) {
+          const item = DEFAULT_CUSTOM_ROUTINES[i];
+          try {
+            const docRef = await addDoc(routinesRef, {
+              ...item,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+            seedRoutines.push({
+              id: docRef.id,
+              ...item,
+            });
+          } catch (e) {
+            console.warn('Seeding routine notice:', e);
+            seedRoutines.push({
+              id: `default-${i + 1}`,
+              ...item,
+            });
+          }
+        }
+        localStorage.setItem(cacheKey, JSON.stringify(seedRoutines));
+        callback(seedRoutines);
+      } else {
+        const items: CustomRoutineItem[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<CustomRoutineItem, 'id'>),
+        }));
+        // Ensure sorted by time
+        items.sort((a, b) => a.time.localeCompare(b.time));
+        localStorage.setItem(cacheKey, JSON.stringify(items));
+        callback(items);
+      }
+    },
+    (err) => {
+      console.warn('Custom routines snapshot error/offline:', err);
+      const fallback = localStorage.getItem(cacheKey);
+      if (fallback) {
+        try {
+          callback(JSON.parse(fallback));
+          return;
+        } catch {
+          // Ignored
+        }
+      }
+      callback(DEFAULT_CUSTOM_ROUTINES.map((item, idx) => ({ id: `default-${idx + 1}`, ...item })));
+    }
+  );
+};
+
+/**
+ * Adds a new custom routine to users/{userId}/custom_routines
+ */
+export const addCustomRoutine = async (
+  userId: string,
+  routine: Omit<CustomRoutineItem, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string | null> => {
+  if (!userId) return null;
+
+  const cacheKey = `fit_custom_routines_${userId}`;
+  const newId = `routine_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const newItem: CustomRoutineItem = {
+    id: newId,
+    ...routine,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Optimistic local cache update
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    const list: CustomRoutineItem[] = cached ? JSON.parse(cached) : [];
+    list.push(newItem);
+    list.sort((a, b) => a.time.localeCompare(b.time));
+    localStorage.setItem(cacheKey, JSON.stringify(list));
+  } catch {
+    // Ignored
+  }
+
+  if (db) {
+    try {
+      const routinesRef = collection(db, 'users', userId, 'custom_routines');
+      const docRef = await addDoc(routinesRef, {
+        ...routine,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return docRef.id;
+    } catch (err) {
+      console.warn('Error adding custom routine to Firestore:', err);
+    }
+  }
+
+  return newId;
+};
+
+/**
+ * Updates an existing custom routine in users/{userId}/custom_routines
+ */
+export const updateCustomRoutine = async (
+  userId: string,
+  routineId: string,
+  updates: Partial<CustomRoutineItem>
+): Promise<void> => {
+  if (!userId || !routineId) return;
+
+  const cacheKey = `fit_custom_routines_${userId}`;
+
+  // Optimistic cache update
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const list: CustomRoutineItem[] = JSON.parse(cached);
+      const updatedList = list.map((item) =>
+        item.id === routineId ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item
+      );
+      updatedList.sort((a, b) => a.time.localeCompare(b.time));
+      localStorage.setItem(cacheKey, JSON.stringify(updatedList));
+    }
+  } catch {
+    // Ignored
+  }
+
+  if (db) {
+    try {
+      const routineDocRef = doc(db, 'users', userId, 'custom_routines', routineId);
+      await setDoc(
+        routineDocRef,
+        {
+          ...updates,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error updating custom routine in Firestore:', err);
+    }
+  }
+};
+
+/**
+ * Permanently deletes a custom routine from users/{userId}/custom_routines
+ */
+export const deleteCustomRoutine = async (
+  userId: string,
+  routineId: string
+): Promise<void> => {
+  if (!userId || !routineId) return;
+
+  const cacheKey = `fit_custom_routines_${userId}`;
+
+  // Optimistic cache update
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const list: CustomRoutineItem[] = JSON.parse(cached);
+      const updatedList = list.filter((item) => item.id !== routineId);
+      localStorage.setItem(cacheKey, JSON.stringify(updatedList));
+    }
+  } catch {
+    // Ignored
+  }
+
+  if (db) {
+    try {
+      const routineDocRef = doc(db, 'users', userId, 'custom_routines', routineId);
+      await deleteDoc(routineDocRef);
+    } catch (err) {
+      console.warn('Error deleting custom routine from Firestore:', err);
+    }
+  }
+};
+
+/**
+ * Marks a custom routine as dismissed for today so it does not re-trigger in the same minute
+ */
+export const dismissCustomRoutineForToday = async (
+  userId: string,
+  routineId: string,
+  dateStr = getTodayDateString()
+): Promise<void> => {
+  await updateCustomRoutine(userId, routineId, {
+    lastDismissedDate: dateStr,
+  });
+};
+
+
 
 
 

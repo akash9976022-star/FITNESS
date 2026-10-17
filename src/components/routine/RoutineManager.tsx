@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribeRoutineSettings,
+  subscribeCustomRoutines,
   subscribeUserProfile,
-  dismissRoutineForToday,
+  dismissCustomRoutineForToday,
   type UserRoutineSettings,
+  type CustomRoutineItem,
   type UserProfile,
   DEFAULT_ROUTINE_SETTINGS,
 } from '../../services/firestoreService';
@@ -13,22 +15,27 @@ import {
   speakRoutineVoiceReminder,
   stopRoutineSpeech,
   initUserGestureAudioUnlock,
+  isRoutineActiveToday,
 } from '../../utils/routineVoiceEngine';
 import RoutineReminderModal from './RoutineReminderModal';
 
 export const RoutineManager: React.FC = () => {
   const { currentUser } = useAuth();
   const [settings, setSettings] = useState<UserRoutineSettings>(DEFAULT_ROUTINE_SETTINGS);
+  const [customRoutines, setCustomRoutines] = useState<CustomRoutineItem[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Active Reminder Modal State
-  const [activeRoutine, setActiveRoutine] = useState<RoutineType | null>(null);
-  const activeRoutineRef = useRef<RoutineType | null>(null);
+  const [activeRoutine, setActiveRoutine] = useState<CustomRoutineItem | RoutineType | null>(null);
+  const activeRoutineRef = useRef<CustomRoutineItem | RoutineType | null>(null);
   activeRoutineRef.current = activeRoutine;
 
-  // Track latest settings in ref to avoid stale closures in setInterval
+  // Track latest settings & custom routines in refs to avoid stale closures in setInterval
   const settingsRef = useRef<UserRoutineSettings>(settings);
   settingsRef.current = settings;
+
+  const customRoutinesRef = useRef<CustomRoutineItem[]>(customRoutines);
+  customRoutinesRef.current = customRoutines;
 
   const userName = userProfile?.age
     ? currentUser?.displayName || 'Akash'
@@ -40,12 +47,16 @@ export const RoutineManager: React.FC = () => {
     return cleanup;
   }, []);
 
-  // 2. Subscribe in real-time to user's routine settings & profile
+  // 2. Subscribe in real-time to user's routine settings, custom routines & profile
   useEffect(() => {
     if (!currentUser?.uid) return;
 
     const unsubSettings = subscribeRoutineSettings(currentUser.uid, (data) => {
       setSettings(data);
+    });
+
+    const unsubCustom = subscribeCustomRoutines(currentUser.uid, (routines) => {
+      setCustomRoutines(routines);
     });
 
     const unsubProfile = subscribeUserProfile(currentUser.uid, (p) => {
@@ -54,6 +65,7 @@ export const RoutineManager: React.FC = () => {
 
     return () => {
       unsubSettings();
+      unsubCustom();
       unsubProfile();
     };
   }, [currentUser?.uid]);
@@ -61,12 +73,12 @@ export const RoutineManager: React.FC = () => {
   // 3. Global Event Listener for Manual Test Triggers
   useEffect(() => {
     const handleTestTrigger = (event: Event) => {
-      const customEvent = event as CustomEvent<{ routineType?: RoutineType }>;
-      const targetType = customEvent.detail?.routineType || 'walking';
+      const customEvent = event as CustomEvent<{ routine?: CustomRoutineItem; routineType?: RoutineType }>;
+      const targetRoutine = customEvent.detail?.routine || customEvent.detail?.routineType || 'walking';
 
-      setActiveRoutine(targetType);
+      setActiveRoutine(targetRoutine);
       if (settingsRef.current.voiceRemindersEnabled) {
-        speakRoutineVoiceReminder(targetType, userName, {
+        speakRoutineVoiceReminder(targetRoutine, userName, {
           rate: settingsRef.current.voiceRate,
           playChimeFirst: true,
         });
@@ -85,35 +97,33 @@ export const RoutineManager: React.FC = () => {
       if (activeRoutineRef.current !== null) return; // Modal already active
 
       const currentSettings = settingsRef.current;
+      const routines = customRoutinesRef.current;
       const now = new Date();
       const currentHours = String(now.getHours()).padStart(2, '0');
       const currentMinutes = String(now.getMinutes()).padStart(2, '0');
       const currentTime = `${currentHours}:${currentMinutes}`;
       const todayStr = now.toISOString().split('T')[0];
 
-      const routinesToCheck: RoutineType[] = ['wakeUp', 'walking', 'workout', 'bedtime'];
+      for (const item of routines) {
+        if (!item.enabled) continue;
 
-      for (const key of routinesToCheck) {
-        const item = currentSettings[key];
-        if (!item || !item.enabled) continue;
+        // Check repeat day matching (daily, weekdays, weekends)
+        if (!isRoutineActiveToday(item.repeat, now)) continue;
 
-        // Check if current time matches scheduled time
+        // Check if current time matches scheduled time (HH:mm)
         if (item.time === currentTime) {
-          const dismissedDates = currentSettings.lastDismissedDate || {};
-          const lastDismissed = dismissedDates[key];
-
           // Fire only if not already dismissed today
-          if (lastDismissed !== todayStr) {
-            setActiveRoutine(key);
+          if (item.lastDismissedDate !== todayStr) {
+            setActiveRoutine(item);
 
             // Mark as dismissed for today so it doesn't repeat within the same minute
             if (currentUser?.uid) {
-              dismissRoutineForToday(currentUser.uid, key, todayStr);
+              dismissCustomRoutineForToday(currentUser.uid, item.id, todayStr);
             }
 
             // Speak natural voice reminder
             if (currentSettings.voiceRemindersEnabled) {
-              speakRoutineVoiceReminder(key, userName, {
+              speakRoutineVoiceReminder(item, userName, {
                 rate: currentSettings.voiceRate,
                 playChimeFirst: true,
               });
@@ -144,7 +154,7 @@ export const RoutineManager: React.FC = () => {
       {activeRoutine && (
         <RoutineReminderModal
           isOpen={Boolean(activeRoutine)}
-          routineType={activeRoutine}
+          routine={activeRoutine}
           userName={userName}
           voiceRate={settings.voiceRate}
           onDismiss={handleDismiss}
@@ -156,4 +166,5 @@ export const RoutineManager: React.FC = () => {
 };
 
 export default RoutineManager;
+
 

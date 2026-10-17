@@ -109,6 +109,57 @@ export function playHarmonicChime(): Promise<void> {
   });
 }
 
+export interface RoutineVoiceTarget {
+  name: string;
+  voicePrompt?: string;
+  icon?: string;
+  category?: string;
+  titleTamil?: string;
+}
+
+/**
+ * Constructs a human-like, personalized voice phrase for any routine (built-in or custom)
+ */
+export function buildSpokenPhrase(
+  routine: RoutineType | RoutineVoiceTarget,
+  userName = 'Athlete'
+): string {
+  const cleanedName = (userName || 'Athlete').trim().split(' ')[0];
+
+  if (typeof routine === 'string') {
+    const def = ROUTINE_DEFINITIONS[routine] || ROUTINE_DEFINITIONS.wakeUp;
+    return def.phrase(cleanedName);
+  }
+
+  if (routine.voicePrompt && routine.voicePrompt.trim().length > 0) {
+    const prompt = routine.voicePrompt.trim();
+    if (/{name}/i.test(prompt)) {
+      return prompt.replace(/{name}/gi, cleanedName);
+    }
+    return `${cleanedName}, ${prompt}`;
+  }
+
+  return `Good day ${cleanedName}! It is time for your scheduled ${routine.name}. Let's stay consistent and make great progress today!`;
+}
+
+/**
+ * Checks whether a given repeat frequency ('daily' | 'weekdays' | 'weekends') is active on a specific date
+ */
+export function isRoutineActiveToday(
+  repeat: 'daily' | 'weekdays' | 'weekends',
+  date: Date = new Date()
+): boolean {
+  if (repeat === 'daily') return true;
+  const day = date.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  if (repeat === 'weekdays') {
+    return day >= 1 && day <= 5;
+  }
+  if (repeat === 'weekends') {
+    return day === 0 || day === 6;
+  }
+  return true;
+}
+
 /**
  * Discovers and selects the most natural, relaxed human-sounding English voice available
  */
@@ -135,10 +186,10 @@ export function getBestNaturalVoice(): SpeechSynthesisVoice | null {
 }
 
 /**
- * Speaks a natural, personalized voice reminder for the specified routine type
+ * Speaks a natural, personalized voice reminder for the specified routine type or custom routine
  */
 export async function speakRoutineVoiceReminder(
-  routineType: RoutineType,
+  routine: RoutineType | RoutineVoiceTarget,
   userName = 'Athlete',
   options: {
     rate?: number;
@@ -161,9 +212,7 @@ export async function speakRoutineVoiceReminder(
     await playHarmonicChime();
   }
 
-  const routineDef = ROUTINE_DEFINITIONS[routineType];
-  const cleanedName = (userName || 'Athlete').trim().split(' ')[0]; // Friendly first name
-  const textToSpeak = routineDef.phrase(cleanedName);
+  const textToSpeak = buildSpokenPhrase(routine, userName);
 
   const utterance = new SpeechSynthesisUtterance(textToSpeak);
   utterance.rate = options.rate ?? 0.95; // Relaxed natural cadence

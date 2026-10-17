@@ -16,11 +16,15 @@ import {
   ROUTINE_DEFINITIONS,
   speakRoutineVoiceReminder,
   stopRoutineSpeech,
+  buildSpokenPhrase,
 } from '../../utils/routineVoiceEngine';
+import type { CustomRoutineItem } from '../../services/firestoreService';
 
 interface RoutineReminderModalProps {
   isOpen: boolean;
-  routineType: RoutineType;
+  routineType?: RoutineType;
+  customRoutine?: CustomRoutineItem | null;
+  routine?: RoutineType | CustomRoutineItem | null;
   userName?: string;
   voiceRate?: number;
   onDismiss: () => void;
@@ -30,6 +34,8 @@ interface RoutineReminderModalProps {
 export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   isOpen,
   routineType,
+  customRoutine,
+  routine,
   userName = 'Athlete',
   voiceRate = 0.95,
   onDismiss,
@@ -38,13 +44,32 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   const navigate = useNavigate();
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const def = ROUTINE_DEFINITIONS[routineType] || ROUTINE_DEFINITIONS.wakeUp;
+  const resolvedRoutine = routine || customRoutine || routineType || 'wakeUp';
+  const isCustom = typeof resolvedRoutine === 'object' && resolvedRoutine !== null;
+  const activeCustom = isCustom ? (resolvedRoutine as CustomRoutineItem) : null;
+
+  const activeType: RoutineType = !isCustom
+    ? (resolvedRoutine as RoutineType)
+    : (activeCustom?.category?.toLowerCase().includes('walk') || activeCustom?.name?.toLowerCase().includes('walk')
+        ? 'walking'
+        : activeCustom?.category?.toLowerCase().includes('workout') || activeCustom?.name?.toLowerCase().includes('workout')
+        ? 'workout'
+        : activeCustom?.category?.toLowerCase().includes('bed') || activeCustom?.name?.toLowerCase().includes('bed')
+        ? 'bedtime'
+        : 'wakeUp');
+
+  const def = ROUTINE_DEFINITIONS[activeType] || ROUTINE_DEFINITIONS.wakeUp;
   const firstName = (userName || 'Athlete').trim().split(' ')[0];
+
+  const title = activeCustom?.name || def.title;
+  const titleTamil = activeCustom?.nameTamil || (activeCustom ? `${activeCustom.category || 'Routine'} Alert` : def.titleTamil);
+  const displayEmoji = activeCustom?.icon || def.icon;
+  const spokenQuote = buildSpokenPhrase(resolvedRoutine, firstName);
 
   // Replay speech handler
   const handleReplayVoice = () => {
     setIsSpeaking(true);
-    speakRoutineVoiceReminder(routineType, firstName, {
+    speakRoutineVoiceReminder(resolvedRoutine, firstName, {
       rate: voiceRate,
       playChimeFirst: false,
       onStart: () => setIsSpeaking(true),
@@ -62,9 +87,9 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
     onAcknowledge?.();
     onDismiss();
 
-    if (routineType === 'workout') {
+    if (activeType === 'workout' || activeCustom?.name?.toLowerCase().includes('workout')) {
       navigate('/workouts');
-    } else if (routineType === 'walking') {
+    } else if (activeType === 'walking' || activeCustom?.name?.toLowerCase().includes('walk')) {
       navigate('/');
     }
   };
@@ -86,45 +111,62 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
 
   // Type-specific icon and theme colors
   const getThemeDetails = () => {
-    switch (routineType) {
-      case 'wakeUp':
-        return {
-          icon: Sun,
-          gradient: 'from-amber-500 via-orange-500 to-amber-600',
-          badgeBg: 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/30',
-          ringGlow: 'shadow-[0_0_50px_rgba(245,158,11,0.25)]',
-          primaryBtn: 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white',
-          btnText: "I'm Awake & Ready",
-        };
-      case 'walking':
-        return {
-          icon: Footprints,
-          gradient: 'from-emerald-500 via-teal-500 to-emerald-600',
-          badgeBg: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30',
-          ringGlow: 'shadow-[0_0_50px_rgba(16,185,129,0.25)]',
-          primaryBtn: 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white',
-          btnText: 'Start Walking & Steps Tracker',
-        };
-      case 'workout':
-        return {
-          icon: Dumbbell,
-          gradient: 'from-indigo-500 via-purple-500 to-blue-600',
-          badgeBg: 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-500/30',
-          ringGlow: 'shadow-[0_0_50px_rgba(147,51,234,0.25)]',
-          primaryBtn: 'bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white',
-          btnText: 'Open Workout Dashboard',
-        };
-      case 'bedtime':
-      default:
-        return {
-          icon: Moon,
-          gradient: 'from-indigo-600 via-slate-700 to-indigo-900',
-          badgeBg: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-500/30',
-          ringGlow: 'shadow-[0_0_50px_rgba(99,102,241,0.25)]',
-          primaryBtn: 'bg-gradient-to-r from-indigo-700 to-slate-800 hover:from-indigo-800 hover:to-slate-900 text-white',
-          btnText: 'Wind Down & Good Night',
-        };
+    const lowerName = (activeCustom?.name || activeType).toLowerCase();
+    const lowerCat = (activeCustom?.category || '').toLowerCase();
+
+    if (activeType === 'wakeUp' || lowerName.includes('wake') || lowerCat.includes('wake')) {
+      return {
+        icon: Sun,
+        gradient: 'from-amber-500 via-orange-500 to-amber-600',
+        badgeBg: 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/30',
+        ringGlow: 'shadow-[0_0_50px_rgba(245,158,11,0.25)]',
+        primaryBtn: 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white',
+        btnText: "I'm Awake & Ready",
+      };
     }
+
+    if (activeType === 'walking' || lowerName.includes('walk') || lowerName.includes('cardio') || lowerCat.includes('cardio')) {
+      return {
+        icon: Footprints,
+        gradient: 'from-emerald-500 via-teal-500 to-emerald-600',
+        badgeBg: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30',
+        ringGlow: 'shadow-[0_0_50px_rgba(16,185,129,0.25)]',
+        primaryBtn: 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white',
+        btnText: 'Start Walking & Steps Tracker',
+      };
+    }
+
+    if (activeType === 'workout' || lowerName.includes('workout') || lowerName.includes('exercise') || lowerCat.includes('workout')) {
+      return {
+        icon: Dumbbell,
+        gradient: 'from-indigo-500 via-purple-500 to-blue-600',
+        badgeBg: 'bg-purple-100 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-500/30',
+        ringGlow: 'shadow-[0_0_50px_rgba(147,51,234,0.25)]',
+        primaryBtn: 'bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white',
+        btnText: 'Open Workout Dashboard',
+      };
+    }
+
+    if (activeType === 'bedtime' || lowerName.includes('bed') || lowerName.includes('sleep') || lowerCat.includes('bed')) {
+      return {
+        icon: Moon,
+        gradient: 'from-indigo-600 via-slate-700 to-indigo-900',
+        badgeBg: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-500/30',
+        ringGlow: 'shadow-[0_0_50px_rgba(99,102,241,0.25)]',
+        primaryBtn: 'bg-gradient-to-r from-indigo-700 to-slate-800 hover:from-indigo-800 hover:to-slate-900 text-white',
+        btnText: 'Wind Down & Good Night',
+      };
+    }
+
+    // Default custom routine theme
+    return {
+      icon: Sparkles,
+      gradient: 'from-teal-500 via-emerald-600 to-cyan-600',
+      badgeBg: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30',
+      ringGlow: 'shadow-[0_0_50px_rgba(20,184,166,0.25)]',
+      primaryBtn: 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white',
+      btnText: `Start ${activeCustom?.name || 'Routine'}`,
+    };
   };
 
   const theme = getThemeDetails();
@@ -160,7 +202,7 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
                 <IconComponent className="w-10 h-10" />
               </div>
               <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-white dark:bg-slate-900 shadow-md">
-                <span className="text-lg">{def.icon}</span>
+                <span className="text-lg">{displayEmoji}</span>
               </div>
             </div>
           </div>
@@ -169,11 +211,11 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border shadow-xs">
               <span className={`px-2 py-0.5 rounded-full ${theme.badgeBg}`}>
-                {def.titleTamil}
+                {titleTamil}
               </span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight pt-1">
-              {def.title}
+              {title}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Personalized Natural Voice Schedule Alert
@@ -197,7 +239,7 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
             </div>
 
             <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed italic">
-              "{def.phrase(firstName)}"
+              "{spokenQuote}"
             </p>
 
             {/* Replay / Audio Controls */}
