@@ -138,25 +138,25 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   const activeSection = sections[activeSectionIndex] || sections[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col my-6 transition-colors duration-200">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center min-h-screen">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[88vh] transition-colors duration-200">
         {/* ================= MODAL HEADER ================= */}
-        <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between">
+        <div className="flex-shrink-0 px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/20">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/20 flex-shrink-0">
               <Sparkles className="w-5 h-5 text-slate-950" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
+                <h3 className="font-extrabold text-sm sm:text-base md:text-lg text-slate-900 dark:text-white leading-tight">
                   Morning Awakening & Voice Briefing
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
                   EN ➔ தமிழ்
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Dual-language oral briefing with ambient music & continuous devotional playback
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                Bilingual oral briefing: English (Greeting, Nutrients & Quote) ➔ தமிழ் (முழுமையான வழிகாட்டல்)
               </p>
             </div>
           </div>
@@ -164,7 +164,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
           <button
             type="button"
             onClick={handleClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition flex-shrink-0"
             title="Close briefing"
           >
             <X className="w-5 h-5" />
@@ -172,11 +172,11 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
         </div>
 
         {/* ================= TAB NAVIGATION ================= */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pt-2">
+        <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 sm:px-6 pt-1 sm:pt-2">
           <button
             type="button"
             onClick={() => setActiveTab('briefing')}
-            className={`py-3 px-4 font-bold text-xs sm:text-sm border-b-2 flex items-center gap-2 transition ${
+            className={`py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 flex items-center gap-2 transition ${
               activeTab === 'briefing'
                 ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
                 : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
@@ -197,7 +197,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                 devotionalPlayer.playTrack(0, volume);
               }
             }}
-            className={`py-3 px-4 font-bold text-xs sm:text-sm border-b-2 flex items-center gap-2 transition ${
+            className={`py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 flex items-center gap-2 transition ${
               activeTab === 'devotionals'
                 ? 'border-amber-500 text-amber-600 dark:text-amber-400'
                 : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
@@ -211,8 +211,8 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
           </button>
         </div>
 
-        {/* ================= TAB CONTENT ================= */}
-        <div className="p-5 sm:p-6 space-y-6">
+        {/* ================= TAB CONTENT (SCROLLABLE BODY) ================= */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5">
           {activeTab === 'briefing' ? (
             <div className="space-y-5">
               {/* Pillar Step Progression */}
@@ -225,18 +225,18 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                       key={sec.id}
                       className={`p-2 rounded-xl text-center border transition ${
                         isCurrent
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-400 font-bold shadow-sm'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-400 font-bold shadow-sm ring-1 ring-emerald-500/30'
                           : isPast
                           ? 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-500'
                           : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        {sec.category === 'greeting' && <Sparkles className="w-3.5 h-3.5" />}
-                        {sec.category === 'panchangam' && <Flame className="w-3.5 h-3.5" />}
-                        {sec.category === 'rasipalan' && <Compass className="w-3.5 h-3.5" />}
-                        {sec.category === 'fitness' && <Dumbbell className="w-3.5 h-3.5" />}
-                        {sec.category === 'quote' && <Heart className="w-3.5 h-3.5" />}
+                        {sec.category === 'greeting' && <Sparkles className="w-3.5 h-3.5 text-emerald-500" />}
+                        {sec.category === 'fitness' && <Dumbbell className="w-3.5 h-3.5 text-cyan-500" />}
+                        {sec.category === 'quote' && <Heart className="w-3.5 h-3.5 text-rose-500" />}
+                        {sec.category === 'panchangam' && <Flame className="w-3.5 h-3.5 text-amber-500" />}
+                        {sec.category === 'rasipalan' && <Compass className="w-3.5 h-3.5 text-purple-500" />}
                         <span className="text-[10px] font-bold">Pillar {idx + 1}</span>
                       </div>
                       <p className="text-[9px] sm:text-[10px] truncate">{sec.titleEn.split(' ')[0]}</p>
@@ -247,7 +247,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
 
               {/* Live Speech Voice Indicator & Subtitles Card */}
               {activeSection && (
-                <div className="p-5 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm relative overflow-hidden">
+                <div className="p-4 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm relative overflow-hidden">
                   {/* Segment Phase Notification Banner */}
                   <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
                     <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                         {activeSegment === 'english' && (
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         )}
-                        Phase 1: English (Greeting & Quote)
+                        Phase 1: English (Greeting, Nutrients & Quote)
                       </span>
 
                       <span
@@ -274,14 +274,14 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                         {activeSegment === 'tamil' && (
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         )}
-                        Phase 2: தமிழ் வழிகாட்டல் (Core Details)
+                        Phase 2: தமிழ் ஒலிபரப்பு (அனைத்து வழிகாட்டல்கள்)
                       </span>
                     </div>
 
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       {activeLanguage === 'en'
-                        ? 'Natural English (en-IN / en-US)'
-                        : 'இயற்கையான தமிழ் குரல் (ta-IN)'}
+                        ? 'Natural English (Conversational 0.94x)'
+                        : 'இயற்கையான தாய்மொழி தமிழ் (Native Tamil 0.88x)'}
                     </span>
                   </div>
 
@@ -306,7 +306,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                         <span className="text-emerald-600 dark:text-emerald-400 font-black">
                           {activeLanguage === 'en'
                             ? 'English Segment (1st)'
-                            : 'தமிழ் வழிகாட்டல் (2nd)'}
+                            : 'தமிழ் ஒலிபரப்பு (2nd)'}
                         </span>
                       </span>
                     </div>
@@ -340,7 +340,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400">
-                        <span>தமிழ் நேரடி மொழிபெயர்ப்பு & விவரம்</span>
+                        <span>தமிழ் நேரடி உரை & வழிகாட்டல்</span>
                         {activeLanguage === 'ta' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />}
                       </div>
                       <p className="text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
@@ -352,7 +352,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                   {/* Pure Speech Notice */}
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
                     <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Pure voice briefing audio • Clear speech synthesis (No background music).</span>
+                    <span>Pure voice briefing audio • Clear speech synthesis with natural human pacing.</span>
                   </div>
                 </div>
               )}
@@ -566,16 +566,16 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
         </div>
 
         {/* ================= MODAL FOOTER ================= */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+        <div className="flex-shrink-0 px-4 py-3 sm:px-6 sm:py-3.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            <span>Ready for training • Consistency ensures body maintenance success</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+            <span className="line-clamp-1">Ready for training • Consistency ensures body maintenance success</span>
           </div>
 
           <button
             type="button"
             onClick={handleClose}
-            className="px-5 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold transition shadow"
+            className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold transition shadow flex-shrink-0"
           >
             Done & Enter Dashboard
           </button>

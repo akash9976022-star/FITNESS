@@ -227,3 +227,4 @@ export function initUserGestureAudioUnlock(): () => void {
     window.removeEventListener('keydown', handleInteraction);
   };
 }
+

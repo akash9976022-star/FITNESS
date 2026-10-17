@@ -130,6 +130,7 @@ export const AlarmManager: React.FC = () => {
       userRasiId: alarmSettings.selectedRasi || 'mesham',
       maintenanceCalories: userProfile?.calculatedTdee || 2200,
       targetWeightKg: userProfile?.targetWeightKg || 70,
+      targetProteinGrams: Math.round((userProfile?.currentWeightKg || userProfile?.targetWeightKg || 70) * 2),
     });
   }, [currentUser, userProfile, today, tamilDateInfo, alarmSettings.selectedRasi]);
 

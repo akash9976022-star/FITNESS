@@ -245,12 +245,13 @@ interface BriefingParams {
   userRasiId?: string;
   maintenanceCalories?: number;
   targetWeightKg?: number;
+  targetProteinGrams?: number;
   customFastingNotes?: string;
 }
 
 /**
  * Builds the comprehensive 5-pillar morning briefing with every single section
- * translated completely into authentic Tamil alongside English.
+ * translated completely into authentic native Tamil alongside natural English.
  */
 export const buildMorningBriefingContent = ({
   userName = 'Athlete',
@@ -259,6 +260,7 @@ export const buildMorningBriefingContent = ({
   userRasiId = 'mesham',
   maintenanceCalories = 2200,
   targetWeightKg = 70,
+  targetProteinGrams,
   customFastingNotes,
 }: BriefingParams): BriefingSection[] => {
   const { panchangam, festivals, tamilMonthName, tamilDate, tamilYearName } = tamilDateInfo;
@@ -277,17 +279,59 @@ export const buildMorningBriefingContent = ({
   const dateStrEn = `${dayOfWeekEn}, ${monthNamesEn[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   const dateStrTa = `${tamilYearName} வருடம், ${tamilMonthName} மாதம் ${tamilDate} ஆம் நாள், ${dayOfWeekTa}`;
 
-  // Section 1: Greeting & Date
+  // Calculated Nutrition Macros
+  const calories = Math.round(maintenanceCalories || 2200);
+  const proteinGrams = targetProteinGrams || Math.round((targetWeightKg || 70) * 2);
+  const carbsGrams = Math.round((calories * 0.45) / 4);
+  const fatsGrams = Math.round((calories * 0.25) / 9);
+
+  // Section 1: Greeting & Calendar Date
   const section1: BriefingSection = {
     id: 'section-1-greeting',
     category: 'greeting',
     titleEn: 'Morning Greeting & Calendar',
     titleTa: 'காலை வணக்கம் & தமிழ் நாட்காட்டி',
-    textEn: `Good morning, ${userName}! Today is ${dateStrEn}. In the traditional Tamil solar calendar, today is ${dateStrTa}. May your day begin with clarity, peace, and boundless vitality.`,
-    textTa: `இனிய காலை வணக்கம் ${userName}! இன்று ஆங்கிலத் தேதி ${date.getDate()} ${monthNamesEn[date.getMonth()]}. தமிழ் பாரம்பரிய நாட்காட்டியின்படி இன்று ${dateStrTa}. உங்கள் நாள் புத்துணர்ச்சியுடனும், அமைதியுடனும், சிறந்த ஆற்றலுடனும் தொடங்க வாழ்த்துகள்.`,
+    textEn: `Good morning, ${userName}! Today is ${dateStrEn}. In the traditional Tamil solar calendar, today is ${dateStrTa}. May your day begin with clear focus, peace, and boundless vitality.`,
+    textTa: `வணக்கம் ${userName}, உங்கள் காலைப் பொழுது இனிதாக அமையட்டும். இன்று ஆங்கிலத் தேதி ${date.getDate()} ${monthNamesEn[date.getMonth()]}. தமிழ் பாரம்பரிய நாட்காட்டியின்படி இன்று ${dateStrTa}. உங்கள் நாள் புத்துணர்ச்சியுடனும், அமைதியுடனும், சிறந்த ஆற்றலுடனும் தொடங்க வாழ்த்துகள்.`,
   };
 
-  // Section 2: Panchangam & Fasting
+  // Section 2: Fitness & Nutrition Targets (Today's Nutrients)
+  const section2: BriefingSection = {
+    id: 'section-2-fitness',
+    category: 'fitness',
+    titleEn: 'Daily Nutrients & Fitness Targets',
+    titleTa: 'இன்றைய ஊட்டச்சத்து & உடற்பயிற்சி',
+    textEn: `Here is your daily nutrition and fitness target: Aim for ${calories} kilocalories today, with a target of ${proteinGrams} grams of protein, ${carbsGrams} grams of carbohydrates, and ${fatsGrams} grams of healthy fats. Remember to stay well hydrated with at least 3 liters of water. Working towards your target weight of ${targetWeightKg} kilograms requires daily consistency, discipline, and hitting your protein split. Your routine is loaded and ready.`,
+    textTa: `இன்றைய ஊட்டச்சத்து மற்றும் உடற்பயிற்சி வழிகாட்டல்: உங்கள் தினசரி உடல் பராமரிப்பு கலோரி அளவு ${calories} கலோரிகள் ஆகும். இன்று ${proteinGrams} கிராம் புரதச்சத்து, ${carbsGrams} கிராம் மாவுச்சத்து, மற்றும் ${fatsGrams} கிராம் ஆரோக்கியமான கொழுப்பு உட்கொள்ள இலக்கு வையுங்கள். குறைந்தது மூன்று லிட்டர் தண்ணீர் அருந்தி, உங்கள் உடற்பயிற்சி அட்டவணையை தவறாமல் பின்பற்றி உடலை கட்டுக்கோப்பாக வைத்துக் கொள்ளுங்கள்.`,
+  };
+
+  // Section 3: Motivational Quote of the Day
+  const quotes = [
+    {
+      en: 'Thought for the day: Consistency and discipline forge the unbreakable athlete. Rise with conviction, conquer your training, and honor your vessel.',
+      ta: 'இன்றைய சிந்தனை மற்றும் ஊக்கமளிக்கும் பொன்மொழி: தினசரி ஒழுக்கமும் பயிற்சியுமே வெல்ல முடியாத உடலையும், அசைக்க முடியாத மன உறுதியையும் உருவாக்கும். எழுந்து சாதிப்போம்!',
+    },
+    {
+      en: 'Thought for the day: Small daily disciplines accumulated over time lead to miraculous transformations. You hold the power today.',
+      ta: 'இன்றைய சிந்தனை மற்றும் ஊக்கமளிக்கும் பொன்மொழி: சிறு துளி பெருவெள்ளம் போல, தினசரி செய்யும் ஒழுக்கமான பயிற்சியே அற்புத மாற்றத்திற்கு வித்திடும். இந்த நாளை வென்றிடுங்கள்!',
+    },
+    {
+      en: 'Thought for the day: What hurts today makes you stronger tomorrow. Step onto the floor with courage and passion.',
+      ta: 'இன்றைய சிந்தனை மற்றும் ஊக்கமளிக்கும் பொன்மொழி: இன்று நீங்கள் செய்யும் அர்ப்பணிப்பான உடற்பயிற்சியே நாளைய வலிமையாக மாறும். தன்னம்பிக்கையுடன் இந்த நாளை தொடங்குங்கள்!',
+    },
+  ];
+  const selectedQuote = quotes[date.getDate() % quotes.length];
+
+  const section3: BriefingSection = {
+    id: 'section-3-quote',
+    category: 'quote',
+    titleEn: 'Thought of the Day & Motivation',
+    titleTa: 'இன்றைய சிந்தனை & பொன்மொழி',
+    textEn: selectedQuote.en,
+    textTa: selectedQuote.ta,
+  };
+
+  // Section 4: Panchangam & Auspicious Timings
   const nallaNeramStrEn = panchangam.nallaNeramMorning !== 'None'
     ? `${panchangam.nallaNeramMorning} in the morning`
     : panchangam.nallaNeramEvening;
@@ -300,16 +344,16 @@ export const buildMorningBriefingContent = ({
     ? `இன்று ${primaryFestival.nameTamil} திருநாள் கொண்டாடப்படுகிறது. ${primaryFestival.significanceTamil}`
     : (customFastingNotes || 'இன்று சிறப்பு விரதங்கள் இல்லை. உங்கள் வழக்கமான சத்தான உணவை உட்கொள்ளலாம்.');
 
-  const section2: BriefingSection = {
-    id: 'section-2-panchangam',
+  const section4: BriefingSection = {
+    id: 'section-4-panchangam',
     category: 'panchangam',
     titleEn: 'Panchangam & Auspicious Timings',
     titleTa: 'பஞ்சாங்கம் & நல்ல நேர வழிகாட்டுதல்',
     textEn: `Today's traditional Panchangam: The prevailing Thithi is ${panchangam.thithi.nameEnglish}, with ${panchangam.nakshatram.nameEnglish} Nakshatram and ${panchangam.yogam.nameEnglish} Yogam. Auspicious Nalla Neram is ${nallaNeramStrEn}. Inauspicious Ragukalam is observed at ${ragukalamStrEn}. ${festivalMentionEn}`,
-    textTa: `இன்றைய பஞ்சாங்க விபரம்: திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, மற்றும் யோகம் ${panchangam.yogam.nameTamil}. நல்ல நேரம்: ${panchangam.nallaNeramMorning} மற்றும் மாலை ${panchangam.nallaNeramEvening}. இராகு காலம் ${panchangam.ragukalam}. எமகண்டம் ${panchangam.yemagandam}. ${festivalMentionTa}`,
+    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம்: திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, மற்றும் யோகம் ${panchangam.yogam.nameTamil}. நல்ல நேரம்: காலையில் ${panchangam.nallaNeramMorning}, மற்றும் மாலையில் ${panchangam.nallaNeramEvening}. இராகு காலம் ${panchangam.ragukalam}. எமகண்டம் ${panchangam.yemagandam}. ${festivalMentionTa}`,
   };
 
-  // Section 3: Rasipalan
+  // Section 5: Rasipalan Outlook
   const rasiOutlookMap: Record<string, { en: string; ta: string; nameEn: string; nameTa: string }> = {
     mesham: {
       nameEn: 'Aries (Mesham)',
@@ -387,45 +431,13 @@ export const buildMorningBriefingContent = ({
 
   const rasiData = rasiOutlookMap[userRasiId.toLowerCase()] || rasiOutlookMap.mesham;
 
-  const section3: BriefingSection = {
-    id: 'section-3-rasipalan',
+  const section5: BriefingSection = {
+    id: 'section-5-rasipalan',
     category: 'rasipalan',
     titleEn: `Rasipalan Outlook - ${rasiData.nameEn}`,
     titleTa: `ராசிபலன் வழிகாட்டுதல் - ${rasiData.nameTa}`,
-    textEn: rasiData.en,
-    textTa: rasiData.ta,
-  };
-
-  // Section 4: Fitness & Nutrition Targets
-  const section4: BriefingSection = {
-    id: 'section-4-fitness',
-    category: 'fitness',
-    titleEn: 'Body Maintenance & Calorie Targets',
-    titleTa: 'உடல் பராமரிப்பு & கலோரி இலக்குகள்',
-    textEn: `Your daily Body Maintenance calorie target is calculated at ${Math.round(maintenanceCalories)} kilocalories. Working towards your target weight of ${targetWeightKg} kilograms requires consistent daily discipline, adequate hydration, and hitting your protein split. Your routine is loaded and ready.`,
-    textTa: `உங்கள் தினசரி உடல் பராமரிப்பு கலோரி அளவு ${Math.round(maintenanceCalories)} கலோரிகள் ஆகும். உங்கள் இலக்கு எடையை (${targetWeightKg} கிலோ) அடைவதற்கு இன்றைய ஊட்டச்சத்தையும், உடற்பயிற்சி அட்டவணையையும் தவறாமல் பின்பற்றுங்கள். உடலை வலிமையாக வைத்திருங்கள்.`,
-  };
-
-  // Section 5: Motivational Quote
-  const quotes = [
-    {
-      en: 'Thought for the day: Consistency and discipline forge the unbreakable athlete. Rise with conviction, conquer your training, and honor your vessel.',
-      ta: 'இன்றைய பொன்மொழி: தினசரி ஒழுக்கமும் பயிற்சியுமே வெல்ல முடியாத உடலையும், அசைக்க முடியாத மன உறுதியையும் உருவாக்கும். எழுந்து சாதிப்போம்!',
-    },
-    {
-      en: 'Thought for the day: Small daily disciplines accumulated over time lead to miraculous transformations. You hold the power today.',
-      ta: 'இன்றைய பொன்மொழி: சிறு துளி பெருவெள்ளம் போல, தினசரி செய்யும் ஒழுக்கமான பயிற்சியே அற்புத மாற்றத்திற்கு வித்திடும். இந்த நாளை வென்றிடுங்கள்!',
-    },
-  ];
-  const selectedQuote = quotes[date.getDate() % quotes.length];
-
-  const section5: BriefingSection = {
-    id: 'section-5-quote',
-    category: 'quote',
-    titleEn: 'Morning Motivation & Power',
-    titleTa: 'காலை எழுச்சி & பொன்மொழி',
-    textEn: selectedQuote.en,
-    textTa: selectedQuote.ta,
+    textEn: `Rasipalan guidance for ${rasiData.nameEn}: ${rasiData.en}`,
+    textTa: `இன்றைய ராசிபலன் வழிகாட்டுதல், ${rasiData.nameTa}: ${rasiData.ta}`,
   };
 
   return [section1, section2, section3, section4, section5];
@@ -447,8 +459,21 @@ class SpeechBriefingEngine {
   private currentLang: 'en' | 'ta' = 'en';
   private currentSegment: 'english' | 'tamil' = 'english';
 
+  constructor() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      const primeVoices = () => {
+        window.speechSynthesis.getVoices();
+      };
+      primeVoices();
+      if (typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+        window.speechSynthesis.onvoiceschanged = primeVoices;
+      }
+    }
+  }
+
   /**
-   * Finds the best matching voice for English (en-IN or en-US) or Tamil (ta-IN)
+   * Finds the best matching voice for natural English (en-IN / en-US / natural neural)
+   * or authentic native Tamil (Google தமிழ் / ta-IN / Valluvar).
    */
   private getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
@@ -456,40 +481,82 @@ class SpeechBriefingEngine {
     if (!voices || voices.length === 0) return null;
 
     if (lang === 'ta') {
-      // Prioritize Tamil (India) voice
-      const taVoice = voices.find(
-        (v) =>
-          v.lang === 'ta-IN' ||
-          v.lang.toLowerCase() === 'ta_in' ||
-          v.lang.toLowerCase().startsWith('ta') ||
-          v.name.toLowerCase().includes('tamil')
-      );
-      if (taVoice) return taVoice;
-      // Fallback
-      return voices.find((v) => v.lang === 'en-IN') || voices[0] || null;
+      // 1. High priority: Google தமிழ் (Android / Chrome standard), ta-IN, ta-LK, ta-SG
+      const googleTaVoice = voices.find((v) => {
+        const n = v.name.toLowerCase();
+        const l = v.lang.toLowerCase().replace('_', '-');
+        return (l === 'ta-in' || l === 'ta_in' || l.startsWith('ta')) && (n.includes('google') || n.includes('தமிழ்'));
+      });
+      if (googleTaVoice) return googleTaVoice;
+
+      // 2. Microsoft Valluvar, Microsoft Latha, or any ta-IN / Tamil voice
+      const exactTaVoice = voices.find((v) => {
+        const l = v.lang.toLowerCase().replace('_', '-');
+        const n = v.name.toLowerCase();
+        return (
+          l === 'ta-in' ||
+          l === 'ta_in' ||
+          l === 'ta-lk' ||
+          l === 'ta-sg' ||
+          n.includes('valluvar') ||
+          n.includes('latha') ||
+          n.includes('tamil') ||
+          n.includes('தமிழ்')
+        );
+      });
+      if (exactTaVoice) return exactTaVoice;
+
+      // 3. Any voice where language code starts with 'ta'
+      const anyTaVoice = voices.find((v) => v.lang.toLowerCase().startsWith('ta'));
+      if (anyTaVoice) return anyTaVoice;
+
+      // CRITICAL: NEVER return an English voice when speaking Tamil!
+      // Returning null allows the browser engine to route by utterance.lang = 'ta-IN'
+      return null;
     } else {
-      // Prioritize natural English: Indian English (en-IN) or natural US English (en-US)
-      const enVoice =
-        voices.find(
-          (v) =>
-            v.lang === 'en-IN' ||
-            v.lang.toLowerCase() === 'en_in' ||
-            v.name.toLowerCase().includes('india')
-        ) ||
-        voices.find(
-          (v) =>
-            v.lang === 'en-US' ||
-            v.lang.toLowerCase() === 'en_us' ||
-            v.name.toLowerCase().includes('natural') ||
-            v.name.toLowerCase().includes('google')
-        ) ||
-        voices.find((v) => v.lang.startsWith('en'));
-      return enVoice || voices[0] || null;
+      // English: Select highest quality natural / conversational voice
+      const naturalEnVoice =
+        // Natural / Neural online voices
+        voices.find((v) => {
+          const l = v.lang.toLowerCase().replace('_', '-');
+          const n = v.name.toLowerCase();
+          return (
+            (l === 'en-in' || l === 'en-us' || l === 'en-gb') &&
+            (n.includes('natural') || n.includes('neural') || n.includes('online'))
+          );
+        }) ||
+        // Indian English (natural & clear)
+        voices.find((v) => {
+          const l = v.lang.toLowerCase().replace('_', '-');
+          const n = v.name.toLowerCase();
+          return l === 'en-in' || n.includes('india') || n.includes('ravi') || n.includes('heera');
+        }) ||
+        // Google English voices
+        voices.find((v) => {
+          const l = v.lang.toLowerCase().replace('_', '-');
+          const n = v.name.toLowerCase();
+          return l.startsWith('en') && n.includes('google');
+        }) ||
+        // Standard high-quality voices
+        voices.find((v) => {
+          const n = v.name.toLowerCase();
+          return (
+            n.includes('samantha') ||
+            n.includes('ava') ||
+            n.includes('jenny') ||
+            n.includes('oliver') ||
+            n.includes('karen')
+          );
+        }) ||
+        // Any English voice
+        voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+
+      return naturalEnVoice || voices[0] || null;
     }
   }
 
   /**
-   * Promisified speech synthesis utterance
+   * Promisified speech synthesis utterance with watchdog timeout and natural pacing
    */
   private speakUtterance(text: string, lang: 'en' | 'ta'): Promise<void> {
     return new Promise((resolve) => {
@@ -503,9 +570,18 @@ class SpeechBriefingEngine {
         return;
       }
 
+      // Wake up speech synthesis if paused
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
-      utterance.rate = lang === 'ta' ? 0.95 : 1.0; // Slightly slower Tamil for crystal clear diction
+      
+      // Natural pacing:
+      // English: 0.94x (comfortable, relaxed natural conversational cadence)
+      // Tamil: 0.88x (clear native Dravidian articulation, respecting long vowels & pauses)
+      utterance.rate = lang === 'ta' ? 0.88 : 0.94;
       utterance.pitch = 1.0;
 
       const voice = this.getBestVoice(lang);
@@ -513,8 +589,24 @@ class SpeechBriefingEngine {
         utterance.voice = voice;
       }
 
-      utterance.onend = () => resolve();
+      // Safety timeout safeguard based on text length (~120ms per character + 3s buffer)
+      let timer: NodeJS.Timeout | null = null;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+      };
+
+      const timeoutMs = Math.max(8000, text.length * 120 + 3000);
+      timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, timeoutMs);
+
+      utterance.onend = () => {
+        cleanup();
+        resolve();
+      };
       utterance.onerror = (e) => {
+        cleanup();
         console.warn('Speech synthesis utterance notice:', e);
         resolve();
       };
@@ -524,14 +616,17 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Refined Bilingual Voice Briefing Structure:
-   * 1. English Segment: Speaks ONLY the warm greeting of the day, date/day,
-   *    and the daily motivational quote using natural English (en-IN or en-US).
-   * 2. Tamil Segment: Immediately follows by speaking all remaining core details—
-   *    Panchangam timings (Nalla Neram, Ragukalam), Rasipalan, fasting/festivals,
-   *    and fitness/water intake goals—completely in a smooth natural Tamil voice (ta-IN).
-   * Accompanied by soft instrumental background music (volume = 0.20),
-   * seamlessly followed by continuous devotional playback.
+   * Refined Bilingual Voice Briefing Sequence:
+   * 1. English Segment First:
+   *    - Greeting (Personalized greeting with name and date)
+   *    - Today's Nutrients & Fitness Targets (Calories, Protein, Hydration)
+   *    - Quote of the Day (Thought for the day)
+   * 2. Tamil Segment Immediately Following:
+   *    - Greeting in Tamil (வணக்கம் [Name]...)
+   *    - Today's Nutrients in Tamil (இன்றைய ஊட்டச்சத்து & உடற்பயிற்சி...)
+   *    - Quote of the Day in Tamil (இன்றைய சிந்தனை & பொன்மொழி...)
+   *    - Panchangam & Auspicious Timings in Tamil (திதி, நட்சத்திரம், நல்ல நேரம்...)
+   *    - Daily Rasipalan Guidance in Tamil (ராசிபலன் வழிகாட்டல்...)
    */
   public async startBriefing(
     sections: BriefingSection[],
@@ -546,7 +641,6 @@ class SpeechBriefingEngine {
     this.isSpeaking = true;
     this.isCancelled = false;
 
-    // Pure speech only - background music completely disabled as requested
     try {
       interface SpeechStep {
         sectionIndex: number;
@@ -558,7 +652,9 @@ class SpeechBriefingEngine {
 
       const steps: SpeechStep[] = [];
 
-      // Phase 1: English Segment (Greeting & Motivational Quote ONLY)
+      // =========================================================================
+      // PHASE 1: ENGLISH (Greeting -> Today's Nutrients -> Quote of the Day)
+      // =========================================================================
       const greetingIdx = sections.findIndex((s) => s.category === 'greeting');
       if (greetingIdx !== -1) {
         steps.push({
@@ -566,6 +662,17 @@ class SpeechBriefingEngine {
           category: 'greeting',
           lang: 'en',
           text: sections[greetingIdx].textEn,
+          segment: 'english',
+        });
+      }
+
+      const fitnessIdx = sections.findIndex((s) => s.category === 'fitness');
+      if (fitnessIdx !== -1) {
+        steps.push({
+          sectionIndex: fitnessIdx,
+          category: 'fitness',
+          lang: 'en',
+          text: sections[fitnessIdx].textEn,
           segment: 'english',
         });
       }
@@ -581,7 +688,40 @@ class SpeechBriefingEngine {
         });
       }
 
-      // Phase 2: Tamil Segment (All remaining core details: Panchangam, Rasipalan, Fitness)
+      // =========================================================================
+      // PHASE 2: TAMIL (Greeting -> Nutrients -> Quote -> Panchangam -> Rasipalan)
+      // "after reading english start in taml start with greeting all content is tell in tamil"
+      // =========================================================================
+      if (greetingIdx !== -1) {
+        steps.push({
+          sectionIndex: greetingIdx,
+          category: 'greeting',
+          lang: 'ta',
+          text: sections[greetingIdx].textTa,
+          segment: 'tamil',
+        });
+      }
+
+      if (fitnessIdx !== -1) {
+        steps.push({
+          sectionIndex: fitnessIdx,
+          category: 'fitness',
+          lang: 'ta',
+          text: sections[fitnessIdx].textTa,
+          segment: 'tamil',
+        });
+      }
+
+      if (quoteIdx !== -1) {
+        steps.push({
+          sectionIndex: quoteIdx,
+          category: 'quote',
+          lang: 'ta',
+          text: sections[quoteIdx].textTa,
+          segment: 'tamil',
+        });
+      }
+
       const panchangamIdx = sections.findIndex((s) => s.category === 'panchangam');
       if (panchangamIdx !== -1) {
         steps.push({
@@ -600,17 +740,6 @@ class SpeechBriefingEngine {
           category: 'rasipalan',
           lang: 'ta',
           text: sections[rasiIdx].textTa,
-          segment: 'tamil',
-        });
-      }
-
-      const fitnessIdx = sections.findIndex((s) => s.category === 'fitness');
-      if (fitnessIdx !== -1) {
-        steps.push({
-          sectionIndex: fitnessIdx,
-          category: 'fitness',
-          lang: 'ta',
-          text: sections[fitnessIdx].textTa,
           segment: 'tamil',
         });
       }
