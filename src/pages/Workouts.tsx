@@ -60,6 +60,7 @@ import HevyDaySplitSelector, { getTodayDayOfWeek } from '../components/workout/H
 import WorkoutCompletionModal, {
   type WorkoutCompletionMetrics,
 } from '../components/workout/WorkoutCompletionModal';
+import Card3D from '../components/common/Card3D';
 
 export const Workouts: React.FC = () => {
   const { currentUser } = useAuth();
@@ -852,7 +853,11 @@ export const Workouts: React.FC = () => {
       />
 
       {/* EQUIPMENT-AWARE ROUTINE GENERATOR CARD */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+      <Card3D
+        glowColor="emerald"
+        intensity={5}
+        className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-4"
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-emerald-500/20 flex-shrink-0">
@@ -877,7 +882,7 @@ export const Workouts: React.FC = () => {
 
           <button
             onClick={() => navigate('/profile')}
-            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start md:self-auto"
+            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start md:self-auto btn-tactile"
           >
             <span>Modify Gym Inventory</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -888,7 +893,7 @@ export const Workouts: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
           <button
             onClick={() => handleGenerateRoutine('full_body')}
-            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group"
+            className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
@@ -903,7 +908,7 @@ export const Workouts: React.FC = () => {
 
           <button
             onClick={() => handleGenerateRoutine('upper')}
-            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group"
+            className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
@@ -918,7 +923,7 @@ export const Workouts: React.FC = () => {
 
           <button
             onClick={() => handleGenerateRoutine('lower')}
-            className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group"
+            className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
@@ -931,7 +936,7 @@ export const Workouts: React.FC = () => {
             </p>
           </button>
         </div>
-      </div>
+      </Card3D>
 
       {/* ACTIVE WORKOUT SESSION */}
       {activeSession ? (

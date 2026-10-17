@@ -99,7 +99,7 @@ export const AiCoach: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)] max-h-[850px] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors duration-200">
+    <div className="flex flex-col h-[calc(100vh-10rem)] max-h-[850px] rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl overflow-hidden transition-all duration-200 card-3d">
       {/* Header */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/40">
         <div className="flex items-center gap-3">
@@ -203,7 +203,7 @@ export const AiCoach: React.FC = () => {
           <button
             key={idx}
             onClick={() => handleSend(prompt)}
-            className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 transition flex items-center gap-1 shadow-sm"
+            className="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 transition flex items-center gap-1.5 shadow-xs btn-tactile hover:-translate-y-0.5 hover:border-emerald-500/40"
           >
             <Zap className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
             <span>{prompt}</span>
@@ -212,7 +212,7 @@ export const AiCoach: React.FC = () => {
       </div>
 
       {/* Input area */}
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/80">
+      <div className="p-3.5 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -225,14 +225,14 @@ export const AiCoach: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about calories, macros, or workout programming..."
-            className="flex-1 py-2 px-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+            className="flex-1 py-2 px-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
           />
           <button
             type="submit"
             disabled={!input.trim() || isTyping}
-            className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold transition disabled:opacity-40 shadow-sm"
+            className="p-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-xl font-bold transition disabled:opacity-40 shadow-lg shadow-emerald-500/25 btn-tactile"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 stroke-[2.5]" />
           </button>
         </form>
       </div>

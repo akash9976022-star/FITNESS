@@ -11,6 +11,15 @@ interface Orb {
   colorLight: string;
 }
 
+interface Star {
+  x: number;
+  y: number;
+  radius: number;
+  alpha: number;
+  dAlpha: number;
+  speedY: number;
+}
+
 export const LiveAnimatedBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { resolvedTheme } = useTheme();
@@ -25,7 +34,6 @@ export const LiveAnimatedBackground: React.FC = () => {
     let animationFrameId: number;
     let isVisible = true;
 
-    // Check prefers-reduced-motion
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const resize = () => {
@@ -38,7 +46,6 @@ export const LiveAnimatedBackground: React.FC = () => {
     resize();
     window.addEventListener('resize', resize);
 
-    // Visibility change handler to save battery when tab is backgrounded
     const handleVisibilityChange = () => {
       isVisible = !document.hidden;
       if (isVisible) {
@@ -51,54 +58,73 @@ export const LiveAnimatedBackground: React.FC = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
 
-    // 5 Organic Floating Orbs
+    // 6 Rich SaaS Atmospheric Nebula Orbs
     const orbs: Orb[] = [
       {
-        x: w * 0.2,
-        y: h * 0.25,
-        radius: Math.max(w, h) * 0.35,
-        dx: 0.18,
-        dy: 0.12,
-        colorDark: 'rgba(16, 185, 129, 0.08)', // Aurora Emerald
-        colorLight: 'rgba(52, 211, 153, 0.18)', // Pastel Mint
+        x: w * 0.18,
+        y: h * 0.22,
+        radius: Math.max(w, h) * 0.38,
+        dx: 0.16,
+        dy: 0.1,
+        colorDark: 'rgba(16, 185, 129, 0.12)', // Aurora Emerald
+        colorLight: 'rgba(52, 211, 153, 0.22)',
       },
       {
-        x: w * 0.8,
-        y: h * 0.3,
-        radius: Math.max(w, h) * 0.38,
-        dx: -0.15,
-        dy: 0.14,
-        colorDark: 'rgba(14, 165, 233, 0.07)', // Cosmic Cyan / Teal
-        colorLight: 'rgba(186, 230, 253, 0.25)', // Pastel Sky
+        x: w * 0.82,
+        y: h * 0.28,
+        radius: Math.max(w, h) * 0.42,
+        dx: -0.14,
+        dy: 0.12,
+        colorDark: 'rgba(6, 182, 212, 0.11)', // Electric Cyan
+        colorLight: 'rgba(56, 189, 248, 0.24)',
       },
       {
         x: w * 0.5,
-        y: h * 0.8,
-        radius: Math.max(w, h) * 0.42,
+        y: h * 0.78,
+        radius: Math.max(w, h) * 0.45,
         dx: 0.12,
-        dy: -0.16,
-        colorDark: 'rgba(20, 184, 166, 0.06)', // Deep Aurora Teal
-        colorLight: 'rgba(153, 246, 228, 0.22)', // Soft Aquamarine
+        dy: -0.15,
+        colorDark: 'rgba(139, 92, 246, 0.10)', // Hyper Violet
+        colorLight: 'rgba(196, 181, 253, 0.22)',
       },
       {
-        x: w * 0.15,
-        y: h * 0.75,
-        radius: Math.max(w, h) * 0.3,
-        dx: -0.14,
-        dy: -0.1,
-        colorDark: 'rgba(245, 158, 11, 0.04)', // Warm Calorie Amber
-        colorLight: 'rgba(254, 243, 199, 0.2)', // Soft Honey Pastel
+        x: w * 0.12,
+        y: h * 0.72,
+        radius: Math.max(w, h) * 0.35,
+        dx: -0.12,
+        dy: -0.09,
+        colorDark: 'rgba(245, 158, 11, 0.08)', // Solar Amber
+        colorLight: 'rgba(253, 230, 138, 0.24)',
       },
       {
-        x: w * 0.85,
-        y: h * 0.7,
+        x: w * 0.88,
+        y: h * 0.68,
+        radius: Math.max(w, h) * 0.36,
+        dx: 0.09,
+        dy: -0.11,
+        colorDark: 'rgba(99, 102, 241, 0.10)', // Deep Indigo
+        colorLight: 'rgba(199, 210, 254, 0.22)',
+      },
+      {
+        x: w * 0.45,
+        y: h * 0.35,
         radius: Math.max(w, h) * 0.32,
-        dx: 0.1,
-        dy: -0.12,
-        colorDark: 'rgba(99, 102, 241, 0.05)', // Celestial Indigo
-        colorLight: 'rgba(224, 231, 255, 0.25)', // Soft Lilac
+        dx: -0.08,
+        dy: 0.14,
+        colorDark: 'rgba(244, 63, 94, 0.07)', // Rose Pulse
+        colorLight: 'rgba(254, 205, 211, 0.20)',
       },
     ];
+
+    // Cosmic Micro-Starfield (35 subtle floating dust particles)
+    const stars: Star[] = Array.from({ length: 35 }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      radius: Math.random() * 1.5 + 0.6,
+      alpha: Math.random() * 0.6 + 0.2,
+      dAlpha: (Math.random() - 0.5) * 0.015,
+      speedY: -(Math.random() * 0.15 + 0.05),
+    }));
 
     let lastTime = performance.now();
 
@@ -115,20 +141,20 @@ export const LiveAnimatedBackground: React.FC = () => {
 
       const isDark = resolvedTheme === 'dark';
 
-      // Draw subtle background wash
+      // Base canvas background
       ctx.fillStyle = isDark ? '#020617' : '#f8fafc';
       ctx.fillRect(0, 0, currentW, currentH);
 
-      // Render floating orbs
+      // Render floating nebula orbs
       for (const orb of orbs) {
         if (!prefersReducedMotion) {
           orb.x += orb.dx * dt;
           orb.y += orb.dy * dt;
 
-          if (orb.x < -orb.radius * 0.3) orb.dx = Math.abs(orb.dx);
-          if (orb.x > currentW + orb.radius * 0.3) orb.dx = -Math.abs(orb.dx);
-          if (orb.y < -orb.radius * 0.3) orb.dy = Math.abs(orb.dy);
-          if (orb.y > currentH + orb.radius * 0.3) orb.dy = -Math.abs(orb.dy);
+          if (orb.x < -orb.radius * 0.25) orb.dx = Math.abs(orb.dx);
+          if (orb.x > currentW + orb.radius * 0.25) orb.dx = -Math.abs(orb.dx);
+          if (orb.y < -orb.radius * 0.25) orb.dy = Math.abs(orb.dy);
+          if (orb.y > currentH + orb.radius * 0.25) orb.dy = -Math.abs(orb.dy);
         }
 
         const gradient = ctx.createRadialGradient(
@@ -142,12 +168,56 @@ export const LiveAnimatedBackground: React.FC = () => {
 
         const color = isDark ? orb.colorDark : orb.colorLight;
         gradient.addColorStop(0, color);
-        gradient.addColorStop(0.6, color.replace(/[\d.]+\)$/, '0.02)'));
+        gradient.addColorStop(0.5, color.replace(/[\d.]+\)$/, isDark ? '0.04)' : '0.08)'));
         gradient.addColorStop(1, 'transparent');
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw subtle cyberpunk grid lines (very low opacity for high-tech aesthetic)
+      if (isDark) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
+        ctx.lineWidth = 1;
+        const gridSize = 64;
+        ctx.beginPath();
+        for (let x = 0; x < currentW; x += gridSize) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, currentH);
+        }
+        for (let y = 0; y < currentH; y += gridSize) {
+          ctx.moveTo(0, y);
+          ctx.lineTo(currentW, y);
+        }
+        ctx.stroke();
+      }
+
+      // Render cosmic micro-star particles
+      for (const star of stars) {
+        if (!prefersReducedMotion) {
+          star.y += star.speedY * dt;
+          if (star.y < 0) {
+            star.y = currentH;
+            star.x = Math.random() * currentW;
+          }
+
+          star.alpha += star.dAlpha * dt;
+          if (star.alpha > 0.8) {
+            star.alpha = 0.8;
+            star.dAlpha = -Math.abs(star.dAlpha);
+          } else if (star.alpha < 0.15) {
+            star.alpha = 0.15;
+            star.dAlpha = Math.abs(star.dAlpha);
+          }
+        }
+
+        ctx.fillStyle = isDark
+          ? `rgba(255, 255, 255, ${star.alpha * 0.5})`
+          : `rgba(16, 185, 129, ${star.alpha * 0.35})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -175,4 +245,3 @@ export const LiveAnimatedBackground: React.FC = () => {
 };
 
 export default LiveAnimatedBackground;
-

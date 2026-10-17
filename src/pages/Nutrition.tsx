@@ -41,6 +41,7 @@ import {
   formatGeminiErrorMessage,
 } from '../services/geminiService';
 import WaterIntakeWidget from '../components/hydration/WaterIntakeWidget';
+import Card3D from '../components/common/Card3D';
 
 export const Nutrition: React.FC = () => {
   const { currentUser } = useAuth();
@@ -415,10 +416,14 @@ export const Nutrition: React.FC = () => {
       {activeTab === 'scanner' && (
         <div className="space-y-6">
           {/* Daily Calorie & Macro Progress Gauge */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <Card3D
+            glowColor="amber"
+            intensity={5}
+            className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-4"
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
               <div className="flex items-center gap-2.5">
-                <Flame className="w-5 h-5 text-amber-500" />
+                <Flame className="w-5 h-5 text-amber-500 animate-pulse" />
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   Today's Intake vs. Maintenance Target
                 </h3>
@@ -426,11 +431,11 @@ export const Nutrition: React.FC = () => {
               <div className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Target: <span className="font-bold text-slate-900 dark:text-white">{targetCalories} kcal</span>
                 {targetCalories > dailyTotals.calories ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 ml-1.5">
+                  <span className="text-emerald-600 dark:text-emerald-400 ml-1.5 font-bold">
                     ({targetCalories - dailyTotals.calories} kcal remaining)
                   </span>
                 ) : (
-                  <span className="text-amber-600 dark:text-amber-400 ml-1.5">
+                  <span className="text-amber-600 dark:text-amber-400 ml-1.5 font-bold">
                     (+{dailyTotals.calories - targetCalories} kcal surplus)
                   </span>
                 )}
@@ -440,16 +445,16 @@ export const Nutrition: React.FC = () => {
             {/* Macro Progress Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               {/* Calories */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+              <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:-translate-y-1 hover:shadow-sm">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-slate-500 dark:text-slate-400 font-medium">Calories</span>
                   <span className="font-bold text-slate-900 dark:text-white">
                     {dailyTotals.calories} / {targetCalories}
                   </span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden shimmer-active">
                   <div
-                    className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.min(100, (dailyTotals.calories / (targetCalories || 1)) * 100)}%`,
                     }}
@@ -458,16 +463,16 @@ export const Nutrition: React.FC = () => {
               </div>
 
               {/* Protein */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+              <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:-translate-y-1 hover:shadow-sm">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-rose-600 dark:text-rose-400 font-bold">Protein</span>
                   <span className="font-bold text-slate-900 dark:text-white">
                     {dailyTotals.protein}g / {proteinGrams}g
                   </span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden shimmer-active">
                   <div
-                    className="bg-rose-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-rose-500 to-pink-500 h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.min(100, (dailyTotals.protein / (proteinGrams || 1)) * 100)}%`,
                     }}
@@ -476,16 +481,16 @@ export const Nutrition: React.FC = () => {
               </div>
 
               {/* Carbs */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+              <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:-translate-y-1 hover:shadow-sm">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-amber-600 dark:text-amber-400 font-bold">Carbs</span>
                   <span className="font-bold text-slate-900 dark:text-white">
                     {dailyTotals.carbs}g / {carbsGrams}g
                   </span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden shimmer-active">
                   <div
-                    className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-amber-500 to-orange-400 h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.min(100, (dailyTotals.carbs / (carbsGrams || 1)) * 100)}%`,
                     }}
@@ -494,16 +499,16 @@ export const Nutrition: React.FC = () => {
               </div>
 
               {/* Fats */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+              <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:-translate-y-1 hover:shadow-sm">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-teal-600 dark:text-teal-400 font-bold">Fats (Hidden Oils)</span>
                   <span className="font-bold text-slate-900 dark:text-white">
                     {dailyTotals.fats}g / {fatsGrams}g
                   </span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden shimmer-active">
                   <div
-                    className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-teal-500 to-emerald-500 h-2 rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.min(100, (dailyTotals.fats / (fatsGrams || 1)) * 100)}%`,
                     }}
@@ -511,7 +516,7 @@ export const Nutrition: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </Card3D>
 
           {/* Daily Water Intake & Hydration Engine */}
           <WaterIntakeWidget />
