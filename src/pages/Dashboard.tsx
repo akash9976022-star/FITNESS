@@ -496,6 +496,62 @@ export const Dashboard: React.FC = () => {
         </div>
       </Card3D>
 
+      {/* 9:00 PM End-of-Day AI Coach Debrief & Sleep Blackout Quick Action Card */}
+      <Card3D
+        glowColor="violet"
+        intensity={5}
+        className="relative overflow-hidden bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-pink-500/10 dark:from-indigo-950/30 dark:via-slate-900/80 dark:to-purple-950/30 backdrop-blur-xl border border-indigo-300/80 dark:border-indigo-500/30 p-5 sm:p-6 shadow-xl shadow-indigo-500/5"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center flex-shrink-0 text-indigo-400 shadow-md shadow-indigo-500/10">
+              <Moon className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase text-indigo-700 dark:text-indigo-400 tracking-wider">
+                  Night Protocol (9:00 PM)
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100/90 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-500/30">
+                  AI Coach Debrief & Sleep Blackout
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100/90 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-500/30">
+                  Bilingual: English + தமிழ்
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                End-of-Day Voice Evaluation & Sleep Mode
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl font-medium">
+                Evaluates today's workouts, nutrition, hydration & steps. Speaks fluent achievements praise, coach tough-love accountability, and tomorrow's 6:00 AM motivation, then automatically fades into 100% OLED screen-off sleep mode.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-xs btn-tactile"
+              title="Configure 9:00 PM debrief time and language preferences"
+            >
+              <Clock className="w-4 h-4 text-indigo-400" />
+              <span>Debrief Settings</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'))}
+              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/25 btn-tactile"
+              title="Test the complete 9:00 PM AI Coach debrief and sleep blackout sequence"
+            >
+              <Play className="w-4 h-4 fill-white animate-pulse" />
+              <span>TEST 9 PM NIGHT DEBRIEF</span>
+            </button>
+          </div>
+        </div>
+      </Card3D>
+
       {/* Central Body Maintenance Balance (BMB) Score Card */}
       <Card3D
         glowColor="emerald"

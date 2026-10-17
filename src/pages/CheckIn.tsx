@@ -31,6 +31,7 @@ import {
   Target,
   HeartPulse,
   Clock,
+  Play,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -993,6 +994,43 @@ export const CheckIn: React.FC = () => {
               <span>{endOfDaySuccess}</span>
             </div>
           )}
+
+          {/* 9:00 PM AI Coach Night Debrief & Sleep Mode Action Card */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-indigo-950/40 via-slate-900/90 to-purple-950/30 border border-indigo-500/30 dark:border-indigo-500/20 shadow-lg relative overflow-hidden backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-600 to-pink-500 flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-indigo-500/25">
+                  <Moon className="w-5 h-5 fill-white/20" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">
+                      Night Debrief Protocol (9:00 PM)
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>AI Voice Debrief & Sleep Blackout</span>
+                    </span>
+                  </div>
+                  <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                    End-of-Day AI Coach Debrief & Sleep Blackout
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-xl">
+                    Evaluates today's workouts, nutrition, water intake & steps. Speaks fluent achievements praise, coach reality checks, and tomorrow's 6:00 AM motivation, then puts the display into pitch-black OLED sleep mode.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'))}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/25 transition active:scale-[0.98] self-start sm:self-center"
+              >
+                <Play className="w-3.5 h-3.5 fill-white animate-pulse" />
+                <span>Test 9 PM Night Debrief</span>
+              </button>
+            </div>
+          </div>
 
           {/* Grid Layout: Steps Counter + Hydration Review */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

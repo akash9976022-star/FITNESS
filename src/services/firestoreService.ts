@@ -4541,12 +4541,23 @@ export interface HydrationIntervalConfig {
   voicePrompt?: string;
 }
 
+export type NightDebriefLanguage = 'en' | 'ta' | 'both';
+
+export interface NightDebriefConfig {
+  time: string; // e.g. "21:00" in 24h format (9:00 PM)
+  enabled: boolean;
+  language: NightDebriefLanguage; // 'en' | 'ta' | 'both'
+  blackoutEnabled: boolean; // Screen-off sleep blackout mode after speech
+  lastDebriefDate?: string;
+}
+
 export interface UserRoutineSettings {
   wakeUp: RoutineItemSetting;
   walking: RoutineItemSetting;
   workout: RoutineItemSetting;
   bedtime: RoutineItemSetting;
   hydrationInterval?: HydrationIntervalConfig;
+  nightDebrief: NightDebriefConfig;
   voiceRemindersEnabled: boolean;
   voiceRate: number; // default: 0.95 (relaxed natural human cadence)
   voicePitch: number; // default: 1.0
@@ -4587,6 +4598,12 @@ export const DEFAULT_ROUTINE_SETTINGS: UserRoutineSettings = {
     enabled: true,
     voicePrompt: '{name}, time for a hydration break! Drink a glass of water to stay fresh.',
   },
+  nightDebrief: {
+    time: '21:00',
+    enabled: true,
+    language: 'both',
+    blackoutEnabled: true,
+  },
   voiceRemindersEnabled: true,
   voiceRate: 0.95,
   voicePitch: 1.0,
@@ -4626,6 +4643,12 @@ export const subscribeRoutineSettings = (
           walking: { ...DEFAULT_ROUTINE_SETTINGS.walking, ...(d.walking || {}) },
           workout: { ...DEFAULT_ROUTINE_SETTINGS.workout, ...(d.workout || {}) },
           bedtime: { ...DEFAULT_ROUTINE_SETTINGS.bedtime, ...(d.bedtime || {}) },
+          hydrationInterval: d.hydrationInterval
+            ? { ...DEFAULT_ROUTINE_SETTINGS.hydrationInterval, ...d.hydrationInterval }
+            : DEFAULT_ROUTINE_SETTINGS.hydrationInterval,
+          nightDebrief: d.nightDebrief
+            ? { ...DEFAULT_ROUTINE_SETTINGS.nightDebrief, ...d.nightDebrief }
+            : DEFAULT_ROUTINE_SETTINGS.nightDebrief,
           voiceRemindersEnabled: d.voiceRemindersEnabled !== undefined ? Boolean(d.voiceRemindersEnabled) : true,
           voiceRate: Number(d.voiceRate) || 0.95,
           voicePitch: Number(d.voicePitch) || 1.0,
@@ -4733,6 +4756,251 @@ export const dismissRoutineForToday = async (
   await saveRoutineSettings(userId, {
     lastDismissedDate: dismissedMap,
   });
+};
+
+/**
+ * Dismisses or marks night debrief as completed for today
+ */
+export const dismissNightDebriefForToday = async (
+  userId: string,
+  dateStr = getTodayDateString()
+): Promise<void> => {
+  if (!userId) return;
+  const cached = localStorage.getItem(`fit_routine_settings_${userId}`);
+  let currentDebrief = DEFAULT_ROUTINE_SETTINGS.nightDebrief;
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed.nightDebrief) {
+        currentDebrief = { ...currentDebrief, ...parsed.nightDebrief };
+      }
+    } catch {
+      // Ignored
+    }
+  }
+  await saveRoutineSettings(userId, {
+    nightDebrief: {
+      ...currentDebrief,
+      lastDebriefDate: dateStr,
+    },
+  });
+};
+
+export interface DailyPerformanceSummary {
+  date: string;
+  workoutCompleted: boolean;
+  workoutDurationMinutes: number;
+  workoutVolumeKg: number;
+  workoutCount: number;
+  workoutNames: string[];
+  caloriesConsumed: number;
+  targetCalories: number;
+  calorieDelta: number;
+  proteinGrams: number;
+  proteinTargetGrams: number;
+  waterMl: number;
+  waterTargetMl: number;
+  waterPercent: number;
+  steps: number;
+  goalSteps: number;
+  stepsPercent: number;
+  checkInCompleted: boolean;
+  isFasting: boolean;
+  fastingType?: string;
+  streakCount: number;
+}
+
+/**
+ * Fetches today's comprehensive performance data across all Firestore collections
+ */
+export const fetchTodayPerformanceData = async (
+  userId: string
+): Promise<DailyPerformanceSummary> => {
+  const todayStr = getTodayDateString();
+  const summary: DailyPerformanceSummary = {
+    date: todayStr,
+    workoutCompleted: false,
+    workoutDurationMinutes: 0,
+    workoutVolumeKg: 0,
+    workoutCount: 0,
+    workoutNames: [],
+    caloriesConsumed: 0,
+    targetCalories: 2200,
+    calorieDelta: 0,
+    proteinGrams: 0,
+    proteinTargetGrams: 140,
+    waterMl: 0,
+    waterTargetMl: 3000,
+    waterPercent: 0,
+    steps: 0,
+    goalSteps: 10000,
+    stepsPercent: 0,
+    checkInCompleted: false,
+    isFasting: false,
+    streakCount: 0,
+  };
+
+  if (!userId) return summary;
+
+  // 1. Check Profile for baseline TDEE & targets
+  try {
+    const profileCached = localStorage.getItem(`fit_user_profile_${userId}`);
+    if (profileCached) {
+      const p = JSON.parse(profileCached);
+      if (p.calculatedTdee) summary.targetCalories = p.calculatedTdee;
+      if (p.currentWeightKg) summary.proteinTargetGrams = Math.round(p.currentWeightKg * 2.0);
+    }
+  } catch {
+    // Ignored
+  }
+
+  // 2. Hydration
+  try {
+    const hydCached = localStorage.getItem(`fit_hydration_${userId}_${todayStr}`);
+    if (hydCached) {
+      const hyd = JSON.parse(hydCached);
+      summary.waterMl = Number(hyd.waterMl) || 0;
+      summary.waterTargetMl = Number(hyd.targetMl) || 3000;
+    }
+    if (db) {
+      const hydSnap = await getDoc(doc(db, 'users', userId, 'hydration', todayStr));
+      if (hydSnap.exists()) {
+        const hydData = hydSnap.data();
+        summary.waterMl = Number(hydData.waterMl) || summary.waterMl;
+        summary.waterTargetMl = Number(hydData.targetMl) || summary.waterTargetMl;
+      }
+    }
+    summary.waterPercent = Math.min(100, Math.round((summary.waterMl / Math.max(1, summary.waterTargetMl)) * 100));
+  } catch {
+    // Ignored
+  }
+
+  // 3. Daily Activity (Steps)
+  try {
+    const actCached = localStorage.getItem(`fit_activity_${userId}_${todayStr}`);
+    if (actCached) {
+      const act = JSON.parse(actCached);
+      summary.steps = Number(act.steps) || 0;
+      summary.goalSteps = Number(act.goalSteps) || 10000;
+    }
+    if (db) {
+      const actSnap = await getDoc(doc(db, 'users', userId, 'activity', todayStr));
+      if (actSnap.exists()) {
+        const actData = actSnap.data();
+        summary.steps = Number(actData.steps) || summary.steps;
+        summary.goalSteps = Number(actData.goalSteps) || summary.goalSteps;
+      }
+    }
+    summary.stepsPercent = Math.min(100, Math.round((summary.steps / Math.max(1, summary.goalSteps)) * 100));
+  } catch {
+    // Ignored
+  }
+
+  // 4. Fasting
+  try {
+    const fastCached = localStorage.getItem(`fit_fasting_${userId}_${todayStr}`);
+    if (fastCached) {
+      const f = JSON.parse(fastCached);
+      summary.isFasting = Boolean(f.isFasting && f.fastingType !== 'none');
+      summary.fastingType = f.fastingType;
+    }
+    if (db) {
+      const fastSnap = await getDoc(doc(db, 'users', userId, 'fasting', todayStr));
+      if (fastSnap.exists()) {
+        const fData = fastSnap.data();
+        summary.isFasting = Boolean(fData.isFasting && fData.fastingType !== 'none');
+        summary.fastingType = fData.fastingType;
+      }
+    }
+  } catch {
+    // Ignored
+  }
+
+  // 5. Workouts Completed Today
+  try {
+    const isTodayDate = (dateVal: unknown): boolean => {
+      if (!dateVal) return false;
+      try {
+        const d = dateVal instanceof Date ? dateVal : new Date(String(dateVal));
+        return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === todayStr;
+      } catch {
+        return false;
+      }
+    };
+
+    if (db) {
+      const workoutsSnap = await getDocs(query(collection(db, 'users', userId, 'completed_workouts'), limit(30)));
+      const todayWorkouts = workoutsSnap.docs
+        .map((d) => d.data())
+        .filter((w) => isTodayDate(w.completedAt));
+
+      if (todayWorkouts.length > 0) {
+        summary.workoutCompleted = true;
+        summary.workoutCount = todayWorkouts.length;
+        summary.workoutDurationMinutes = todayWorkouts.reduce((acc, w) => acc + (Number(w.durationMinutes || w.duration_minutes) || 0), 0);
+        summary.workoutVolumeKg = todayWorkouts.reduce((acc, w) => acc + (Number(w.totalVolumeKg) || 0), 0);
+        summary.workoutNames = todayWorkouts.map((w) => String(w.routineName || w.name || 'Workout')).filter(Boolean);
+      }
+    }
+  } catch {
+    // Ignored
+  }
+
+  // 6. Nutrition Logs Today
+  try {
+    if (db) {
+      const nutSnap = await getDocs(query(collection(db, 'users', userId, 'nutrition_logs'), limit(50)));
+      const todayLogs = nutSnap.docs
+        .map((d) => d.data())
+        .filter((l) => {
+          if (!l.loggedAt) return false;
+          const d = l.loggedAt instanceof Date ? l.loggedAt : new Date(String(l.loggedAt));
+          return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === todayStr;
+        });
+
+      summary.caloriesConsumed = todayLogs.reduce((acc, l) => acc + (Number(l.calories) || 0), 0);
+      summary.proteinGrams = todayLogs.reduce((acc, l) => acc + (Number(l.protein) || 0), 0);
+      summary.calorieDelta = summary.caloriesConsumed - summary.targetCalories;
+    }
+  } catch {
+    // Ignored
+  }
+
+  // 7. Check-Ins Today
+  try {
+    if (db) {
+      const checkSnap = await getDocs(query(collection(db, 'users', userId, 'checkins'), limit(10)));
+      const hasTodayCheckin = checkSnap.docs.some((d) => {
+        const data = d.data();
+        const dateVal = data.date || data.createdAt;
+        if (!dateVal) return false;
+        const dt = dateVal instanceof Date ? dateVal : new Date(String(dateVal));
+        return !isNaN(dt.getTime()) && dt.toISOString().split('T')[0] === todayStr;
+      });
+      summary.checkInCompleted = hasTodayCheckin;
+    }
+  } catch {
+    // Ignored
+  }
+
+  // 8. Streak
+  try {
+    const streakCached = localStorage.getItem(`fit_streak_${userId}`);
+    if (streakCached) {
+      const st = JSON.parse(streakCached);
+      summary.streakCount = Number(st.currentStreak) || 0;
+    }
+    if (db) {
+      const streakSnap = await getDoc(doc(db, 'users', userId, 'streak', 'user_streak'));
+      if (streakSnap.exists()) {
+        summary.streakCount = Number(streakSnap.data().currentStreak) || summary.streakCount;
+      }
+    }
+  } catch {
+    // Ignored
+  }
+
+  return summary;
 };
 
 /* ==================== CUSTOM ROUTINES & DAILY VOICE REMINDERS ==================== */

@@ -16,6 +16,9 @@ import {
   Check,
   AlertTriangle,
   Droplets,
+  Moon,
+  Power,
+  Play,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -426,6 +429,47 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     }
   };
 
+  // Helper to format 24h string to 12h AM/PM
+  const formatTime12h = (time24?: string): string => {
+    if (!time24) return '9:00 PM';
+    const [hStr, mStr] = time24.split(':');
+    const h = parseInt(hStr, 10);
+    const m = mStr || '00';
+    if (isNaN(h)) return time24;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h % 12 === 0 ? 12 : h % 12;
+    return `${displayHour}:${m} ${period}`;
+  };
+
+  // Update Night Debrief configuration
+  const handleUpdateNightDebrief = async (updates: Partial<typeof DEFAULT_ROUTINE_SETTINGS.nightDebrief>) => {
+    if (!currentUser?.uid) return;
+    const currentConfig = settings.nightDebrief || DEFAULT_ROUTINE_SETTINGS.nightDebrief;
+    const updatedDebrief = { ...currentConfig, ...updates };
+
+    setSettings((prev) => ({
+      ...prev,
+      nightDebrief: updatedDebrief,
+    }));
+
+    try {
+      await saveRoutineSettings(currentUser.uid, {
+        nightDebrief: updatedDebrief,
+      });
+      showToast('Updated Night Debrief & Sleep settings.');
+      onSaved?.();
+    } catch (err) {
+      console.warn('Error saving night debrief settings:', err);
+      showToast('Failed to save night debrief settings.');
+    }
+  };
+
+  // Trigger manual test of Night Debrief
+  const handleTestNightDebrief = () => {
+    window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'));
+    showToast('Starting 9:00 PM AI Coach Night Debrief...');
+  };
+
   return (
     <div
       className={`p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${className}`}
@@ -709,6 +753,206 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                   <span>{isClearingHydration ? 'Clearing...' : 'Clear All Hydration Breaks'}</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 9:00 PM End-of-Day AI Coach Debrief & Sleep Blackout Section */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900/90 to-purple-950/30 border border-indigo-500/30 dark:border-indigo-500/20 shadow-lg relative overflow-hidden backdrop-blur-md">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        <div className="relative space-y-5">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-indigo-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-600 to-pink-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25">
+                <Moon className="w-5 h-5 fill-white/20" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-wide">
+                    End-of-Day Review & Sleep Mode
+                  </h3>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {formatTime12h(settings.nightDebrief?.time || '21:00')}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>AI Coach</span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Automated night voice debrief evaluating today's targets, followed by pitch-black OLED sleep mode.
+                </p>
+              </div>
+            </div>
+
+            {/* Master Toggle */}
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <span className="text-xs font-bold text-slate-300">
+                {settings.nightDebrief?.enabled !== false ? 'Active' : 'Disabled'}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  handleUpdateNightDebrief({
+                    enabled: settings.nightDebrief ? !settings.nightDebrief.enabled : false,
+                  })
+                }
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
+                  settings.nightDebrief?.enabled !== false ? 'bg-indigo-600' : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.nightDebrief?.enabled !== false ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Configuration Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. Time Selector & Blackout Setting */}
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-indigo-500/20 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                    Debrief Scheduled Time
+                  </span>
+                  <span className="text-[11px] font-mono text-indigo-400 font-bold">
+                    {formatTime12h(settings.nightDebrief?.time || '21:00')}
+                  </span>
+                </label>
+                <input
+                  type="time"
+                  value={settings.nightDebrief?.time || '21:00'}
+                  onChange={(e) => handleUpdateNightDebrief({ time: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Default is 9:00 PM. Triggers evaluation of workouts, nutrition, water & steps.
+                </p>
+              </div>
+
+              {/* Blackout Mode Checkbox */}
+              <div className="pt-2 border-t border-slate-800">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.nightDebrief?.blackoutEnabled !== false}
+                    onChange={(e) =>
+                      handleUpdateNightDebrief({ blackoutEnabled: e.target.checked })
+                    }
+                    className="mt-1 rounded text-indigo-600 focus:ring-indigo-500 border-slate-700 bg-slate-950"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <Power className="w-3 h-3 text-emerald-400" />
+                      Auto-enter Pitch-Black Sleep Mode
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Fades the display into a 100% black OLED screen-off mode with double-tap wake when speech finishes.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* 2. Spoken Language & Test Button */}
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-indigo-500/20 flex flex-col justify-between space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                  Spoken Voice Language
+                </label>
+
+                {/* 3-way Segmented Language Pill Selector */}
+                <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateNightDebrief({ language: 'en' })}
+                    className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center ${
+                      (settings.nightDebrief?.language || 'both') === 'en'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateNightDebrief({ language: 'ta' })}
+                    className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center ${
+                      (settings.nightDebrief?.language || 'both') === 'ta'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    தமிழ்
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateNightDebrief({ language: 'both' })}
+                    className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center ${
+                      (settings.nightDebrief?.language || 'both') === 'both'
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Bilingual
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  {(settings.nightDebrief?.language || 'both') === 'en' &&
+                    'Speaks in natural, fluent Indian / International English.'}
+                  {(settings.nightDebrief?.language || 'both') === 'ta' &&
+                    'Speaks in authentic, fluent colloquial Tamil (native accent).'}
+                  {(settings.nightDebrief?.language || 'both') === 'both' &&
+                    'Speaks in English first, followed seamlessly by Tamil.'}
+                </p>
+              </div>
+
+              {/* Test Button */}
+              <button
+                type="button"
+                onClick={handleTestNightDebrief}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-black shadow-md shadow-indigo-600/30 transition active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                <span>Test 9 PM Night Debrief Now</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 4-Pillar Overview Badges */}
+          <div className="pt-2 border-t border-indigo-500/10 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+              <span className="text-[10px] font-black text-emerald-400 block uppercase tracking-wider">
+                1. Achievements
+              </span>
+              <span className="text-[11px] text-slate-300">Praise today's wins</span>
+            </div>
+            <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+              <span className="text-[10px] font-black text-amber-400 block uppercase tracking-wider">
+                2. Coach Reality
+              </span>
+              <span className="text-[11px] text-slate-300">Firm accountability</span>
+            </div>
+            <div className="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-center">
+              <span className="text-[10px] font-black text-indigo-400 block uppercase tracking-wider">
+                3. Tomorrow Reset
+              </span>
+              <span className="text-[11px] text-slate-300">6:00 AM wake-up drive</span>
+            </div>
+            <div className="px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center">
+              <span className="text-[10px] font-black text-purple-400 block uppercase tracking-wider">
+                4. Screen Off
+              </span>
+              <span className="text-[11px] text-slate-300">OLED Sleep Blackout</span>
             </div>
           </div>
         </div>

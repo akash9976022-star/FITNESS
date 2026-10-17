@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Droplets,
   CheckCircle2,
@@ -11,6 +11,8 @@ import {
   subscribeCustomRoutines,
   subscribeUserProfile,
   dismissCustomRoutineForToday,
+  dismissNightDebriefForToday,
+  fetchTodayPerformanceData,
   logWaterIntake,
   getTodayDateString,
   type UserRoutineSettings,
@@ -26,7 +28,12 @@ import {
   isRoutineActiveToday,
   buildSpokenPhrase,
 } from '../../utils/routineVoiceEngine';
+import {
+  buildNightDebriefScript,
+  type DebriefScript,
+} from '../../utils/nightDebriefEngine';
 import RoutineReminderModal from './RoutineReminderModal';
+import NightDebriefModal from './NightDebriefModal';
 
 interface ActiveToastNotification {
   routine: CustomRoutineItem | RoutineType;
@@ -52,6 +59,10 @@ export const RoutineManager: React.FC = () => {
   // Active Top-Floating Toast Alert State
   const [activeToast, setActiveToast] = useState<ActiveToastNotification | null>(null);
 
+  // 9:00 PM Night Debrief & Sleep Blackout State
+  const [isDebriefModalOpen, setIsDebriefModalOpen] = useState(false);
+  const [debriefScript, setDebriefScript] = useState<DebriefScript | null>(null);
+
   // Track latest settings & custom routines in refs to avoid stale closures in setInterval
   const settingsRef = useRef<UserRoutineSettings>(settings);
   settingsRef.current = settings;
@@ -62,6 +73,18 @@ export const RoutineManager: React.FC = () => {
   const userName = userProfile?.age
     ? currentUser?.displayName || 'Akash'
     : currentUser?.displayName || 'Akash';
+
+  const launchNightDebrief = useCallback(async () => {
+    if (!currentUser?.uid) return;
+    try {
+      const perfData = await fetchTodayPerformanceData(currentUser.uid);
+      const script = buildNightDebriefScript(perfData, userName);
+      setDebriefScript(script);
+      setIsDebriefModalOpen(true);
+    } catch (err) {
+      console.error('Failed to launch night debrief:', err);
+    }
+  }, [currentUser?.uid, userName]);
 
   // 1. Initialize user gesture audio unlock on mount
   useEffect(() => {
@@ -133,10 +156,22 @@ export const RoutineManager: React.FC = () => {
     };
   }, [userName]);
 
+  // 3b. Global Event Listener for Manual 9:00 PM Night Debrief Trigger
+  useEffect(() => {
+    const handleNightDebriefTrigger = () => {
+      launchNightDebrief();
+    };
+
+    window.addEventListener('TRIGGER_NIGHT_DEBRIEF', handleNightDebriefTrigger);
+    return () => {
+      window.removeEventListener('TRIGGER_NIGHT_DEBRIEF', handleNightDebriefTrigger);
+    };
+  }, [launchNightDebrief]);
+
   // 4. Background Routine Clock Monitor (Runs every second)
   useEffect(() => {
     const checkRoutineTimes = () => {
-      if (activeRoutineRef.current !== null) return; // Modal already active
+      if (activeRoutineRef.current !== null || isDebriefModalOpen) return; // Modal already active
 
       const currentSettings = settingsRef.current;
       const routines = customRoutinesRef.current;
@@ -145,6 +180,19 @@ export const RoutineManager: React.FC = () => {
       const currentMinutes = String(now.getMinutes()).padStart(2, '0');
       const currentTime = `${currentHours}:${currentMinutes}`;
       const todayStr = now.toISOString().split('T')[0];
+
+      // 4a. Check Scheduled Night Debrief (Default 9:00 PM / 21:00)
+      const nightDebrief = currentSettings.nightDebrief;
+      if (nightDebrief && nightDebrief.enabled) {
+        const debriefTime = nightDebrief.time || '21:00';
+        if (currentTime === debriefTime && nightDebrief.lastDebriefDate !== todayStr) {
+          if (currentUser?.uid) {
+            dismissNightDebriefForToday(currentUser.uid, todayStr);
+          }
+          launchNightDebrief();
+          return;
+        }
+      }
 
       for (const item of routines) {
         if (!item.enabled) continue;
@@ -350,6 +398,22 @@ export const RoutineManager: React.FC = () => {
           voiceRate={settings.voiceRate}
           onDismiss={handleDismiss}
           onAcknowledge={handleAcknowledge}
+        />
+      )}
+
+      {/* 9:00 PM End-of-Day AI Coach Debrief & Sleep Blackout Modal */}
+      {isDebriefModalOpen && debriefScript && (
+        <NightDebriefModal
+          isOpen={isDebriefModalOpen}
+          script={debriefScript}
+          language={settings.nightDebrief?.language || 'both'}
+          blackoutEnabled={settings.nightDebrief?.blackoutEnabled !== false}
+          onClose={() => setIsDebriefModalOpen(false)}
+          onDebriefCompleted={() => {
+            if (currentUser?.uid) {
+              dismissNightDebriefForToday(currentUser.uid, getTodayDateString());
+            }
+          }}
         />
       )}
     </>
