@@ -155,7 +155,11 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
             );
             // Muted video playback is 100% permitted across all browsers, iOS Safari, and Android Chrome
             videoEl.muted = true;
-            videoEl.play().catch((e) => console.error('Muted autoplay error:', e));
+            videoEl.play().catch((e) => {
+              console.error('Muted autoplay error:', e);
+              setVideoError(true);
+              tibetanBowlSynth.startAlarm(1.0);
+            });
             setIsMutedAutoplay(true);
             // Sound the alarm bowl chime so heavy sleeper is awakened
             tibetanBowlSynth.startAlarm(1.0);
@@ -217,7 +221,9 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
               loop
               className="w-full h-full object-cover opacity-75"
               onError={(e) => {
-                console.warn('Video element encounter load issue:', e);
+                console.warn('Media element encountered decode issue, activating alarm audio backup:', e);
+                setVideoError(true);
+                tibetanBowlSynth.startAlarm(1.0);
               }}
             />
           )

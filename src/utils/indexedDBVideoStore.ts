@@ -61,50 +61,62 @@ const blobUrlCache = new Map<string, string>();
 export function getCleanVideoMimeType(fileName: string, rawMime?: string): string {
   const ext = (fileName || '').split('.').pop()?.toLowerCase();
   switch (ext) {
+    // Audio song formats (supported by all media players and HTML5)
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'm4a':
+    case 'aac':
+      return 'audio/mp4';
+    case 'wav':
+      return 'audio/wav';
+    case 'ogg':
+    case 'oga':
+      return 'audio/ogg';
+    case 'flac':
+      return 'audio/flac';
+    case 'opus':
+      return 'audio/opus';
+
+    // Video song formats
+    case 'webm':
+      return 'video/webm';
+    case 'ogv':
+      return 'video/ogg';
+    case '3gp':
+      return 'video/3gpp';
+    case 'ts':
+      return 'video/mp2t';
     case 'hvc':
     case 'hevc':
     case 'h265':
     case '265':
-      // HEVC (High Efficiency Video Coding, H.265). Mapped to video/mp4 for maximum hardware decoder compatibility
-      return rawMime && rawMime.startsWith('video/') ? rawMime : 'video/mp4';
     case 'mp4':
     case 'm4v':
-      return 'video/mp4';
     case 'mov':
-      // Quicktime/MOV is usually H.264/HEVC/AAC and decoded best in HTML5 video elements as video/mp4
-      return 'video/mp4';
-    case 'webm':
-      return 'video/webm';
     case 'mkv':
-      // Matroska with H.264/AAC plays with maximum hardware compatibility as video/mp4 in browsers
-      return 'video/mp4';
-    case '3gp':
-      return 'video/3gpp';
     case 'avi':
-      return 'video/x-msvideo';
-    case 'ts':
-      return 'video/mp2t';
     case 'wmv':
-      return 'video/x-ms-wmv';
-    case 'ogv':
-      return 'video/ogg';
     default:
-      if (rawMime && rawMime.startsWith('video/')) return rawMime;
+      if (rawMime && (rawMime.startsWith('audio/') || rawMime === 'video/webm' || rawMime === 'video/ogg')) {
+        return rawMime;
+      }
+      // For all other video formats (H.264, HEVC, MKV, MOV), video/mp4 provides maximum native browser decoder support
       return 'video/mp4';
   }
 }
 
 /**
- * Stores a video file/blob into IndexedDB with format normalization
+ * Stores a video or audio file/blob into IndexedDB with format normalization
  */
 export async function storeVideoBlob(
   id: string,
   blob: Blob,
-  fileName: string = 'alarm_video.mp4'
+  fileName: string = 'alarm_song.mp4'
 ): Promise<void> {
   const db = await getDB();
   const mimeType = getCleanVideoMimeType(fileName, blob.type);
-  const cleanBlob = blob.type && blob.type.startsWith('video/') ? blob : new Blob([blob], { type: mimeType });
+  // Always normalize the blob MIME type so browser media decoders accept it
+  const cleanBlob = new Blob([blob], { type: mimeType });
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -124,9 +136,9 @@ export async function storeVideoBlob(
 }
 
 /**
- * Retrieves a video blob from IndexedDB
+ * Retrieves the full stored video/audio record from IndexedDB
  */
-export async function getVideoBlob(id: string): Promise<Blob | null> {
+export async function getVideoRecord(id: string): Promise<StoredVideoRecord | null> {
   try {
     const db = await getDB();
     return new Promise((resolve, reject) => {
@@ -135,14 +147,22 @@ export async function getVideoBlob(id: string): Promise<Blob | null> {
       const req = store.get(id);
       req.onsuccess = () => {
         const result = req.result as StoredVideoRecord | undefined;
-        resolve(result ? result.blob : null);
+        resolve(result || null);
       };
       req.onerror = () => reject(req.error);
     });
   } catch (err) {
-    console.warn('Error reading video from IndexedDB:', err);
+    console.warn('Error reading media record from IndexedDB:', err);
     return null;
   }
+}
+
+/**
+ * Retrieves a video blob from IndexedDB
+ */
+export async function getVideoBlob(id: string): Promise<Blob | null> {
+  const record = await getVideoRecord(id);
+  return record ? record.blob : null;
 }
 
 /**
@@ -201,8 +221,8 @@ export async function clearAllStoredVideos(): Promise<void> {
 }
 
 /**
- * Resolves any video URL (whether http, https, youtube, blob, or indexeddb:key)
- * into a valid, playable URL string for <video> or <iframe>.
+ * Resolves any video or audio URL (whether http, https, youtube, blob, or indexeddb:key)
+ * into a valid, playable URL string for <video>, <audio>, or <iframe>.
  */
 export async function resolveVideoUrl(videoUrl: string): Promise<string> {
   if (!videoUrl) return '';
@@ -213,10 +233,18 @@ export async function resolveVideoUrl(videoUrl: string): Promise<string> {
     if (blobUrlCache.has(key)) {
       return blobUrlCache.get(key)!;
     }
+    const record = await getVideoRecord(key);
+    if (record && record.blob) {
+      const safeMime = record.mimeType || getCleanVideoMimeType(record.fileName || '', record.blob.type);
+      const cleanBlob = new Blob([record.blob], { type: safeMime });
+      const url = URL.createObjectURL(cleanBlob);
+      blobUrlCache.set(key, url);
+      return url;
+    }
     const blob = await getVideoBlob(key);
     if (blob) {
-      const mime = blob.type && blob.type.startsWith('video/') ? blob.type : 'video/mp4';
-      const cleanBlob = blob.type === mime ? blob : new Blob([blob], { type: mime });
+      const mime = blob.type && blob.type.startsWith('audio/') ? blob.type : 'video/mp4';
+      const cleanBlob = new Blob([blob], { type: mime });
       const url = URL.createObjectURL(cleanBlob);
       blobUrlCache.set(key, url);
       return url;
@@ -228,7 +256,7 @@ export async function resolveVideoUrl(videoUrl: string): Promise<string> {
 }
 
 /**
- * Helper to inspect the real duration of a local video file with fast 800ms fallback
+ * Helper to inspect the real duration of a local song file (video or audio) with fast 800ms fallback
  */
 export function extractVideoDuration(file: File): Promise<string> {
   return new Promise((resolve) => {
@@ -237,8 +265,9 @@ export function extractVideoDuration(file: File): Promise<string> {
       return;
     }
     try {
-      const tempVideo = document.createElement('video');
-      tempVideo.preload = 'metadata';
+      const isAudio = file.type.startsWith('audio/') || /\.(mp3|m4a|wav|aac|flac|ogg)$/i.test(file.name);
+      const mediaEl = document.createElement(isAudio ? 'audio' : 'video');
+      mediaEl.preload = 'metadata';
       const objectUrl = URL.createObjectURL(file);
 
       const cleanup = () => {
@@ -254,10 +283,10 @@ export function extractVideoDuration(file: File): Promise<string> {
         resolve('03:45');
       }, 800);
 
-      tempVideo.onloadedmetadata = () => {
+      mediaEl.onloadedmetadata = () => {
         clearTimeout(timer);
         cleanup();
-        const sec = Math.round(tempVideo.duration) || 0;
+        const sec = Math.round(mediaEl.duration) || 0;
         if (sec > 0) {
           const mins = Math.floor(sec / 60);
           const remSec = sec % 60;
@@ -267,13 +296,13 @@ export function extractVideoDuration(file: File): Promise<string> {
         }
       };
 
-      tempVideo.onerror = () => {
+      mediaEl.onerror = () => {
         clearTimeout(timer);
         cleanup();
         resolve('03:45');
       };
 
-      tempVideo.src = objectUrl;
+      mediaEl.src = objectUrl;
     } catch {
       resolve('03:45');
     }
