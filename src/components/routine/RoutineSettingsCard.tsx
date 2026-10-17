@@ -45,6 +45,7 @@ import {
   stopRoutineSpeech,
   buildSpokenPhrase,
 } from '../../utils/routineVoiceEngine';
+import { unlockAudio } from '../../utils/voiceSynthesisHelper';
 
 interface RoutineSettingsCardProps {
   className?: string;
@@ -466,6 +467,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
 
   // Trigger manual test of Night Debrief
   const handleTestNightDebrief = () => {
+    unlockAudio();
     window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'));
     showToast('Starting 9:00 PM AI Coach Night Debrief...');
   };

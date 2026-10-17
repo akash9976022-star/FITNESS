@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sparkles,
   Volume2,
@@ -53,7 +53,6 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [briefingLanguage, setBriefingLanguage] = useState<'both' | 'en' | 'ta'>('both');
-  const hasStartedRef = useRef(false);
 
   // Initialize and register devotional callbacks
   useEffect(() => {
@@ -65,15 +64,12 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
     });
   }, []);
 
-  // Trigger speech briefing strictly ONCE when modal opens
+  // Trigger speech briefing when modal opens or language changes
   useEffect(() => {
     if (!isOpen || sections.length === 0) {
-      hasStartedRef.current = false;
+      speechBriefingEngine.stop();
       return;
     }
-
-    if (hasStartedRef.current) return;
-    hasStartedRef.current = true;
 
     setActiveSectionIndex(0);
     setActiveLanguage(briefingLanguage === 'ta' ? 'ta' : 'en');
@@ -83,10 +79,13 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
     setIsSpeechPaused(false);
     setActiveTab('briefing');
 
+    let isSubscribed = true;
+
     speechBriefingEngine.startBriefing(
       sections,
       {
         onSectionStart: (idx, lang, segment) => {
+          if (!isSubscribed) return;
           setActiveSectionIndex(idx);
           setActiveLanguage(lang);
           if (segment) setActiveSegment(segment);
@@ -95,6 +94,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
           // Progressively highlight completion
         },
         onAllComplete: () => {
+          if (!isSubscribed) return;
           setIsSpeechSpeaking(false);
           setSpeechCompleted(true);
           if (autoStartDevotionals) {
@@ -104,6 +104,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
           }
         },
         onError: () => {
+          if (!isSubscribed) return;
           setIsSpeechSpeaking(false);
         },
       },
@@ -111,9 +112,10 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
     );
 
     return () => {
+      isSubscribed = false;
       speechBriefingEngine.stop();
     };
-  }, [isOpen, sections, autoStartDevotionals, volume, briefingLanguage]);
+  }, [isOpen, briefingLanguage]);
 
   if (!isOpen) return null;
 
@@ -177,11 +179,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
             <div className="hidden xs:flex sm:flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
               <button
                 type="button"
-                onClick={() => {
-                  speechBriefingEngine.stop();
-                  hasStartedRef.current = false;
-                  setBriefingLanguage('en');
-                }}
+                onClick={() => setBriefingLanguage('en')}
                 className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
                   briefingLanguage === 'en'
                     ? 'bg-emerald-600 text-white shadow-xs'
@@ -192,11 +190,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  speechBriefingEngine.stop();
-                  hasStartedRef.current = false;
-                  setBriefingLanguage('ta');
-                }}
+                onClick={() => setBriefingLanguage('ta')}
                 className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
                   briefingLanguage === 'ta'
                     ? 'bg-purple-600 text-white shadow-xs'
@@ -207,11 +201,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  speechBriefingEngine.stop();
-                  hasStartedRef.current = false;
-                  setBriefingLanguage('both');
-                }}
+                onClick={() => setBriefingLanguage('both')}
                 className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
                   briefingLanguage === 'both'
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'

@@ -65,6 +65,7 @@ import { StreakBadge } from '../components/streak/StreakBadge';
 import { DailyFastingCard } from '../components/fasting/DailyFastingCard';
 import { FastingBanner } from '../components/fasting/FastingBanner';
 import Card3D from '../components/common/Card3D';
+import { unlockAudio } from '../utils/voiceSynthesisHelper';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -541,7 +542,10 @@ export const Dashboard: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'))}
+              onClick={() => {
+                unlockAudio();
+                window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'));
+              }}
               className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/25 btn-tactile"
               title="Test the complete 9:00 PM AI Coach debrief and sleep blackout sequence"
             >

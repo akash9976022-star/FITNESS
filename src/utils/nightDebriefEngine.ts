@@ -22,6 +22,7 @@ import {
   getBestNaturalVoice,
   splitIntoSentences,
   speakChunk,
+  stopAllVoiceSpeech,
 } from './voiceSynthesisHelper';
 
 export interface DebriefSegmentItem {
@@ -412,9 +413,7 @@ let currentSpeechSessionId = 0;
 export function stopNightDebriefSpeech(): void {
   activeSpeechLock = false;
   currentSpeechSessionId++;
-  if (typeof window !== 'undefined' && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
+  stopAllVoiceSpeech();
 }
 
 /**
@@ -430,7 +429,7 @@ export async function speakNightDebrief(
   language: NightDebriefLanguage = 'both',
   callbacks: SpeakDebriefCallbacks = {}
 ): Promise<void> {
-  if (typeof window === 'undefined' || !window.speechSynthesis) {
+  if (typeof window === 'undefined') {
     callbacks.onComplete?.();
     return;
   }

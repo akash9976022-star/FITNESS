@@ -65,6 +65,7 @@ import {
   type DailyFastingState,
   type FastingType,
 } from '../services/firestoreService';
+import { unlockAudio } from '../utils/voiceSynthesisHelper';
 import { uploadCheckInPhoto } from '../services/storageService';
 import {
   handleImageUploadAndCompression,
@@ -1023,7 +1024,10 @@ export const CheckIn: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'))}
+                onClick={() => {
+                  unlockAudio();
+                  window.dispatchEvent(new CustomEvent('TRIGGER_NIGHT_DEBRIEF'));
+                }}
                 className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/25 transition active:scale-[0.98] self-start sm:self-center"
               >
                 <Play className="w-3.5 h-3.5 fill-white animate-pulse" />

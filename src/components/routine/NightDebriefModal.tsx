@@ -54,6 +54,12 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
   const [isSpeaking, setIsSpeaking] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [segmentIndex, setSegmentIndex] = useState<number>(0);
+  const [currentLanguage, setCurrentLanguage] = useState<NightDebriefLanguage>(language);
+
+  // Sync prop language when modal opens
+  useEffect(() => {
+    setCurrentLanguage(language);
+  }, [language]);
 
   // Blackout Sleep State
   const [isBlackoutActive, setIsBlackoutActive] = useState<boolean>(false);
@@ -61,7 +67,6 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
 
   // Double-tap touch tracker for mobile wake
   const lastTouchTimeRef = useRef<number>(0);
-  const hasStartedRef = useRef<boolean>(false);
 
   // Fullscreen helper
   const enterFullscreen = useCallback(() => {
@@ -127,32 +132,35 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
     lastTouchTimeRef.current = now;
   }, [wakeFromSleepBlackout]);
 
-  // Start Speech Synthesis strictly ONCE when modal opens
+  // Start Speech Synthesis when modal opens or language changes
   useEffect(() => {
-    if (!isOpen) {
-      hasStartedRef.current = false;
+    if (!isOpen || isBlackoutActive) {
+      stopNightDebriefSpeech();
       return;
     }
-
-    if (hasStartedRef.current || isBlackoutActive) return;
-    hasStartedRef.current = true;
 
     setIsSpeaking(true);
     setCurrentSegment(script.segments[0]);
     setSegmentIndex(0);
 
-    speakNightDebrief(script, language, {
+    let isSubscribed = true;
+
+    speakNightDebrief(script, currentLanguage, {
       onSegmentStart: (seg, isTa) => {
+        if (!isSubscribed) return;
         setCurrentSegment(seg);
         setIsTamilSpeaking(isTa);
         const idx = script.segments.findIndex((s) => s.id === seg.id);
         if (idx !== -1) setSegmentIndex(idx);
       },
       onSentence: (text, isTa) => {
+        if (!isSubscribed) return;
         setCurrentSentence(text);
         setIsTamilSpeaking(isTa);
       },
       onComplete: () => {
+        if (!isSubscribed) return;
+        setIsSpeaking(false);
         triggerSleepBlackoutRef.current();
       },
       onError: (err) => {
@@ -161,9 +169,10 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
     });
 
     return () => {
+      isSubscribed = false;
       stopNightDebriefSpeech();
     };
-  }, [isOpen, script, language]);
+  }, [isOpen, script, currentLanguage, isBlackoutActive]);
 
   // Keyboard Escape listener
   useEffect(() => {
@@ -258,16 +267,35 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              stopNightDebriefSpeech();
-              onClose();
-            }}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
-            title="Close Debrief"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
+              {(['en', 'ta', 'both'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setCurrentLanguage(mode)}
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition ${
+                    currentLanguage === mode
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {mode === 'en' ? 'English' : mode === 'ta' ? 'தமிழ்' : 'Tanglish'}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                stopNightDebriefSpeech();
+                onClose();
+              }}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
+              title="Close Debrief"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 4-Pillar Progress Track */}
@@ -275,7 +303,7 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
             <span>Progress ({segmentIndex + 1} of {script.segments.length})</span>
             <span className="flex items-center gap-1.5 text-emerald-400 font-mono">
-              {language === 'both'
+              {currentLanguage === 'both'
                 ? isTamilSpeaking
                   ? 'Tanglish: தமிழ்'
                   : 'Tanglish: English'

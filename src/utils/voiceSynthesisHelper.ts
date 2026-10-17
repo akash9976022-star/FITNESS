@@ -2,13 +2,54 @@
  * FitMaintenance AI - Universal Neural Voice & Speech Synthesis Helper
  * 
  * Provides:
- * 1. Asynchronous voice loading with onvoiceschanged + timeout fallback.
- * 2. High-priority neural voice selection for en-IN, en-US, and ta-IN.
- * 3. Strict assignment of both utterance.voice and utterance.lang.
- * 4. Micro-pause and sentence chunking to eliminate robotic monotony.
- * 5. Execution lock and single-resolution Promises with callback nullification to eliminate duplicate speech loops.
+ * 1. Studio-grade Google Neural TTS Audio streaming for authentic, native fluent Tamil & Indian English.
+ * 2. Asynchronous browser voice loading with onvoiceschanged + timeout fallback.
+ * 3. High-priority neural voice selection for en-IN, en-US, and ta-IN.
+ * 4. Utterance Garbage-Collection immunity via persistent Set tracker.
+ * 5. Strict assignment of both utterance.voice and utterance.lang.
+ * 6. Sentence chunking and micro-pauses for human conversational cadence.
+ * 7. Single-resolution Promises with callback nullification to eliminate duplicate loops.
  */
 
+// Active Audio and Utterance references to prevent GC drops and allow clean cancellation
+let activeAudio: HTMLAudioElement | null = null;
+const activeUtterances = new Set<SpeechSynthesisUtterance>();
+
+/**
+ * Completely stops all audio and speech synthesis currently playing
+ */
+export function stopAllVoiceSpeech(): void {
+  if (activeAudio) {
+    try {
+      activeAudio.pause();
+      activeAudio.currentTime = 0;
+    } catch {}
+    activeAudio = null;
+  }
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {}
+  }
+  activeUtterances.clear();
+}
+
+/**
+ * Resumes audio context & speech synthesis on user gesture
+ */
+export function unlockAudio(): void {
+  if (typeof window !== 'undefined') {
+    try {
+      if (window.speechSynthesis && window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch {}
+  }
+}
+
+/**
+ * Asynchronously waits for browser voices to load with a 350ms fallback timeout
+ */
 export function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
@@ -161,10 +202,100 @@ export function splitIntoSentences(text: string): string[] {
 }
 
 /**
- * Single sequential speech chunk executor with strict callback nullification,
- * watchdog timeout, and voice matching.
+ * Streams Google Studio-Grade Neural Natural Speech.
+ * Delivers authentic, native, fluent human Tamil intonation and natural Indian English.
  */
-export function speakChunk(
+export function playGoogleNeuralTTS(
+  text: string,
+  lang: 'en' | 'ta',
+  onStart?: () => void
+): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+
+    const trimmed = text.trim();
+    if (!trimmed) {
+      resolve(true);
+      return;
+    }
+
+    const ttsLang = lang === 'ta' ? 'ta' : 'en-IN';
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(trimmed)}&tl=${ttsLang}&client=tw-ob`;
+
+    const audio = new Audio();
+    audio.preload = 'auto';
+    activeAudio = audio;
+
+    let timeout: any = null;
+    let hasEnded = false;
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      audio.onended = null;
+      audio.onerror = null;
+      audio.onplaying = null;
+      if (activeAudio === audio) {
+        activeAudio = null;
+      }
+    };
+
+    // Watchdog connection timeout (7s)
+    timeout = setTimeout(() => {
+      if (!hasEnded) {
+        hasEnded = true;
+        cleanup();
+        resolve(false);
+      }
+    }, 7000);
+
+    audio.onplaying = () => {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      onStart?.();
+    };
+
+    audio.onended = () => {
+      if (!hasEnded) {
+        hasEnded = true;
+        cleanup();
+        resolve(true);
+      }
+    };
+
+    audio.onerror = (e) => {
+      if (!hasEnded) {
+        hasEnded = true;
+        cleanup();
+        console.warn(`Google Neural TTS playback notice (${ttsLang}):`, e);
+        resolve(false);
+      }
+    };
+
+    audio.src = url;
+    audio.play().catch((err) => {
+      if (!hasEnded) {
+        hasEnded = true;
+        cleanup();
+        console.warn(`Google Neural TTS play notice (${ttsLang}):`, err);
+        resolve(false);
+      }
+    });
+  });
+}
+
+/**
+ * Single sequential speech chunk executor with:
+ * - Google Neural Natural Stream for authentic, fluent spoken Tamil
+ * - High-fidelity neural voice matching for English
+ * - SpeechSynthesisUtterance GC immunity
+ * - Strict callback nullification & watchdog timeout
+ */
+export async function speakChunk(
   text: string,
   lang: 'en' | 'ta',
   options: {
@@ -177,24 +308,48 @@ export function speakChunk(
     onBoundary?: (e: SpeechSynthesisEvent) => void;
   } = {}
 ): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      resolve();
+  const trimmed = (text || '').trim();
+  if (!trimmed) {
+    options.onEnd?.();
+    return;
+  }
+
+  // 1. For Tamil: Google Neural TTS delivers authentic, native, fluent human Tamil intonation
+  // and works on 100% of devices (Windows, Android, iOS) without requiring an installed OS voice pack.
+  if (lang === 'ta') {
+    const googlePlayed = await playGoogleNeuralTTS(trimmed, 'ta', options.onStart);
+    if (googlePlayed) {
+      options.onEnd?.();
       return;
     }
+    // If network failed, fall through to browser SpeechSynthesis
+  }
 
-    const trimmed = (text || '').trim();
-    if (!trimmed) {
-      resolve();
-      return;
-    }
+  // 2. Browser SpeechSynthesis (for English or offline fallback)
+  if (typeof window === 'undefined' || !window.speechSynthesis) {
+    options.onEnd?.();
+    return;
+  }
 
+  try {
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
+  } catch {}
 
+  const voices = options.voices || window.speechSynthesis.getVoices();
+  const voice = getBestNaturalVoice(lang, voices);
+
+  // If language is Tamil and NO Tamil voice is available on device and Google TTS failed, return cleanly
+  if (lang === 'ta' && !voice) {
+    console.warn('No Tamil voice pack available on this device and network TTS offline.');
+    options.onEnd?.();
+    return;
+  }
+
+  return new Promise<void>((resolve) => {
     const utterance = new SpeechSynthesisUtterance(trimmed);
-    const voice = getBestNaturalVoice(lang, options.voices);
+    activeUtterances.add(utterance); // GC immunity
 
     if (voice) {
       utterance.voice = voice;
@@ -214,6 +369,7 @@ export function speakChunk(
       if (hasResolved) return;
       hasResolved = true;
       if (watchdogTimer) clearTimeout(watchdogTimer);
+      activeUtterances.delete(utterance);
       utterance.onend = null;
       utterance.onerror = null;
       utterance.onboundary = null;
@@ -238,12 +394,21 @@ export function speakChunk(
       cleanupAndResolve();
     };
 
-    utterance.onerror = (e) => {
+    utterance.onerror = async (e) => {
       console.warn('Speech chunk notice:', e);
+      // If browser SpeechSynthesis failed (e.g. language-unavailable on Windows), fallback to Google Neural TTS
+      const fallbackSuccess = await playGoogleNeuralTTS(trimmed, lang, options.onStart);
+      if (fallbackSuccess) {
+        cleanupAndResolve();
+        return;
+      }
       cleanupAndResolve();
     };
 
-    window.speechSynthesis.speak(utterance);
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      cleanupAndResolve();
+    }
   });
 }
-
