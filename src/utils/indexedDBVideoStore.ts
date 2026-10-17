@@ -2,8 +2,8 @@
  * FitMaintenance AI - Local IndexedDB Video & Media Storage
  * 
  * Provides instantaneous, reliable, offline-first client storage for large user-uploaded
- * alarm video songs (.mp4, .webm, .mov) with zero cloud latency, zero 1MB Firestore limitations,
- * and seamless playback in HTML5 video elements.
+ * alarm video songs (supporting .mp4, .MP4, .mov, .MOV, .webm, .WEBM, .mkv, .MKV, and all video formats)
+ * with zero cloud latency, zero 1MB Firestore limitations, and seamless playback in HTML5 video elements.
  */
 
 const DB_NAME = 'FitMaintenanceAI_MediaDB';
@@ -55,7 +55,39 @@ function getDB(): Promise<IDBDatabase> {
 const blobUrlCache = new Map<string, string>();
 
 /**
- * Stores a video file/blob into IndexedDB
+ * Normalizes and infers the correct video MIME type across lowercase/uppercase extensions
+ * (.mp4, .MP4, .mov, .MOV, .webm, .WEBM, .mkv, .MKV, .3gp, .3GP, .avi, .AVI, etc.)
+ */
+export function getCleanVideoMimeType(fileName: string, rawMime?: string): string {
+  if (rawMime && rawMime.startsWith('video/')) return rawMime;
+  const ext = (fileName || '').split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'mp4':
+    case 'm4v':
+      return 'video/mp4';
+    case 'webm':
+      return 'video/webm';
+    case 'mov':
+      return 'video/quicktime';
+    case 'mkv':
+      return 'video/x-matroska';
+    case '3gp':
+      return 'video/3gpp';
+    case 'avi':
+      return 'video/x-msvideo';
+    case 'ts':
+      return 'video/mp2t';
+    case 'wmv':
+      return 'video/x-ms-wmv';
+    case 'ogv':
+      return 'video/ogg';
+    default:
+      return 'video/mp4';
+  }
+}
+
+/**
+ * Stores a video file/blob into IndexedDB with format normalization
  */
 export async function storeVideoBlob(
   id: string,
@@ -63,15 +95,18 @@ export async function storeVideoBlob(
   fileName: string = 'alarm_video.mp4'
 ): Promise<void> {
   const db = await getDB();
+  const mimeType = getCleanVideoMimeType(fileName, blob.type);
+  const cleanBlob = blob.type && blob.type.startsWith('video/') ? blob : new Blob([blob], { type: mimeType });
+
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     const record: StoredVideoRecord = {
       id,
-      blob,
+      blob: cleanBlob,
       fileName,
-      mimeType: blob.type || 'video/mp4',
-      size: blob.size,
+      mimeType,
+      size: cleanBlob.size,
       updatedAt: Date.now(),
     };
     const req = store.put(record);
@@ -167,21 +202,42 @@ export function extractVideoDuration(file: File): Promise<string> {
       const tempVideo = document.createElement('video');
       tempVideo.preload = 'metadata';
       const objectUrl = URL.createObjectURL(file);
-      tempVideo.onloadedmetadata = () => {
-        URL.revokeObjectURL(objectUrl);
-        const sec = Math.round(tempVideo.duration) || 0;
-        const mins = Math.floor(sec / 60);
-        const remSec = sec % 60;
-        resolve(`${String(mins).padStart(2, '0')}:${String(remSec).padStart(2, '0')}`);
+
+      const cleanup = () => {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch {
+          // ignore
+        }
       };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve('05:00');
+      }, 3500);
+
+      tempVideo.onloadedmetadata = () => {
+        clearTimeout(timer);
+        cleanup();
+        const sec = Math.round(tempVideo.duration) || 0;
+        if (sec > 0) {
+          const mins = Math.floor(sec / 60);
+          const remSec = sec % 60;
+          resolve(`${String(mins).padStart(2, '0')}:${String(remSec).padStart(2, '0')}`);
+        } else {
+          resolve('05:00');
+        }
+      };
+
       tempVideo.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
+        clearTimeout(timer);
+        cleanup();
         resolve('05:00');
       };
+
       tempVideo.src = objectUrl;
     } catch {
       resolve('05:00');
     }
   });
 }
-

@@ -91,6 +91,17 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate that the file is a recognized video format (supporting .mp4, .MP4, .mov, .MOV, .webm, .mkv, etc.)
+    const isVideo =
+      file.type.startsWith('video/') ||
+      /\.(mp4|mov|webm|mkv|m4v|3gp|avi|ts|wmv|flv|ogv)$/i.test(file.name);
+
+    if (!isVideo) {
+      alert('Please select a valid video file (e.g. .mp4, .MP4, .mov, .webm, .mkv).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsUploadingVideo(true);
     setUploadStatus('Saving video song to library...');
     try {
@@ -116,7 +127,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
       setTimeout(() => setUploadStatus(null), 3000);
     } catch (err) {
       console.error('Failed to upload video:', err);
-      alert('Could not add video. Please ensure the file is an .mp4 or valid video file.');
+      alert('Could not add video. Please ensure the file is a valid video file.');
     } finally {
       setIsUploadingVideo(false);
       if (fileInputRef.current) {
@@ -341,17 +352,17 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                   <span>Wake-Up Video Song Library (100% User-Uploaded)</span>
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Upload your local .mp4 video files to play full-screen when tomorrow morning's alarm triggers.
+                  Upload your video songs (.mp4, .mov, .webm, .mkv, etc.) to play full-screen when tomorrow morning's alarm triggers.
                 </p>
               </div>
 
               {/* Action Buttons: File Upload & Link Form */}
               <div className="flex items-center gap-2">
-                {/* Hidden File Input for .mp4 Video Upload */}
+                {/* Hidden File Input for All Video Formats (.mp4, .MP4, .mov, .webm, .mkv, etc.) */}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="video/mp4,video/*"
+                  accept="video/*,.mp4,.MP4,.mov,.MOV,.webm,.WEBM,.mkv,.MKV,.m4v,.M4V,.3gp,.3GP,.avi,.AVI,.ts,.TS"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
@@ -363,7 +374,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                   className="py-1.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition shadow cursor-pointer disabled:opacity-50"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>{isUploadingVideo ? 'Uploading...' : 'Upload .mp4 Video'}</span>
+                  <span>{isUploadingVideo ? 'Saving Video...' : 'Upload Video Song'}</span>
                 </button>
 
                 <button
@@ -474,7 +485,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                     No Wake-Up Video Songs Uploaded Yet
                   </h5>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-                    Upload your local .mp4 video files to play full-screen during the 6:00 AM alarm. If left empty, the peaceful Tibetan singing bowl awakening tone will play.
+                    Upload your video songs (.mp4, .mov, .webm, .mkv, etc.) to play full-screen during the 6:00 AM alarm. If left empty, the peaceful Tibetan singing bowl awakening tone will play.
                   </p>
                 </div>
                 <button
@@ -483,7 +494,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                   className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Upload Local .mp4 Video</span>
+                  <span>Upload Video Song (MP4, MOV, WebM, MKV)</span>
                 </button>
               </div>
             ) : (
