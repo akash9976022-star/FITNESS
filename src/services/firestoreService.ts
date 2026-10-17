@@ -2926,7 +2926,7 @@ export interface UserAlarmSettings {
   playDevotionals: boolean;
   backgroundMusicVolume: number; // 0.0 - 1.0
   lastDismissedDate?: string; // YYYY-MM-DD
-  briefingLanguage?: 'en' | 'ta' | 'both';
+  briefingLanguage?: 'en' | 'ta' | 'tanglish' | 'both';
 }
 
 export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
@@ -2937,7 +2937,7 @@ export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
   selectedRasi: 'mesham',
   playDevotionals: true,
   backgroundMusicVolume: 0.15,
-  briefingLanguage: 'both',
+  briefingLanguage: 'tanglish',
 };
 
 /**
@@ -4543,12 +4543,13 @@ export interface HydrationIntervalConfig {
   voicePrompt?: string;
 }
 
-export type NightDebriefLanguage = 'en' | 'ta' | 'both';
+export type VoiceLanguageMode = 'en' | 'ta' | 'tanglish' | 'both';
+export type NightDebriefLanguage = VoiceLanguageMode;
 
 export interface NightDebriefConfig {
   time: string; // e.g. "21:00" in 24h format (9:00 PM)
   enabled: boolean;
-  language: NightDebriefLanguage; // 'en' | 'ta' | 'both'
+  language: VoiceLanguageMode; // 'en' | 'ta' | 'tanglish' | 'both'
   blackoutEnabled: boolean; // Screen-off sleep blackout mode after speech
   lastDebriefDate?: string;
 }
@@ -4561,6 +4562,7 @@ export interface UserRoutineSettings {
   hydrationInterval?: HydrationIntervalConfig;
   nightDebrief: NightDebriefConfig;
   voiceRemindersEnabled: boolean;
+  routineLanguage?: VoiceLanguageMode; // 4-way language for routine voice reminders
   voiceRate: number; // default: 0.95 (relaxed natural human cadence)
   voicePitch: number; // default: 1.0
   inAppNotificationEnabled: boolean;
@@ -4603,10 +4605,11 @@ export const DEFAULT_ROUTINE_SETTINGS: UserRoutineSettings = {
   nightDebrief: {
     time: '21:00',
     enabled: true,
-    language: 'both',
+    language: 'tanglish',
     blackoutEnabled: true,
   },
   voiceRemindersEnabled: true,
+  routineLanguage: 'tanglish',
   voiceRate: 0.95,
   voicePitch: 1.0,
   inAppNotificationEnabled: true,

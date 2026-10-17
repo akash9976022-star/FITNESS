@@ -32,6 +32,7 @@ import {
   buildNightDebriefScript,
   type DebriefScript,
 } from '../../utils/nightDebriefEngine';
+import { generateAiNightDebriefScript } from '../../services/conversationalAiVoiceService';
 import RoutineReminderModal from './RoutineReminderModal';
 import NightDebriefModal from './NightDebriefModal';
 
@@ -78,7 +79,13 @@ export const RoutineManager: React.FC = () => {
     if (!currentUser?.uid) return;
     try {
       const perfData = await fetchTodayPerformanceData(currentUser.uid);
-      const script = buildNightDebriefScript(perfData, userName);
+      // Generate ultra-natural conversational script with Gemini AI or rich offline persona
+      let script: DebriefScript;
+      try {
+        script = await generateAiNightDebriefScript(perfData, userName);
+      } catch {
+        script = buildNightDebriefScript(perfData, userName);
+      }
       setDebriefScript(script);
       setIsDebriefModalOpen(true);
     } catch (err) {

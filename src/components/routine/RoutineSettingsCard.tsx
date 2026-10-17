@@ -37,6 +37,7 @@ import {
   type RoutineRepeatFrequency,
   type UserProfile,
   type HydrationIntervalConfig,
+  type VoiceLanguageMode,
   DEFAULT_ROUTINE_SETTINGS,
   DEFAULT_CUSTOM_ROUTINES,
 } from '../../services/firestoreService';
@@ -325,6 +326,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
 
     setActiveTestingId(id);
     speakRoutineVoiceReminder(item, userName, {
+      language: settings.routineLanguage || 'tanglish',
       rate: settings.voiceRate,
       playChimeFirst: true,
       onStart: () => setActiveTestingId(id),
@@ -465,6 +467,32 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     }
   };
 
+  // Update Routine Reminders Language
+  const handleUpdateRoutineLanguage = async (newLang: VoiceLanguageMode) => {
+    if (!currentUser?.uid) return;
+    setSettings((prev) => ({
+      ...prev,
+      routineLanguage: newLang,
+    }));
+
+    try {
+      await saveRoutineSettings(currentUser.uid, {
+        routineLanguage: newLang,
+      });
+      const langNames: Record<VoiceLanguageMode, string> = {
+        en: 'English',
+        ta: 'Tamil (தமிழ்)',
+        tanglish: 'Tanglish',
+        both: 'Both (English + தமிழ்)',
+      };
+      showToast(`Routine reminders language set to ${langNames[newLang]}!`);
+      onSaved?.();
+    } catch (err) {
+      console.warn('Error saving routine language:', err);
+      showToast('Failed to save routine language.');
+    }
+  };
+
   // Trigger manual test of Night Debrief
   const handleTestNightDebrief = () => {
     unlockAudio();
@@ -523,6 +551,55 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
             <Plus className="w-4 h-4" />
             <span>Add New Routine</span>
           </button>
+        </div>
+      </div>
+
+      {/* ==================== ROUTINE VOICE REMINDER LANGUAGE BAR ==================== */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+            <Volume2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                Routine Voice Reminders Language
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
+                4 Modes
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Personalized spoken coach language for wake-up, workouts, hydration breaks, and custom schedules.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full sm:w-auto">
+          {(
+            [
+              { id: 'en', label: 'English' },
+              { id: 'ta', label: 'தமிழ்' },
+              { id: 'tanglish', label: 'Tanglish' },
+              { id: 'both', label: 'Both' },
+            ] as const
+          ).map((opt) => {
+            const isActive = (settings.routineLanguage || 'tanglish') === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleUpdateRoutineLanguage(opt.id)}
+                className={`py-2 px-3 text-xs font-bold rounded-lg transition-all text-center ${
+                  isActive
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs font-black'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -871,12 +948,12 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                   Spoken Voice Language
                 </label>
 
-                {/* 3-way Segmented Language Pill Selector */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-950/80 border border-slate-800">
+                {/* 4-way Segmented Language Pill Selector */}
+                <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-slate-950/80 border border-slate-800">
                   <button
                     type="button"
                     onClick={() => handleUpdateNightDebrief({ language: 'en' })}
-                    className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center ${
+                    className={`py-2 px-1 text-xs font-bold rounded-lg transition-all text-center ${
                       (settings.nightDebrief?.language || 'both') === 'en'
                         ? 'bg-indigo-600 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
@@ -887,7 +964,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleUpdateNightDebrief({ language: 'ta' })}
-                    className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center ${
+                    className={`py-2 px-1 text-xs font-bold rounded-lg transition-all text-center ${
                       (settings.nightDebrief?.language || 'both') === 'ta'
                         ? 'bg-purple-600 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
@@ -897,24 +974,37 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleUpdateNightDebrief({ language: 'both' })}
-                    className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center ${
-                      (settings.nightDebrief?.language || 'both') === 'both'
-                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                    onClick={() => handleUpdateNightDebrief({ language: 'tanglish' })}
+                    className={`py-2 px-1 text-xs font-bold rounded-lg transition-all text-center ${
+                      (settings.nightDebrief?.language || 'both') === 'tanglish'
+                        ? 'bg-emerald-600 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     Tanglish
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateNightDebrief({ language: 'both' })}
+                    className={`py-2 px-1 text-xs font-bold rounded-lg transition-all text-center ${
+                      (settings.nightDebrief?.language || 'both') === 'both'
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Both
+                  </button>
                 </div>
 
                 <p className="text-[11px] text-slate-400 mt-1.5">
                   {(settings.nightDebrief?.language || 'both') === 'en' &&
-                    'Mode 1: Speaks 100% in natural, fluent English from start to finish.'}
+                    'Mode 1: Speaks 100% in natural, fluent Indian-English from start to finish.'}
                   {(settings.nightDebrief?.language || 'both') === 'ta' &&
                     'Mode 2: Speaks 100% in authentic, conversational spoken Tamil (Peccu Tamil).'}
-                  {(settings.nightDebrief?.language || 'both') === 'both' &&
+                  {(settings.nightDebrief?.language || 'both') === 'tanglish' &&
                     'Mode 3: Speaks in a single unified Tanglish flow (English & Tamil code-switching with natural neural accents).'}
+                  {(settings.nightDebrief?.language || 'both') === 'both' &&
+                    'Mode 4: Speaks full natural English debrief first, followed cleanly by full Spoken Tamil debrief.'}
                 </p>
               </div>
 
@@ -985,7 +1075,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
             {routines.map((item) => {
               const isTesting = activeTestingId === item.id;
               const repeatBadge = getRepeatBadge(item.repeat || 'daily');
-              const displayPhrase = buildSpokenPhrase(item, firstName);
+              const displayPhrase = buildSpokenPhrase(item, firstName, settings.routineLanguage || 'tanglish');
 
               return (
                 <div

@@ -23,6 +23,7 @@ import {
   splitIntoSentences,
   speakChunk,
   stopAllVoiceSpeech,
+  normalizeLanguageTag,
 } from './voiceSynthesisHelper';
 
 export interface DebriefSegmentItem {
@@ -34,7 +35,7 @@ export interface DebriefSegmentItem {
   badgeColor: 'emerald' | 'amber' | 'cyan' | 'purple';
   textEn: string;
   textTa: string;
-  tanglishChunks: Array<{ lang: 'en' | 'ta'; text: string }>;
+  tanglishChunks?: Array<{ lang: 'en' | 'ta' | 'en-IN' | 'ta-IN' | string; text: string }>;
 }
 
 export interface DebriefScript {
@@ -471,7 +472,7 @@ export async function speakNightDebrief(
       callbacks.onSegmentStart?.(segment, language === 'ta');
 
       if (language === 'en') {
-        // Mode 1: English Only - Spoken once
+        // Mode 1: English Only - 100% natural conversational Indian-English
         const sentences = splitIntoSentences(segment.textEn);
         for (const sentence of sentences) {
           if (sessionId !== currentSpeechSessionId || !activeSpeechLock) break;
@@ -480,7 +481,7 @@ export async function speakNightDebrief(
           await delay(200); // Natural breath pause
         }
       } else if (language === 'ta') {
-        // Mode 2: Tamil Only - Spoken once
+        // Mode 2: Tamil Only - 100% authentic spoken Tamil (Peccu Tamil)
         const sentences = splitIntoSentences(segment.textTa);
         for (const sentence of sentences) {
           if (sessionId !== currentSpeechSessionId || !activeSpeechLock) break;
@@ -488,28 +489,52 @@ export async function speakNightDebrief(
           await speakSafeChunk(sentence, 'ta', segRate, segPitch);
           await delay(200); // Natural breath pause
         }
-      } else {
-        // Mode 3: Bilingual / Tanglish - Single unified flow, zero duplication
+      } else if (language === 'tanglish') {
+        // Mode 3: Tanglish - Single unified conversational flow with alternating neural voices
         const chunks = segment.tanglishChunks && segment.tanglishChunks.length > 0
           ? segment.tanglishChunks
           : [
-              { lang: 'en' as const, text: segment.textEn },
-              { lang: 'ta' as const, text: segment.textTa },
+              { lang: 'en-IN' as const, text: segment.textEn },
+              { lang: 'ta-IN' as const, text: segment.textTa },
             ];
 
         for (const chunk of chunks) {
           if (sessionId !== currentSpeechSessionId || !activeSpeechLock) break;
-          const isChunkTa = chunk.lang === 'ta';
+          const normLang = normalizeLanguageTag(chunk.lang);
+          const isChunkTa = normLang === 'ta';
           callbacks.onSegmentStart?.(segment, isChunkTa);
 
           const sentences = splitIntoSentences(chunk.text);
           for (const sentence of sentences) {
             if (sessionId !== currentSpeechSessionId || !activeSpeechLock) break;
             callbacks.onSentence?.(sentence, isChunkTa);
-            await speakSafeChunk(sentence, chunk.lang, segRate, segPitch);
-            await delay(180); // Micro-pause between sentences
+            await speakSafeChunk(sentence, normLang, segRate, segPitch);
+            await delay(160); // Micro-pause between sentences
           }
           await delay(120); // Micro-pause between code-switch chunks
+        }
+      } else {
+        // Mode 4: Both (English + Tamil) - Speaks full natural English first, then full Spoken Tamil
+        // Phase 1: Natural English
+        callbacks.onSegmentStart?.(segment, false);
+        const sentencesEn = splitIntoSentences(segment.textEn);
+        for (const sentence of sentencesEn) {
+          if (sessionId !== currentSpeechSessionId || !activeSpeechLock) break;
+          callbacks.onSentence?.(sentence, false);
+          await speakSafeChunk(sentence, 'en', segRate, segPitch);
+          await delay(200);
+        }
+
+        await delay(350); // Natural transition pause between English and Tamil
+
+        // Phase 2: Authentic Spoken Tamil
+        callbacks.onSegmentStart?.(segment, true);
+        const sentencesTa = splitIntoSentences(segment.textTa);
+        for (const sentence of sentencesTa) {
+          if (sessionId !== currentSpeechSessionId || !activeSpeechLock) break;
+          callbacks.onSentence?.(sentence, true);
+          await speakSafeChunk(sentence, 'ta', segRate, segPitch);
+          await delay(200);
         }
       }
 

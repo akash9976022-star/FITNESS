@@ -269,18 +269,25 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
 
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-xl">
-              {(['en', 'ta', 'both'] as const).map((mode) => (
+              {(
+                [
+                  { id: 'en', label: 'English' },
+                  { id: 'ta', label: 'தமிழ்' },
+                  { id: 'tanglish', label: 'Tanglish' },
+                  { id: 'both', label: 'Both' },
+                ] as const
+              ).map((item) => (
                 <button
-                  key={mode}
+                  key={item.id}
                   type="button"
-                  onClick={() => setCurrentLanguage(mode)}
+                  onClick={() => setCurrentLanguage(item.id)}
                   className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition ${
-                    currentLanguage === mode
+                    currentLanguage === item.id
                       ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black shadow-xs'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {mode === 'en' ? 'English' : mode === 'ta' ? 'தமிழ்' : 'Tanglish'}
+                  {item.label}
                 </button>
               ))}
             </div>
@@ -304,6 +311,10 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
             <span>Progress ({segmentIndex + 1} of {script.segments.length})</span>
             <span className="flex items-center gap-1.5 text-emerald-400 font-mono">
               {currentLanguage === 'both'
+                ? isTamilSpeaking
+                  ? 'Both: தமிழ்'
+                  : 'Both: English'
+                : currentLanguage === 'tanglish'
                 ? isTamilSpeaking
                   ? 'Tanglish: தமிழ்'
                   : 'Tanglish: English'

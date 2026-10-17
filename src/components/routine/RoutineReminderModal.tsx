@@ -24,6 +24,7 @@ import {
   type CustomRoutineItem,
   logWaterIntake,
   getTodayDateString,
+  type VoiceLanguageMode,
 } from '../../services/firestoreService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -33,6 +34,7 @@ interface RoutineReminderModalProps {
   customRoutine?: CustomRoutineItem | null;
   routine?: RoutineType | CustomRoutineItem | null;
   userName?: string;
+  language?: VoiceLanguageMode;
   voiceRate?: number;
   onDismiss: () => void;
   onAcknowledge?: () => void;
@@ -44,6 +46,7 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   customRoutine,
   routine,
   userName = 'Athlete',
+  language = 'tanglish',
   voiceRate = 0.95,
   onDismiss,
   onAcknowledge,
@@ -83,12 +86,19 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   const title = activeCustom?.name || def.title;
   const titleTamil = activeCustom?.nameTamil || (activeCustom ? `${activeCustom.category || 'Routine'} Alert` : def.titleTamil);
   const displayEmoji = activeCustom?.icon || def.icon;
-  const spokenQuote = buildSpokenPhrase(resolvedRoutine, firstName);
+  const [currentLanguage, setCurrentLanguage] = useState<VoiceLanguageMode>(language || 'tanglish');
+
+  useEffect(() => {
+    setCurrentLanguage(language || 'tanglish');
+  }, [language]);
+
+  const spokenQuote = buildSpokenPhrase(resolvedRoutine, firstName, currentLanguage);
 
   // Replay speech handler
-  const handleReplayVoice = () => {
+  const handleReplayVoice = (mode: VoiceLanguageMode = currentLanguage) => {
     setIsSpeaking(true);
     speakRoutineVoiceReminder(resolvedRoutine, firstName, {
+      language: mode,
       rate: voiceRate,
       playChimeFirst: false,
       onStart: () => setIsSpeaking(true),
@@ -272,6 +282,37 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
             </p>
           </div>
 
+          {/* 4-Way Language Selector */}
+          <div className="flex items-center justify-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-2xl">
+            {(
+              [
+                { id: 'en', label: 'English' },
+                { id: 'ta', label: 'தமிழ்' },
+                { id: 'tanglish', label: 'Tanglish' },
+                { id: 'both', label: 'Both' },
+              ] as const
+            ).map((opt) => {
+              const isActive = currentLanguage === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setCurrentLanguage(opt.id);
+                    handleReplayVoice(opt.id);
+                  }}
+                  className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all text-center ${
+                    isActive
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-xs font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Spoken Quote Card with Animated Waveform */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-left space-y-2.5">
             <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400">
@@ -296,7 +337,7 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
             <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800/60">
               <button
                 type="button"
-                onClick={isSpeaking ? handleStopSpeech : handleReplayVoice}
+                onClick={isSpeaking ? handleStopSpeech : () => handleReplayVoice(currentLanguage)}
                 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition"
               >
                 {isSpeaking ? (

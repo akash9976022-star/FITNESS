@@ -12,6 +12,7 @@
 import type { TamilDateInfo } from './tamilCalendar';
 import { GoogleGenAI } from '@google/genai';
 import { getBestNaturalVoice, loadVoices, speakChunk } from './voiceSynthesisHelper';
+import type { VoiceLanguageMode } from '../services/firestoreService';
 
 export interface BriefingSection {
   id: string;
@@ -940,7 +941,7 @@ class SpeechBriefingEngine {
   public async startBriefing(
     sections: BriefingSection[],
     callbacks?: SpeechBriefingCallbacks,
-    languageMode: 'en' | 'ta' | 'both' = 'both'
+    languageMode: VoiceLanguageMode = 'tanglish'
   ): Promise<void> {
     if (typeof window === 'undefined') {
       if (callbacks?.onAllComplete) callbacks.onAllComplete();
@@ -989,8 +990,32 @@ class SpeechBriefingEngine {
             segment: 'tamil',
           });
         }
+      } else if (languageMode === 'both') {
+        // Mode 4: Both (English followed completely by Tamil)
+        // 1st Half: Full English sequence
+        for (let idx = 0; idx < sections.length; idx++) {
+          const sec = sections[idx];
+          steps.push({
+            sectionIndex: idx,
+            category: sec.category,
+            lang: 'en',
+            text: sec.textEn,
+            segment: 'english',
+          });
+        }
+        // 2nd Half: Full Spoken Tamil sequence
+        for (let idx = 0; idx < sections.length; idx++) {
+          const sec = sections[idx];
+          steps.push({
+            sectionIndex: idx,
+            category: sec.category,
+            lang: 'ta',
+            text: sec.textTa,
+            segment: 'tamil',
+          });
+        }
       } else {
-        // Mode 3: Tanglish / Bilingual (Single Unified Flow, Zero Duplication)
+        // Mode 3: Tanglish (Single Unified Flow, Code-Switching)
         // 1. Morning Greeting in English
         const greetingIdx = sections.findIndex((s) => s.category === 'greeting');
         if (greetingIdx !== -1) {

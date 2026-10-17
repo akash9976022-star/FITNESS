@@ -22,6 +22,7 @@ import {
   type BriefingSection,
   type DevotionalTrack,
 } from '../../utils/audioAlarmEngine';
+import type { VoiceLanguageMode } from '../../services/firestoreService';
 
 interface MorningBriefingModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
-  const [briefingLanguage, setBriefingLanguage] = useState<'both' | 'en' | 'ta'>('both');
+  const [briefingLanguage, setBriefingLanguage] = useState<VoiceLanguageMode>('tanglish');
 
   // Initialize and register devotional callbacks
   useEffect(() => {
@@ -166,50 +167,50 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                   Morning Awakening & Voice Briefing
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
-                  EN ➔ தமிழ்
+                  {briefingLanguage === 'en'
+                    ? 'English'
+                    : briefingLanguage === 'ta'
+                    ? 'தமிழ்'
+                    : briefingLanguage === 'tanglish'
+                    ? 'Tanglish'
+                    : 'Both (EN + தமிழ்)'}
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                Bilingual oral briefing: English (Greeting, Nutrients & Quote) ➔ தமிழ் (முழுமையான வழிகாட்டல்)
+                {briefingLanguage === 'en'
+                  ? 'Fluent Indian-English voice morning briefing across all 5 pillars'
+                  : briefingLanguage === 'ta'
+                  ? 'அனைத்து 5 தூண்களுக்கான முழுமையான பேச்சுத் தமிழ் ஒலிபரப்பு'
+                  : briefingLanguage === 'tanglish'
+                  ? 'Natural code-switching Tanglish oral briefing across 5 pillars'
+                  : 'Bilingual oral briefing: English (All Pillars) ➔ தமிழ் (அனைத்து வழிகாட்டல்கள்)'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden xs:flex sm:flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={() => setBriefingLanguage('en')}
-                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
-                  briefingLanguage === 'en'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                English
-              </button>
-              <button
-                type="button"
-                onClick={() => setBriefingLanguage('ta')}
-                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
-                  briefingLanguage === 'ta'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                தமிழ்
-              </button>
-              <button
-                type="button"
-                onClick={() => setBriefingLanguage('both')}
-                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
-                  briefingLanguage === 'both'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Tanglish
-              </button>
+            <div className="flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+              {(
+                [
+                  { id: 'en', label: 'English' },
+                  { id: 'ta', label: 'தமிழ்' },
+                  { id: 'tanglish', label: 'Tanglish' },
+                  { id: 'both', label: 'Both' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setBriefingLanguage(opt.id)}
+                  className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                    briefingLanguage === opt.id
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
 
             <button

@@ -124,18 +124,28 @@ export interface RoutineVoiceTarget {
   titleTamil?: string;
 }
 
+import {
+  loadVoices,
+  getBestNaturalVoice as getBestVoiceHelper,
+  speakChunk,
+  speakVoiceSequence,
+  stopAllVoiceSpeech,
+} from './voiceSynthesisHelper';
+import { getConversationalRoutinePhrase } from '../services/conversationalAiVoiceService';
+import type { VoiceLanguageMode } from '../services/firestoreService';
+
 /**
  * Constructs a human-like, personalized voice phrase for any routine (built-in or custom)
  */
 export function buildSpokenPhrase(
   routine: RoutineType | RoutineVoiceTarget,
-  userName = 'Athlete'
+  userName = 'Athlete',
+  mode: VoiceLanguageMode = 'tanglish'
 ): string {
   const cleanedName = (userName || 'Athlete').trim().split(' ')[0];
 
   if (typeof routine === 'string') {
-    const def = ROUTINE_DEFINITIONS[routine] || ROUTINE_DEFINITIONS.wakeUp;
-    return def.phrase(cleanedName);
+    return getConversationalRoutinePhrase(routine, cleanedName, mode).text;
   }
 
   if (routine.voicePrompt && routine.voicePrompt.trim().length > 0) {
@@ -146,7 +156,8 @@ export function buildSpokenPhrase(
     return `${cleanedName}, ${prompt}`;
   }
 
-  return `Good day ${cleanedName}! It is time for your scheduled ${routine.name}. Let's stay consistent and make great progress today!`;
+  const category = routine.category || routine.name;
+  return getConversationalRoutinePhrase(category, cleanedName, mode).text;
 }
 
 /**
@@ -167,12 +178,6 @@ export function isRoutineActiveToday(
   return true;
 }
 
-import {
-  loadVoices,
-  getBestNaturalVoice as getBestVoiceHelper,
-  speakChunk,
-} from './voiceSynthesisHelper';
-
 /**
  * Discovers and selects the most natural, relaxed human-sounding voice available
  */
@@ -182,11 +187,13 @@ export function getBestNaturalVoice(lang: 'en' | 'ta' = 'en'): SpeechSynthesisVo
 
 /**
  * Speaks a natural, personalized voice reminder for the specified routine type or custom routine
+ * supporting the 4 distinct language selections (en, ta, tanglish, both)
  */
 export async function speakRoutineVoiceReminder(
   routine: RoutineType | RoutineVoiceTarget,
   userName = 'Athlete',
   options: {
+    language?: VoiceLanguageMode;
     rate?: number;
     pitch?: number;
     playChimeFirst?: boolean;
@@ -194,32 +201,47 @@ export async function speakRoutineVoiceReminder(
     onEnd?: () => void;
   } = {}
 ): Promise<void> {
-  if (typeof window === 'undefined' || !window.speechSynthesis) {
-    console.warn('SpeechSynthesis is not supported on this device/browser.');
+  if (typeof window === 'undefined') {
     return;
   }
 
   // Cancel any ongoing speech
-  window.speechSynthesis.cancel();
+  stopAllVoiceSpeech();
 
   // Play gentle alert chime before voice begins
   if (options.playChimeFirst !== false) {
     await playHarmonicChime();
   }
 
-  const textToSpeak = buildSpokenPhrase(routine, userName);
-  const isTamil = /[\u0B80-\u0BFF]/.test(textToSpeak);
-  const lang: 'en' | 'ta' = isTamil ? 'ta' : 'en';
+  const mode = options.language || 'tanglish';
+  const cleanedName = (userName || 'Athlete').trim().split(' ')[0];
+  const routineKey = typeof routine === 'string' ? routine : routine.category || routine.name;
+  const phraseInfo = getConversationalRoutinePhrase(routineKey, cleanedName, mode);
 
   options.onStart?.();
 
   try {
     await loadVoices();
-    await speakChunk(textToSpeak, lang, {
-      rate: options.rate ?? 0.95, // Relaxed natural cadence
-      pitch: options.pitch ?? 1.0,
-      volume: 1.0,
-    });
+
+    if ((mode === 'tanglish' || mode === 'both') && phraseInfo.tanglishChunks && phraseInfo.tanglishChunks.length > 0) {
+      await speakVoiceSequence(phraseInfo.tanglishChunks, {
+        rate: options.rate ?? 0.95,
+        pitch: options.pitch ?? 1.0,
+      });
+    } else {
+      const textToSpeak = typeof routine !== 'string' && routine.voicePrompt && routine.voicePrompt.trim().length > 0
+        ? buildSpokenPhrase(routine, userName, mode)
+        : phraseInfo.text;
+
+      const isTamil = phraseInfo.lang === 'ta' || /[\u0B80-\u0BFF]/.test(textToSpeak);
+      const lang: 'en' | 'ta' = isTamil ? 'ta' : 'en';
+
+      await speakChunk(textToSpeak, lang, {
+        rate: options.rate ?? 0.95,
+        pitch: options.pitch ?? 1.0,
+        volume: 1.0,
+      });
+    }
   } catch (err) {
     console.warn('Routine voice reminder error:', err);
   } finally {
@@ -231,9 +253,7 @@ export async function speakRoutineVoiceReminder(
  * Stops any active speech synthesis
  */
 export function stopRoutineSpeech(): void {
-  if (typeof window !== 'undefined' && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
+  stopAllVoiceSpeech();
 }
 
 /**

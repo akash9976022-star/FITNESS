@@ -412,3 +412,65 @@ export async function speakChunk(
     }
   });
 }
+
+/**
+ * Normalizes language codes ('en-IN', 'ta-IN', 'ta', 'en') to 'en' | 'ta'
+ */
+export function normalizeLanguageTag(lang: string): 'en' | 'ta' {
+  const l = (lang || '').toLowerCase().trim();
+  if (l.startsWith('ta') || l.includes('tamil')) return 'ta';
+  return 'en';
+}
+
+/**
+ * Executes a sequence of multi-voice spoken chunks (e.g. Tanglish code-switching or Bilingual passes)
+ * with natural breathing micro-pauses and live progress callbacks.
+ */
+export async function speakVoiceSequence(
+  chunks: Array<{ lang: 'en' | 'ta' | 'en-IN' | 'ta-IN' | string; text: string }>,
+  options: {
+    rate?: number;
+    pitch?: number;
+    pauseBetweenChunksMs?: number;
+    isCancelled?: () => boolean;
+    onChunkStart?: (chunk: { lang: 'en' | 'ta'; text: string }, index: number) => void;
+    onSentence?: (sentence: string, isTamil: boolean) => void;
+    onComplete?: () => void;
+  } = {}
+): Promise<void> {
+  const pause = options.pauseBetweenChunksMs ?? 150;
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (options.isCancelled?.()) break;
+    const chunk = chunks[i];
+    const text = (chunk.text || '').trim();
+    if (!text) continue;
+
+    const normLang = normalizeLanguageTag(chunk.lang);
+    const isTa = normLang === 'ta';
+
+    options.onChunkStart?.({ lang: normLang, text }, i);
+
+    const sentences = splitIntoSentences(text);
+    for (const sentence of sentences) {
+      if (options.isCancelled?.()) break;
+      options.onSentence?.(sentence, isTa);
+      await speakChunk(sentence, normLang, {
+        rate: options.rate,
+        pitch: options.pitch,
+      });
+
+      if (pause > 0 && !options.isCancelled?.()) {
+        await new Promise((r) => setTimeout(r, Math.min(180, pause)));
+      }
+    }
+
+    if (i < chunks.length - 1 && !options.isCancelled?.()) {
+      await new Promise((r) => setTimeout(r, pause));
+    }
+  }
+
+  if (!options.isCancelled?.()) {
+    options.onComplete?.();
+  }
+}
