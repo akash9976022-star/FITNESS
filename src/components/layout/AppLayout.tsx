@@ -90,9 +90,11 @@ export const AppLayout: React.FC = () => {
         {/* Brand / Logo */}
         <div className="h-16 px-6 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/25">
-              <Dumbbell className="w-5 h-5 text-slate-950 stroke-[2.5]" />
-            </div>
+            <img
+              src="./logo.png"
+              alt="FitMaintenance AI Logo"
+              className="w-10 h-10 rounded-xl object-cover shadow-md shadow-emerald-500/20"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">
@@ -242,9 +244,11 @@ export const AppLayout: React.FC = () => {
 
             {/* Mobile Brand Header */}
             <div className="flex items-center gap-2 md:hidden">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm">
-                <Dumbbell className="w-4 h-4 text-slate-950" />
-              </div>
+              <img
+                src="./logo.png"
+                alt="FitMaintenance AI Logo"
+                className="w-7 h-7 rounded-lg object-cover shadow-sm"
+              />
               <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">FitMaintenance</span>
             </div>
 
@@ -371,9 +375,11 @@ export const AppLayout: React.FC = () => {
           <div className="relative w-4/5 max-w-xs bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full flex flex-col p-5 shadow-2xl z-10">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-                  <Dumbbell className="w-4 h-4 text-slate-950" />
-                </div>
+                <img
+                  src="./logo.png"
+                  alt="FitMaintenance AI Logo"
+                  className="w-8 h-8 rounded-lg object-cover shadow-sm"
+                />
                 <span className="font-bold text-slate-900 dark:text-white text-base">FitMaintenance AI</span>
               </div>
               <button

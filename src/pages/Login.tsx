@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Dumbbell,
   Mail,
   Lock,
   User,
@@ -112,9 +111,11 @@ export const Login: React.FC = () => {
       <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl dark:shadow-2xl p-6 sm:p-8 z-10">
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/25 mb-3">
-            <Dumbbell className="w-7 h-7 text-slate-950 stroke-[2.5]" />
-          </div>
+          <img
+            src="./logo.png"
+            alt="FitMaintenance AI Logo"
+            className="w-16 h-16 rounded-2xl object-cover shadow-xl shadow-emerald-500/20 mb-3"
+          />
           <div className="flex items-center gap-1.5 mb-1">
             <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">FitMaintenance</h1>
             <span className="text-xs px-2 py-0.5 rounded-md font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30">

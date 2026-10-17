@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Dumbbell,
   Scale,
   Sparkles,
   ArrowRight,
@@ -148,9 +147,11 @@ export const Onboarding: React.FC = () => {
       <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-md shadow-emerald-500/20 font-black">
-              <Dumbbell className="w-5 h-5" />
-            </div>
+            <img
+              src="./logo.png"
+              alt="FitMaintenance AI Logo"
+              className="w-10 h-10 rounded-xl object-cover shadow-md shadow-emerald-500/20"
+            />
             <div>
               <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
                 Athlete Onboarding & Machine Inventory

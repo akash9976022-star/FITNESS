@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Dumbbell } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -15,9 +15,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-900 dark:text-slate-100 transition-colors duration-200">
         <div className="relative flex items-center justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-pulse">
-            <Dumbbell className="w-8 h-8 text-white" />
-          </div>
+          <img
+            src="./logo.png"
+            alt="FitMaintenance AI Logo"
+            className="w-16 h-16 rounded-2xl object-cover shadow-xl shadow-emerald-500/20 animate-pulse"
+          />
           <Loader2 className="absolute -bottom-2 -right-2 w-6 h-6 text-emerald-500 animate-spin" />
         </div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">FitMaintenance AI</h2>
