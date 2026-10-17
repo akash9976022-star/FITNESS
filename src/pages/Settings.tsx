@@ -22,6 +22,7 @@ import { useTheme } from '../context/ThemeContext';
 import { firebaseConfig, isFirebaseConfigured } from '../config/firebase';
 import { getPlatform, isNativeApp } from '../utils/platform';
 import { subscribeUserProfile, type UserProfile } from '../services/firestoreService';
+import RoutineSettingsCard from '../components/routine/RoutineSettingsCard';
 
 export const Settings: React.FC = () => {
   const { currentUser, logout } = useAuth();
@@ -96,6 +97,9 @@ export const Settings: React.FC = () => {
           <span>Sign Out</span>
         </button>
       </div>
+
+      {/* Routine Timing & Natural Voice Reminder Settings */}
+      <RoutineSettingsCard />
 
       {/* Gym Inventory & Coaching Tier */}
       <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">

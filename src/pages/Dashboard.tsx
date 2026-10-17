@@ -24,6 +24,7 @@ import {
   Timer,
   Bell,
   Video,
+  Volume2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -442,7 +443,27 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Configure personalized daily routine schedule (Wake-up, Walking, Workout, Bedtime)"
+            >
+              <Clock className="w-4 h-4 text-emerald-500" />
+              <span>Routine Timings</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_TEST_ROUTINE', { detail: { routineType: 'walking' } }))}
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Test natural personalized voice reminder"
+            >
+              <Volume2 className="w-4 h-4 text-teal-500" />
+              <span>Test Voice Alert</span>
+            </button>
+
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}

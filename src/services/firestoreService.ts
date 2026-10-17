@@ -3785,6 +3785,201 @@ export const incrementUserWorkoutStats = async (
   return updatedTotal;
 };
 
+/* ==================== USER ROUTINE TIMINGS & NATURAL VOICE REMINDERS ==================== */
+export interface RoutineItemSetting {
+  time: string; // "06:00" in 24h format
+  enabled: boolean;
+  labelEn: string;
+  labelTa: string;
+}
+
+export interface UserRoutineSettings {
+  wakeUp: RoutineItemSetting;
+  walking: RoutineItemSetting;
+  workout: RoutineItemSetting;
+  bedtime: RoutineItemSetting;
+  voiceRemindersEnabled: boolean;
+  voiceRate: number; // default: 0.95 (relaxed natural human cadence)
+  voicePitch: number; // default: 1.0
+  inAppNotificationEnabled: boolean;
+  lastDismissedDate?: Record<string, string>; // { wakeUp: '2026-10-17', ... }
+  updatedAt?: unknown;
+}
+
+export const DEFAULT_ROUTINE_SETTINGS: UserRoutineSettings = {
+  wakeUp: {
+    time: '06:00',
+    enabled: true,
+    labelEn: 'Wake-Up Routine',
+    labelTa: 'காலை விழிப்பு நேரம்',
+  },
+  walking: {
+    time: '06:30',
+    enabled: true,
+    labelEn: 'Walking & Cardio Session',
+    labelTa: 'காலை நடைப்பயிற்சி',
+  },
+  workout: {
+    time: '17:00',
+    enabled: true,
+    labelEn: 'Exercise & Workout Time',
+    labelTa: 'மாலை உடற்பயிற்சி நேரம்',
+  },
+  bedtime: {
+    time: '22:00',
+    enabled: true,
+    labelEn: 'Bedtime & Night Recovery',
+    labelTa: 'இரவு உறக்க நேரம்',
+  },
+  voiceRemindersEnabled: true,
+  voiceRate: 0.95,
+  voicePitch: 1.0,
+  inAppNotificationEnabled: true,
+  lastDismissedDate: {},
+};
+
+/**
+ * Subscribes in real-time to user's routine settings stored at users/{userId}/routine_settings/default
+ */
+export const subscribeRoutineSettings = (
+  userId: string,
+  callback: (settings: UserRoutineSettings) => void
+): Unsubscribe => {
+  if (!db || !userId) {
+    const cached = localStorage.getItem(`fit_routine_settings_${userId}`);
+    if (cached) {
+      try {
+        callback({ ...DEFAULT_ROUTINE_SETTINGS, ...JSON.parse(cached) });
+        return () => {};
+      } catch {
+        // Ignored
+      }
+    }
+    callback(DEFAULT_ROUTINE_SETTINGS);
+    return () => {};
+  }
+
+  const routineDocRef = doc(db, 'users', userId, 'routine_settings', 'default');
+  return onSnapshot(
+    routineDocRef,
+    (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        const merged: UserRoutineSettings = {
+          wakeUp: { ...DEFAULT_ROUTINE_SETTINGS.wakeUp, ...(d.wakeUp || {}) },
+          walking: { ...DEFAULT_ROUTINE_SETTINGS.walking, ...(d.walking || {}) },
+          workout: { ...DEFAULT_ROUTINE_SETTINGS.workout, ...(d.workout || {}) },
+          bedtime: { ...DEFAULT_ROUTINE_SETTINGS.bedtime, ...(d.bedtime || {}) },
+          voiceRemindersEnabled: d.voiceRemindersEnabled !== undefined ? Boolean(d.voiceRemindersEnabled) : true,
+          voiceRate: Number(d.voiceRate) || 0.95,
+          voicePitch: Number(d.voicePitch) || 1.0,
+          inAppNotificationEnabled: d.inAppNotificationEnabled !== undefined ? Boolean(d.inAppNotificationEnabled) : true,
+          lastDismissedDate: d.lastDismissedDate || {},
+          updatedAt: d.updatedAt,
+        };
+        localStorage.setItem(`fit_routine_settings_${userId}`, JSON.stringify(merged));
+        callback(merged);
+      } else {
+        const cached = localStorage.getItem(`fit_routine_settings_${userId}`);
+        if (cached) {
+          try {
+            callback({ ...DEFAULT_ROUTINE_SETTINGS, ...JSON.parse(cached) });
+            return;
+          } catch {
+            // Ignored
+          }
+        }
+        callback(DEFAULT_ROUTINE_SETTINGS);
+      }
+    },
+    (err) => {
+      console.warn('Routine settings snapshot notice:', err);
+      const cached = localStorage.getItem(`fit_routine_settings_${userId}`);
+      if (cached) {
+        try {
+          callback({ ...DEFAULT_ROUTINE_SETTINGS, ...JSON.parse(cached) });
+          return;
+        } catch {
+          // Ignored
+        }
+      }
+      callback(DEFAULT_ROUTINE_SETTINGS);
+    }
+  );
+};
+
+/**
+ * Saves or updates routine timing settings in Firestore (users/{userId}/routine_settings/default)
+ */
+export const saveRoutineSettings = async (
+  userId: string,
+  updates: Partial<UserRoutineSettings>
+): Promise<void> => {
+  if (!userId) return;
+
+  const cached = localStorage.getItem(`fit_routine_settings_${userId}`);
+  let current = DEFAULT_ROUTINE_SETTINGS;
+  if (cached) {
+    try {
+      current = { ...DEFAULT_ROUTINE_SETTINGS, ...JSON.parse(cached) };
+    } catch {
+      // Ignored
+    }
+  }
+
+  const merged: UserRoutineSettings = {
+    ...current,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  localStorage.setItem(`fit_routine_settings_${userId}`, JSON.stringify(merged));
+
+  if (db) {
+    try {
+      const routineDocRef = doc(db, 'users', userId, 'routine_settings', 'default');
+      await setDoc(
+        routineDocRef,
+        {
+          ...updates,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error saving routine settings to Firestore:', err);
+    }
+  }
+};
+
+/**
+ * Marks a routine reminder as dismissed for a given date (e.g. today) so it doesn't fire repeatedly
+ */
+export const dismissRoutineForToday = async (
+  userId: string,
+  routineKey: 'wakeUp' | 'walking' | 'workout' | 'bedtime',
+  dateStr = getTodayDateString()
+): Promise<void> => {
+  if (!userId) return;
+
+  const cached = localStorage.getItem(`fit_routine_settings_${userId}`);
+  let dismissedMap: Record<string, string> = {};
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      dismissedMap = parsed.lastDismissedDate || {};
+    } catch {
+      // Ignored
+    }
+  }
+  dismissedMap[routineKey] = dateStr;
+
+  await saveRoutineSettings(userId, {
+    lastDismissedDate: dismissedMap,
+  });
+};
+
+
 
 
 

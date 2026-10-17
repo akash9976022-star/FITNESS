@@ -25,6 +25,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { getPlatform, isNativeApp } from '../../utils/platform';
 import LiveAnimatedBackground from '../common/LiveAnimatedBackground';
 import AlarmManager from '../alarm/AlarmManager';
+import RoutineManager from '../routine/RoutineManager';
 import LiveClockHeader from '../common/LiveClockHeader';
 
 interface NavItem {
@@ -80,6 +81,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Global Heavy-Sleeper Alarm & Dual-Language Speech Briefing Manager */}
       <AlarmManager />
+
+      {/* Global Personalized Routine Timing & Natural Voice Reminder Manager */}
+      <RoutineManager />
 
       {/* ================= DESKTOP SIDEBAR ================= */}
       <aside className="hidden md:flex flex-col w-64 lg:w-72 border-r border-slate-200/90 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex-shrink-0 select-none shadow-sm z-30">

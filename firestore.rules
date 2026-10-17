@@ -72,6 +72,9 @@ service cloud.firestore {
     // Subcollection: users/{userId}/stats/{statId}
     //   - Workout stats and completion milestones
     //
+    // Subcollection: users/{userId}/routine_settings/{settingId}
+    //   - Personalized routine timing settings (wake-up time, walking/cardio time, workout/exercise time, bedtime routine time, voice reminder toggles)
+    //
     // ===============================================================
 
     // Helper Functions
@@ -165,6 +168,11 @@ service cloud.firestore {
 
       // Subcollection: Workout Stats & Completion Milestones
       match /stats/{statId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Personalized Routine Timing Settings
+      match /routine_settings/{settingId} {
         allow read, write: if isOwner(userId);
       }
     }
