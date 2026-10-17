@@ -255,13 +255,13 @@ export const CalendarPage: React.FC = () => {
       {activeTab === 'calendar' && (
         <div className="space-y-6">
           {/* Calendar Controller Bar */}
-          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="p-4 sm:p-5 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg card-3d flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={handlePrevMonth}
-                  className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition"
+                  className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 transition btn-tactile"
                   title="Previous Month"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -269,7 +269,7 @@ export const CalendarPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition"
+                  className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 transition btn-tactile"
                   title="Next Month"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -290,7 +290,7 @@ export const CalendarPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleJumpToToday}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition"
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold transition btn-tactile shadow-xs"
               >
                 இன்று (Today)
               </button>
@@ -301,7 +301,7 @@ export const CalendarPage: React.FC = () => {
           </div>
 
           {/* Interactive Bilingual Calendar Grid */}
-          <div className="p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="p-4 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-3">
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center pb-2 border-b border-slate-100 dark:border-slate-800">
               {[
@@ -331,7 +331,7 @@ export const CalendarPage: React.FC = () => {
                   return (
                     <div
                       key={`empty-${idx}`}
-                      className="min-h-[72px] sm:min-h-[88px] rounded-2xl bg-slate-50/40 dark:bg-slate-950/20 border border-transparent"
+                      className="min-h-[72px] sm:min-h-[88px] rounded-2xl bg-slate-50/30 dark:bg-slate-950/20 border border-transparent"
                     />
                   );
                 }
@@ -351,12 +351,12 @@ export const CalendarPage: React.FC = () => {
                     key={dayInfo.gregorianDate}
                     type="button"
                     onClick={() => setSelectedDateStr(dayInfo.gregorianDate)}
-                    className={`min-h-[76px] sm:min-h-[92px] p-1.5 sm:p-2 rounded-2xl flex flex-col justify-between text-left transition-all cursor-pointer relative group overflow-hidden ${
+                    className={`min-h-[76px] sm:min-h-[92px] p-1.5 sm:p-2 rounded-2xl flex flex-col justify-between text-left transition-all cursor-pointer relative group overflow-hidden btn-tactile ${
                       isSelected
-                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 shadow-lg scale-102 ring-2 ring-emerald-500'
+                        ? 'bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-100 dark:to-slate-200 text-white dark:text-slate-950 shadow-xl scale-102 ring-2 ring-emerald-500'
                         : isToday
-                        ? 'bg-emerald-50/70 dark:bg-emerald-950/20 text-slate-900 dark:text-white border-2 border-emerald-500/50'
-                        : 'bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800'
+                        ? 'bg-emerald-50/80 dark:bg-emerald-950/40 text-slate-900 dark:text-white border-2 border-emerald-500/70 shadow-md shadow-emerald-500/10'
+                        : 'bg-white/80 dark:bg-slate-900/80 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 hover:scale-102'
                     }`}
                   >
                     {/* Top Row: Western Date & Tamil Date */}

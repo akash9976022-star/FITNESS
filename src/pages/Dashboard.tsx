@@ -359,17 +359,17 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/15 via-white dark:via-slate-900 to-white dark:to-slate-900 border border-emerald-500/30 p-6 md:p-8 shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500/15 via-white/80 dark:via-slate-900/80 to-teal-500/10 backdrop-blur-xl border border-emerald-500/30 p-6 md:p-8 shadow-xl shadow-emerald-500/5 card-3d">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold mb-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/90 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-400 text-xs font-black tracking-wide mb-2">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Real-Time Firestore Sync Active</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Welcome, {currentUser?.displayName?.split(' ')[0] || 'Athlete'}
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-xl">
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-xl font-medium">
               {userProfile?.equipment?.length
                 ? `Tuned for ${userProfile.experienceLevel ? userProfile.experienceLevel.toUpperCase() : 'INTERMEDIATE'} training intensity with ${userProfile.equipment.length} registered gym machines.`
                 : 'Track your real-time nutrition balance, maintenance calories, and equipment workouts.'}
@@ -378,10 +378,10 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/profile')}
-              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/25 btn-tactile"
             >
               <span>Edit Inventory & Profile</span>
-              <ArrowUpRight className="w-4 h-4" />
+              <ArrowUpRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
         </div>
@@ -419,10 +419,10 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Heavy-Sleeper Max-Volume Alarm & Dual-Language Voice Briefing Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 border border-amber-300 dark:border-amber-500/30 p-5 sm:p-6 shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 dark:from-amber-950/20 dark:via-slate-900/80 dark:to-emerald-950/20 backdrop-blur-xl border border-amber-300/80 dark:border-amber-500/30 p-5 sm:p-6 shadow-xl shadow-amber-500/5 card-3d">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400 shadow-md shadow-amber-500/10">
               <Bell className="w-6 h-6 animate-bounce" />
             </div>
             <div className="space-y-1">
@@ -430,14 +430,14 @@ export const Dashboard: React.FC = () => {
                 <span className="text-xs font-black uppercase text-amber-700 dark:text-amber-400 tracking-wider">
                   Heavy-Sleeper Protocol
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100/90 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
                   Dual-Language: English ➔ தமிழ்
                 </span>
               </div>
               <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                 6:00 AM Max-Volume Alarm & Oral Briefing
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl">
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl font-medium">
                 Plays Tibetan singing bowl or selected video song at max volume (100%), followed by 5-pillar English & Tamil speech briefing and continuous devotional audio (கந்த சஷ்டி கவசம் & சிவபுராணம்).
               </p>
             </div>
@@ -447,7 +447,7 @@ export const Dashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/settings')}
-              className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-xs btn-tactile"
               title="Configure personalized daily routine schedule (Wake-up, Walking, Workout, Bedtime)"
             >
               <Clock className="w-4 h-4 text-emerald-500" />
@@ -457,7 +457,7 @@ export const Dashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_TEST_ROUTINE', { detail: { routineType: 'walking' } }))}
-              className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-xs btn-tactile"
               title="Test natural personalized voice reminder"
             >
               <Volume2 className="w-4 h-4 text-teal-500" />
@@ -467,7 +467,7 @@ export const Dashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}
-              className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              className="py-2.5 px-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shadow-xs btn-tactile"
               title="Select custom video songs and adjust wake-up time"
             >
               <Video className="w-4 h-4 text-emerald-500" />
@@ -477,10 +477,10 @@ export const Dashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_TEST_ALARM'))}
-              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20 transition transform active:scale-95"
+              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/25 btn-tactile"
               title="Test the complete alarm, speech briefing, and devotional playback sequence"
             >
-              <Bell className="w-4 h-4 fill-current" />
+              <Bell className="w-4 h-4 fill-current animate-pulse" />
               <span>TEST ALARM & BRIEFING</span>
             </button>
           </div>
@@ -488,12 +488,13 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Central Body Maintenance Balance (BMB) Score Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 p-6 sm:p-8 shadow-xl card-3d">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           {/* Left: Dial & Meta */}
           <div className="flex items-center gap-5 sm:gap-6">
             <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+              <div className="absolute inset-0 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 blur-xl pointer-events-none" />
+              <svg className="w-full h-full -rotate-90 transform relative z-10" viewBox="0 0 100 100">
                 <circle
                   cx="50"
                   cy="50"
@@ -516,25 +517,25 @@ export const Dashboard: React.FC = () => {
                   fill="transparent"
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-10">
                 <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
                   {bmbResult.score}
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   BMB Score
                 </span>
               </div>
             </div>
 
             <div>
-              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border mb-2 ${statusBadgeClass}`}>
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border mb-2 shadow-xs ${statusBadgeClass}`}>
                 <Activity className="w-3.5 h-3.5" />
                 <span>{bmbResult.statusLabel}</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 Body Maintenance Balance
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md leading-relaxed font-medium">
                 {bmbResult.recommendation}
               </p>
             </div>
@@ -543,14 +544,14 @@ export const Dashboard: React.FC = () => {
           {/* Right: Real-time 5-Pillar Composite Breakdown */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 w-full lg:w-auto">
             {/* Pillar 1: Caloric Alignment */}
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 text-center transition-all duration-200 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-md">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Calories
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {todayCalories} / {targetCalories}
               </span>
-              <span className={`text-[11px] font-semibold block mt-0.5 ${
+              <span className={`text-[11px] font-bold block mt-0.5 ${
                 Math.abs(bmbResult.calorieDeviationPct) > 15 ? 'text-amber-500' : 'text-emerald-500'
               }`}>
                 {todayCalories === 0
@@ -559,20 +560,20 @@ export const Dashboard: React.FC = () => {
                   ? `+${bmbResult.calorieDeviationPct}%`
                   : `${bmbResult.calorieDeviationPct}%`}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                 {bmbResult.breakdown.calorieScore} / 35 pts
               </span>
             </div>
 
             {/* Pillar 2: Recovery / Readiness */}
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 text-center transition-all duration-200 hover:-translate-y-1 hover:border-teal-500/40 hover:shadow-md">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Readiness
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {latestCheckIn ? `${latestCheckIn.fatigueRating} / 5` : 'N/A'}
               </span>
-              <span className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 block mt-0.5">
+              <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400 block mt-0.5">
                 {latestCheckIn
                   ? latestCheckIn.fatigueRating >= 4
                     ? 'High Ready'
@@ -581,59 +582,59 @@ export const Dashboard: React.FC = () => {
                     : 'Fatigued'
                   : 'Check-In Due'}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                 {bmbResult.breakdown.recoveryScore} / 25 pts
               </span>
             </div>
 
             {/* Pillar 3: Volume Stimulus */}
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 text-center transition-all duration-200 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-md">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Workouts
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {weeklyWorkoutsCount} sessions
               </span>
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block mt-0.5">
                 {weeklyVolumeKg > 0 ? `${(weeklyVolumeKg / 1000).toFixed(1)}t load` : '0 kg'}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                 {bmbResult.breakdown.consistencyScore} / 20 pts
               </span>
             </div>
 
             {/* Pillar 4: Hydration */}
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 text-center transition-all duration-200 hover:-translate-y-1 hover:border-cyan-500/40 hover:shadow-md">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Hydration
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {((dailyHydration?.waterMl || 0) / 1000).toFixed(1)}L
               </span>
-              <span className="text-[11px] font-semibold text-blue-500 block mt-0.5">
+              <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 block mt-0.5">
                 {dailyHydration && dailyHydration.waterMl >= dailyHydration.targetMl
                   ? 'Target Hit!'
                   : `${Math.round(((dailyHydration?.waterMl || 0) / (dailyHydration?.targetMl || 3000)) * 100)}%`}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                 {bmbResult.breakdown.hydrationScore} / 10 pts
               </span>
             </div>
 
             {/* Pillar 5: Daily Activity (Steps) */}
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-center">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 text-center transition-all duration-200 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-md">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Steps
               </span>
               <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-1">
                 {(dailyActivity?.steps || 0).toLocaleString()}
               </span>
-              <span className="text-[11px] font-semibold text-emerald-500 block mt-0.5">
+              <span className="text-[11px] font-bold text-emerald-500 block mt-0.5">
                 {dailyActivity && dailyActivity.steps >= dailyActivity.goalSteps
                   ? 'Goal Hit!'
                   : `${Math.round(((dailyActivity?.steps || 0) / (dailyActivity?.goalSteps || 10000)) * 100)}%`}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                 {bmbResult.breakdown.activityScore} / 10 pts
               </span>
             </div>
@@ -645,20 +646,20 @@ export const Dashboard: React.FC = () => {
           bmbResult.status === 'surplus' ||
           bmbResult.status === 'deficit') && (
           <div
-            className={`mt-6 p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+            className={`mt-6 p-4 sm:p-5 rounded-2xl border backdrop-blur-md shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
               bmbResult.status === 'surplus'
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-950 dark:text-amber-200'
                 : bmbResult.status === 'deficit'
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-950 dark:text-rose-200'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-950 dark:text-amber-200'
+                : 'bg-rose-500/15 border-rose-500/40 text-rose-950 dark:text-rose-200'
             }`}
           >
             <div className="flex items-start gap-3.5">
               <div
                 className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   bmbResult.status === 'surplus' || bmbResult.status === 'deficit'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm'
-                    : 'bg-rose-500 text-white shadow-sm'
+                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                    : 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
                 }`}
               >
                 <Zap className="w-5 h-5 fill-current" />
@@ -674,7 +675,7 @@ export const Dashboard: React.FC = () => {
                       : `${bmbResult.calorieDeviationPct}% deviation from maintenance`}
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm mt-1.5 leading-relaxed text-slate-700 dark:text-slate-300">
+                <p className="text-xs sm:text-sm mt-1.5 leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
                   {bmbResult.suggestedAdjustment.message}
                 </p>
               </div>
@@ -682,12 +683,12 @@ export const Dashboard: React.FC = () => {
 
             <div className="flex-shrink-0 flex items-center gap-2">
               {adjustmentApplied ? (
-                <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold shadow">
+                <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 text-xs font-black shadow-md shadow-emerald-500/20">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Volume Adjusted!</span>
                   <button
                     onClick={() => navigate('/workouts')}
-                    className="underline ml-1 hover:opacity-80"
+                    className="underline ml-1 hover:opacity-80 font-bold"
                   >
                     Open Session
                   </button>
@@ -696,7 +697,7 @@ export const Dashboard: React.FC = () => {
                 <button
                   onClick={handleApplyAdjustment}
                   disabled={isApplyingAdjustment}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition ${
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg transition btn-tactile ${
                     bmbResult.status === 'surplus' || bmbResult.status === 'deficit'
                       ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
                       : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
@@ -717,8 +718,8 @@ export const Dashboard: React.FC = () => {
 
       {/* Real Dynamic Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Metric 1: Real Target Maintenance Calories with warm amber alerts */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        {/* Metric 1: Real Target Maintenance Calories */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-md card-3d flex flex-col justify-between hover:border-amber-500/40">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-bold">Daily Calorie Target</span>
             <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
@@ -739,7 +740,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Metric 2: Real Protein Target */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-md card-3d flex flex-col justify-between hover:border-rose-500/40">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-bold">Protein Target</span>
             <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-500/10 flex items-center justify-center text-rose-600 dark:text-rose-400">
@@ -760,7 +761,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Metric 3: Machine Inventory Count */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-md card-3d flex flex-col justify-between hover:border-teal-500/40">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-bold">Gym Machines</span>
             <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-500/10 flex items-center justify-center text-teal-600 dark:text-teal-400">
@@ -781,7 +782,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Metric 4: Completed Workouts */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-md card-3d flex flex-col justify-between hover:border-emerald-500/40">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-bold">Completed Sessions</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
@@ -809,7 +810,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Real-time Vitals & Recovery Monitoring Bar */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+      <div className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-4 card-3d">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md shadow-rose-500/20 flex-shrink-0">
@@ -820,11 +821,11 @@ export const Dashboard: React.FC = () => {
                 <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                   Vitals & Recovery Monitoring
                 </h3>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-400">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100/90 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-400">
                   Daily Check-In Sync
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                 Central nervous system recovery, sleep duration, resting heart rate, and training time.
               </p>
             </div>
@@ -832,7 +833,7 @@ export const Dashboard: React.FC = () => {
 
           <button
             onClick={() => navigate('/checkin')}
-            className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+            className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm btn-tactile"
           >
             <Camera className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" />
             <span>{latestCheckIn ? 'Update Check-In' : 'Log Morning Check-In'}</span>
@@ -841,7 +842,7 @@ export const Dashboard: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
           {/* Workout Training Duration Today */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
             <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider">Workout Time</span>
               <Timer className="w-3.5 h-3.5 text-emerald-500" />
@@ -855,7 +856,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Resting Heart Rate */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
             <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider">Resting HR</span>
               <Heart className="w-3.5 h-3.5 text-rose-500" />
@@ -873,7 +874,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Sleep Duration */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
             <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider">Sleep Hours</span>
               <Moon className="w-3.5 h-3.5 text-indigo-400" />
@@ -891,7 +892,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Energy / Fatigue Readiness */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
             <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider">Energy Level</span>
               <BatteryCharging className="w-3.5 h-3.5 text-amber-500" />
@@ -910,7 +911,7 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 Cols): Live Workout Stream & Routine Summary */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg card-3d">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -919,7 +920,7 @@ export const Dashboard: React.FC = () => {
                     {activeSession ? `Active: ${activeSession.routineName}` : 'Workout Hub'}
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                   {activeSession
                     ? `${(activeSession.exercises || []).length} exercises logged in live session`
                     : 'No active session currently running.'}
@@ -927,10 +928,10 @@ export const Dashboard: React.FC = () => {
               </div>
               <button
                 onClick={() => navigate('/workouts')}
-                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 transition"
+                className="text-xs font-black text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 transition btn-tactile"
               >
                 <span>{activeSession ? 'Open Logger' : 'Start Session'}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.5]" />
               </button>
             </div>
 
@@ -942,13 +943,13 @@ export const Dashboard: React.FC = () => {
                   return (
                     <div
                       key={exercise.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800"
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 transition-all hover:border-slate-300 dark:hover:border-slate-700"
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          className={`w-7 h-7 rounded-full flex items-center justify-center ${
                             completedSets === totalSets && completedSets > 0
-                              ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10'
+                              ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/15'
                               : 'text-slate-400 bg-slate-200 dark:bg-slate-800'
                           }`}
                         >
@@ -958,7 +959,7 @@ export const Dashboard: React.FC = () => {
                           <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
                             {exercise.name}
                           </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                             {completedSets} / {exercise.sets.length} sets completed • {exercise.muscle}
                           </p>
                         </div>
@@ -968,17 +969,17 @@ export const Dashboard: React.FC = () => {
                 })}
               </div>
             ) : (
-              <div className="p-6 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
+              <div className="p-6 rounded-2xl bg-slate-50/60 dark:bg-slate-950/50 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
                 <Dumbbell className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mx-auto opacity-70" />
-                <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-bold">
                   Zero pre-filled mock workouts.
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium">
                   Start an empty workout in the Workouts tab to log your live sets, exercises, and volume!
                 </p>
                 <button
                   onClick={() => navigate('/workouts')}
-                  className="mt-2 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs inline-flex items-center gap-1.5 shadow"
+                  className="mt-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 shadow-md shadow-emerald-500/20 btn-tactile"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Start Live Workout</span>
@@ -988,9 +989,9 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* AI Coach Insight Card with Experience Tier */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-500/30 shadow-sm">
+          <div className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-emerald-500/30 shadow-lg card-3d">
             <div className="flex items-start gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center flex-shrink-0 text-slate-950 shadow-md shadow-emerald-500/20">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center flex-shrink-0 text-slate-950 shadow-md shadow-emerald-500/20">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div className="flex-1">
@@ -998,9 +999,9 @@ export const Dashboard: React.FC = () => {
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                     FitMaintenance AI Guidance ({userProfile?.experienceLevel ? userProfile.experienceLevel.toUpperCase() : 'ATHLETE'})
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-semibold">Gemini Live</span>
+                  <span className="text-[10px] text-slate-400 font-bold">Gemini Live</span>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed font-medium">
                   {userProfile?.calculatedTdee
                     ? `Your maintenance baseline is locked at ${userProfile.calculatedTdee.toLocaleString()} kcal. Your AI Coach is configured for ${userProfile.experienceLevel} progression using your ${userProfile.equipment?.length || 0} registered gym machines.`
                     : 'Set up your biometric profile to enable tailored metabolic and exercise recommendations.'}
@@ -1008,7 +1009,7 @@ export const Dashboard: React.FC = () => {
                 <div className="mt-3 flex items-center gap-2">
                   <button
                     onClick={() => navigate('/ai-coach')}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 transition"
+                    className="text-xs font-black px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 transition btn-tactile"
                   >
                     Ask Gemini Coach
                   </button>
@@ -1020,7 +1021,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Right Column: Macro Distribution & Equipment Quick View */}
         <div className="space-y-4">
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg card-3d">
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4">
               Live Macro Target Breakdown
             </h3>
@@ -1028,43 +1029,43 @@ export const Dashboard: React.FC = () => {
             {/* Macro Bars */}
             <div className="space-y-4">
               <div>
-                <div className="flex justify-between text-xs font-bold mb-1">
+                <div className="flex justify-between text-xs font-bold mb-1.5">
                   <span className="text-slate-700 dark:text-slate-300">Protein (Target)</span>
-                  <span className="text-rose-600 dark:text-rose-400">{proteinTargetGrams}g</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-black">{proteinTargetGrams}g</span>
                 </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
-                  <div className="bg-rose-500 h-full rounded-full w-full" />
+                <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-200 dark:border-slate-800">
+                  <div className="bg-gradient-to-r from-rose-500 to-pink-500 h-full rounded-full w-full" />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs font-bold mb-1">
+                <div className="flex justify-between text-xs font-bold mb-1.5">
                   <span className="text-slate-700 dark:text-slate-300">Carbohydrates (Target)</span>
-                  <span className="text-amber-600 dark:text-amber-400">{carbsTargetGrams}g</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-black">{carbsTargetGrams}g</span>
                 </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
-                  <div className="bg-amber-500 h-full rounded-full w-full" />
+                <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-200 dark:border-slate-800">
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full w-full" />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs font-bold mb-1">
+                <div className="flex justify-between text-xs font-bold mb-1.5">
                   <span className="text-slate-700 dark:text-slate-300">Fats (Target)</span>
-                  <span className="text-teal-600 dark:text-teal-400">{fatsTargetGrams}g</span>
+                  <span className="text-teal-600 dark:text-teal-400 font-black">{fatsTargetGrams}g</span>
                 </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
-                  <div className="bg-teal-500 h-full rounded-full w-full" />
+                <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-200 dark:border-slate-800">
+                  <div className="bg-gradient-to-r from-teal-500 to-emerald-500 h-full rounded-full w-full" />
                 </div>
               </div>
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="flex items-center gap-1.5 font-medium">
-                <Clock className="w-3.5 h-3.5" /> Real-time Firestore Sync
+              <span className="flex items-center gap-1.5 font-semibold">
+                <Clock className="w-3.5 h-3.5 text-emerald-500" /> Real-time Firestore Sync
               </span>
               <button
                 onClick={() => navigate('/nutrition')}
-                className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-bold"
+                className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-black btn-tactile"
               >
                 Adjust Intake
               </button>
@@ -1072,36 +1073,36 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Quick Shortcuts */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Inventory & Config</h4>
+          <div className="p-5 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg card-3d">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">Inventory & Config</h4>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <button
                 onClick={() => navigate('/checkin')}
-                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
+                className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200/80 dark:border-slate-800 transition btn-tactile"
               >
                 <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mb-1" />
                 <span className="font-bold block text-slate-800 dark:text-slate-200">Check-In</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   Ghost Cam
                 </span>
               </button>
               <button
                 onClick={() => navigate('/profile')}
-                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
+                className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200/80 dark:border-slate-800 transition btn-tactile"
               >
                 <Wrench className="w-4 h-4 text-teal-600 dark:text-teal-400 mb-1" />
                 <span className="font-bold block text-slate-800 dark:text-slate-200">Machines</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   {userProfile?.equipment ? `${userProfile.equipment.length} tools` : 'Setup'}
                 </span>
               </button>
               <button
                 onClick={() => navigate('/profile')}
-                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200 dark:border-slate-800 transition"
+                className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-slate-100 dark:hover:bg-slate-800 text-left border border-slate-200/80 dark:border-slate-800 transition btn-tactile"
               >
                 <Layers className="w-4 h-4 text-amber-500 mb-1" />
                 <span className="font-bold block text-slate-800 dark:text-slate-200">Tier</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 capitalize">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 capitalize font-medium">
                   {userProfile?.experienceLevel || 'Beginner'}
                 </span>
               </button>

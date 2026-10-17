@@ -24,7 +24,94 @@
     height: 100%;
     margin: 0;
     padding: 0;
+    overflow-x: hidden;
   }
+}
+
+/* ================= 3D PERSPECTIVE & GLASS UTILITIES ================= */
+@layer utilities {
+  .perspective-800 {
+    perspective: 800px;
+  }
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .perspective-1200 {
+    perspective: 1200px;
+  }
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+
+  /* 3D Interactive Card Lift */
+  .card-3d {
+    transform-style: preserve-3d;
+    transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .card-3d:hover {
+    transform: translateY(-3px) perspective(1000px) rotateX(1deg) scale(1.006);
+  }
+
+  /* Tactile Button Feedback */
+  .btn-tactile {
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-tactile:active {
+    transform: scale(0.95);
+  }
+
+  /* Premium Glassmorphism Surfaces */
+  .glass-surface {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .glass-card-dark {
+    background-color: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(51, 65, 85, 0.65);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+  .glass-card-light {
+    background-color: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  }
+
+  /* Ambient Glows */
+  .glow-cyan {
+    box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.35);
+  }
+  .glow-emerald {
+    box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.35);
+  }
+  .glow-amber {
+    box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.35);
+  }
+  .glow-purple {
+    box-shadow: 0 0 25px -5px rgba(168, 85, 247, 0.35);
+  }
+}
+
+/* Modal Pop & Float Keyframes */
+@keyframes modalPopIn {
+  0% {
+    opacity: 0;
+    transform: perspective(1000px) scale(0.94) translateY(12px) rotateX(4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1000px) scale(1) translateY(0) rotateX(0deg);
+  }
+}
+
+.animate-modal-pop {
+  animation: modalPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Custom scrollbars */
@@ -53,3 +140,4 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.4);
 }
+
