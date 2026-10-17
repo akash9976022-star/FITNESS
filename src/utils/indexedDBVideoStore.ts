@@ -165,6 +165,34 @@ export async function deleteVideoBlob(id: string): Promise<void> {
 }
 
 /**
+ * Completely clears all stored video blobs from IndexedDB and revokes object URLs
+ */
+export async function clearAllStoredVideos(): Promise<void> {
+  // Clear blob URL cache
+  for (const url of blobUrlCache.values()) {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  }
+  blobUrlCache.clear();
+
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('Error clearing videos from IndexedDB:', err);
+  }
+}
+
+/**
  * Resolves any video URL (whether http, https, youtube, blob, or indexeddb:key)
  * into a valid, playable URL string for <video> or <iframe>.
  */

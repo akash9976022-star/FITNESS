@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Scale,
@@ -12,6 +13,9 @@ import {
   Info,
   Loader2,
   AlertCircle,
+  Trash2,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -19,8 +23,10 @@ import {
   saveUserProfile,
   calculateMifflinStJeor,
   EQUIPMENT_CATALOG,
+  flushUserAppData,
   type UserProfile,
   type ExperienceLevel,
+  type FlushDataProgress,
 } from '../services/firestoreService';
 
 export const DEFAULT_PROFILE: UserProfile = {
@@ -41,12 +47,19 @@ export const Profile: React.FC = () => {
   const { currentUser } = useAuth();
 
   // Firestore profile state with guaranteed safe default fallback
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState<boolean>(true);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Flush / Reset App Data States
+  const [isFlushModalOpen, setIsFlushModalOpen] = useState<boolean>(false);
+  const [confirmTextInput, setConfirmTextInput] = useState<string>('');
+  const [isFlushing, setIsFlushing] = useState<boolean>(false);
+  const [flushProgress, setFlushProgress] = useState<FlushDataProgress | null>(null);
 
   // Form edit states
   const [gender, setGender] = useState<'male' | 'female'>('male');
@@ -239,6 +252,32 @@ export const Profile: React.FC = () => {
       showToast('Failed to save profile changes. See error details above.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExecuteFlush = async () => {
+    if (!currentUser?.uid || confirmTextInput.trim() !== 'CONFIRM') return;
+
+    setIsFlushing(true);
+    setErrorMessage(null);
+    try {
+      await flushUserAppData(currentUser.uid, (p) => {
+        setFlushProgress(p);
+      });
+
+      showToast('App data flushed successfully. Starting fresh!');
+
+      // Brief delay for visual feedback before navigating to onboarding
+      setTimeout(() => {
+        setIsFlushModalOpen(false);
+        setIsFlushing(false);
+        navigate('/onboarding', { replace: true });
+      }, 1200);
+    } catch (err: unknown) {
+      console.error('Error during data flush:', err);
+      const msg = err instanceof Error ? err.message : 'Error flushing data from Firestore.';
+      setErrorMessage(`Flush Error: ${msg}`);
+      setIsFlushing(false);
     }
   };
 
@@ -1003,6 +1042,179 @@ export const Profile: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* ==================== DANGER ZONE: FLUSH / RESET APP DATA ==================== */}
+      <div className="p-5 sm:p-7 rounded-3xl bg-rose-50/50 dark:bg-rose-950/20 border-2 border-rose-200 dark:border-rose-900/40 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0 shadow-xs border border-rose-200 dark:border-rose-800">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-rose-950 dark:text-rose-200">
+                  Danger Zone: Reset App Data
+                </h3>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-rose-200/80 dark:bg-rose-500/20 text-rose-900 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                  Irreversible
+                </span>
+              </div>
+              <p className="text-xs text-rose-700/90 dark:text-rose-400/90 font-medium pt-0.5 max-w-xl">
+                Permanently purge all personal check-ins, custom workout programs, video alarms, nutrition logs, and routine reminders while keeping your account login intact.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmTextInput('');
+              setIsFlushModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white dark:bg-rose-950/90 border-2 border-rose-500 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white text-xs sm:text-sm font-black transition-all shadow-md shadow-rose-500/10 active:scale-[0.98] self-start sm:self-auto shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Flush / Reset App Data</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ==================== SECURE TYPE-TO-CONFIRM DELETION MODAL ==================== */}
+      {isFlushModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative">
+            {/* Top Danger Gradient Stripe */}
+            <div className="h-2.5 w-full bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600" />
+
+            {/* Close Button (disabled while flushing) */}
+            {!isFlushing && (
+              <button
+                type="button"
+                onClick={() => setIsFlushModalOpen(false)}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+
+            <div className="p-6 sm:p-7 space-y-5">
+              {/* Warning Icon & Heading */}
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/20">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Flush / Reset All App Data?
+                  </h3>
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-bold uppercase tracking-wider">
+                    This action is permanent and cannot be undone
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Checklist of What Will Be Purged */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 pb-1 border-b border-slate-200 dark:border-slate-800">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  <span>The following items will be completely purged:</span>
+                </div>
+                <ul className="space-y-1.5 text-[11px] sm:text-xs">
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                    <span><strong>Check-ins & Physique:</strong> All morning weight logs, body metrics, and progress photos.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                    <span><strong>Workouts & History:</strong> All completed workout logs, custom routine templates, and exercises.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                    <span><strong>Nutrition & Diet:</strong> Daily meal logs, macro calculations, and food vision data.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                    <span><strong>Media & Alarms:</strong> Custom video alarms, wake-up library files, and custom daily routine timings.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                    <span><strong>Streak & Badges:</strong> Active workout streaks, rewards, and AI coach history.</span>
+                  </li>
+                </ul>
+
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span><strong>Account Stays Active:</strong> Your login authentication remains intact. You will be redirected to fresh setup.</span>
+                </div>
+              </div>
+
+              {/* Flush Progress State (shown while purging) */}
+              {isFlushing ? (
+                <div className="p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 space-y-3 text-center">
+                  <div className="flex items-center justify-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-xs sm:text-sm">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>{flushProgress?.step || 'Flushing application data...'}</span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-rose-500 via-amber-500 to-rose-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${flushProgress?.progressPercent || 15}%` }}
+                    />
+                  </div>
+
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono block">
+                    {flushProgress?.progressPercent || 15}% complete • Please do not close the app
+                  </span>
+                </div>
+              ) : (
+                /* Type to Confirm Form */
+                <div className="space-y-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-900 dark:text-white block">
+                      Type <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-800">CONFIRM</span> to verify:
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      To prevent accidental deletion, type the exact word CONFIRM in capital letters.
+                    </p>
+                  </div>
+
+                  <input
+                    type="text"
+                    autoFocus
+                    value={confirmTextInput}
+                    onChange={(e) => setConfirmTextInput(e.target.value)}
+                    placeholder="CONFIRM"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-sm font-mono font-bold tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400 uppercase"
+                  />
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsFlushModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={confirmTextInput.trim() !== 'CONFIRM'}
+                      onClick={handleExecuteFlush}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-black shadow-lg shadow-rose-600/25 transition active:scale-[0.98]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Permanently Flush All Data</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

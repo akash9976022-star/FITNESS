@@ -3,6 +3,8 @@ import {
   collection,
   setDoc,
   getDoc,
+  getDocs,
+  writeBatch,
   addDoc,
   deleteDoc,
   onSnapshot,
@@ -13,6 +15,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { clearAllStoredVideos } from '../utils/indexedDBVideoStore';
 
 /* ==================== USER PROFILE & ONBOARDING ==================== */
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'pro';
@@ -4277,6 +4280,133 @@ export const dismissCustomRoutineForToday = async (
     lastDismissedDate: dateStr,
   });
 };
+
+/* ==================== FLUSH & RESET USER APP DATA ==================== */
+
+export interface FlushDataProgress {
+  step: string;
+  progressPercent: number;
+}
+
+/**
+ * Executes a comprehensive, secure purge of all user application data
+ * across Firestore subcollections, media stores, and local storage caches
+ * while keeping the Firebase Auth account authenticated.
+ */
+export async function flushUserAppData(
+  userId: string,
+  onProgress?: (progress: FlushDataProgress) => void
+): Promise<void> {
+  if (!userId) return;
+
+  onProgress?.({ step: 'Initializing secure data flush...', progressPercent: 5 });
+
+  // List of all user subcollections to purge
+  const subcollections = [
+    'checkins',
+    'nutrition_logs',
+    'workouts',
+    'completed_workouts',
+    'workout_logs',
+    'saved_routines',
+    'custom_exercises',
+    'daily_routines',
+    'stats',
+    'alarm_videos',
+    'custom_festivals',
+    'custom_routines',
+    'routine_settings',
+    'streak',
+    'rewards',
+    'coach_messages',
+    'data',
+  ];
+
+  if (db) {
+    for (let i = 0; i < subcollections.length; i++) {
+      const subcol = subcollections[i];
+      const percent = Math.round(10 + (i / subcollections.length) * 70);
+      onProgress?.({ step: `Purging ${subcol.replace(/_/g, ' ')}...`, progressPercent: percent });
+
+      try {
+        const colRef = collection(db, 'users', userId, subcol);
+        const snapshot = await getDocs(colRef);
+        if (!snapshot.empty) {
+          // Process deletes in batches (up to 500 ops per batch)
+          let batch = writeBatch(db);
+          let count = 0;
+
+          for (const docSnap of snapshot.docs) {
+            batch.delete(docSnap.ref);
+            count++;
+            if (count >= 400) {
+              await batch.commit();
+              batch = writeBatch(db);
+              count = 0;
+            }
+          }
+
+          if (count > 0) {
+            await batch.commit();
+          }
+        }
+      } catch (err) {
+        console.warn(`Notice while clearing subcollection ${subcol}:`, err);
+      }
+    }
+
+    // Reset root user profile document to un-onboarded defaults
+    onProgress?.({ step: 'Resetting baseline metrics and onboarding state...', progressPercent: 85 });
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      await setDoc(userDocRef, {
+        gender: 'male',
+        age: 25,
+        heightCm: 175,
+        currentWeightKg: 75,
+        targetWeightKg: 75,
+        activityMultiplier: 1.55,
+        experienceLevel: 'intermediate',
+        equipment: ['Barbell', 'Dumbbells', 'Adjustable Bench', 'Pull-up Bar', 'Resistance Bands'],
+        calculatedTdee: 2450,
+        bmr: 1700,
+        onboardingCompleted: false,
+        updatedAt: serverTimestamp(),
+        flushedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('Notice while resetting root user profile document:', err);
+    }
+  }
+
+  // Clear local storage items associated with this user / app
+  onProgress?.({ step: 'Wiping local cache & offline storage...', progressPercent: 92 });
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes(userId) || key.startsWith('fit_'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (err) {
+      console.warn('Notice while clearing localStorage:', err);
+    }
+  }
+
+  // Clear local IndexedDB video store
+  onProgress?.({ step: 'Wiping custom alarm video media...', progressPercent: 97 });
+  try {
+    await clearAllStoredVideos();
+  } catch (err) {
+    console.warn('Notice while clearing IndexedDB:', err);
+  }
+
+  onProgress?.({ step: 'App data flushed successfully!', progressPercent: 100 });
+}
+
 
 
 
