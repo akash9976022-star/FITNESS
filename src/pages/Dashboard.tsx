@@ -341,6 +341,67 @@ export const Dashboard: React.FC = () => {
       ? 'bg-amber-100 dark:bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-400'
       : 'bg-rose-100 dark:bg-rose-500/15 border-rose-500/30 text-rose-800 dark:text-rose-400';
 
+  // Real Body Mass Index (BMI) & Metabolic Composition Calculations
+  const bmiData = useMemo(() => {
+    const weight = Number(biometrics?.weightKg || userProfile?.currentWeightKg || 70);
+    const heightCmVal = Number(biometrics?.heightCm || userProfile?.heightCm || 175);
+    const heightMVal = heightCmVal > 0 ? heightCmVal / 100 : 1.75;
+    const bmiVal = Number((weight / (heightMVal * heightMVal)).toFixed(1));
+
+    // Ideal weight bounds for WHO normal BMI (18.5 - 24.9)
+    const minIdealKg = Number((18.5 * heightMVal * heightMVal).toFixed(1));
+    const maxIdealKg = Number((24.9 * heightMVal * heightMVal).toFixed(1));
+
+    let category = 'Healthy / Normal Weight';
+    let colorClass = 'text-emerald-500';
+    let badgeClass = 'bg-emerald-500/15 border-emerald-500/30 text-emerald-800 dark:text-emerald-400';
+    let glow = 'emerald';
+    let advice =
+      'Your body composition is in the prime hypertrophy and metabolic longevity zone. Maintain progressive overload while matching maintenance calories.';
+
+    if (bmiVal < 18.5) {
+      category = 'Underweight (Caloric Deficit Risk)';
+      colorClass = 'text-sky-500';
+      badgeClass = 'bg-sky-500/15 border-sky-500/30 text-sky-800 dark:text-sky-400';
+      glow = 'cyan';
+      advice =
+        'Focus on nutrient-dense clean caloric surplus (+300 to +500 kcal) with quality protein to build muscle mass safely.';
+    } else if (bmiVal >= 25 && bmiVal < 30) {
+      category = 'Overweight (Pre-Obesity Zone)';
+      colorClass = 'text-amber-500';
+      badgeClass = 'bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-400';
+      glow = 'amber';
+      advice =
+        'Recommend moderate calorie deficit (250–400 kcal) with high protein retention and 8,000+ daily steps to lean down.';
+    } else if (bmiVal >= 30) {
+      category = 'Obesity Class (Metabolic Overload)';
+      colorClass = 'text-rose-500';
+      badgeClass = 'bg-rose-500/15 border-rose-500/30 text-rose-800 dark:text-rose-400';
+      glow = 'rose';
+      advice =
+        'Prioritize cardiovascular recovery, zone 2 brisk walking, low-impact joint movements, and structured nutritional tracking.';
+    }
+
+    // Pointer pin position across the 15.0 to 40.0 spectrum
+    const minSpectrum = 15;
+    const maxSpectrum = 40;
+    const percent = Math.max(0, Math.min(100, ((bmiVal - minSpectrum) / (maxSpectrum - minSpectrum)) * 100));
+
+    return {
+      weight,
+      heightCm: heightCmVal,
+      bmi: bmiVal,
+      minIdealKg,
+      maxIdealKg,
+      category,
+      colorClass,
+      badgeClass,
+      glow,
+      advice,
+      percent,
+    };
+  }, [biometrics?.weightKg, biometrics?.heightCm, userProfile?.currentWeightKg, userProfile?.heightCm]);
+
   // Defensive Guard Clause: Return clean loading spinner if userData or currentUser is loading/null
   if (loading || !currentUser) {
     return (
@@ -806,6 +867,174 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
+      </Card3D>
+
+      {/* Body Mass Index (BMI) & Metabolic Composition Card */}
+      <Card3D
+        glowColor={bmiData.glow as any}
+        intensity={6}
+        className="relative overflow-hidden bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 p-5 sm:p-7 shadow-xl"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Body Composition</span>
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border ${bmiData.badgeClass}`}>
+                <span>{bmiData.category}</span>
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-3 mt-1">
+              <span className={`text-3xl sm:text-4xl font-black tracking-tight ${bmiData.colorClass}`}>
+                {bmiData.bmi}
+              </span>
+              <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">
+                kg/m² (Body Mass Index)
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Biometrics Meta Pills */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/60 dark:border-slate-800/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase block">Weight</span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-0.5">
+                {bmiData.weight} kg
+              </span>
+            </div>
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/60 dark:border-slate-800/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase block">Height</span>
+              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white block mt-0.5">
+                {bmiData.heightCm} cm
+              </span>
+            </div>
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/60 dark:border-slate-800/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase block">Ideal Range</span>
+              <span className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                {bmiData.minIdealKg}–{bmiData.maxIdealKg} kg
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Color Variation Spectrum Gauge Line */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="font-bold text-slate-700 dark:text-slate-300">
+              BMI Spectrum with Color Variation
+            </span>
+            <span className="text-[11px] text-slate-400 font-medium">
+              WHO International Clinical Standard
+            </span>
+          </div>
+
+          <div className="relative pt-6 pb-2">
+            {/* Positioned Indicator Pin / Needle */}
+            <div
+              className="absolute top-0 -translate-x-1/2 flex flex-col items-center transition-all duration-700 ease-out z-20 pointer-events-none"
+              style={{ left: `${bmiData.percent}%` }}
+            >
+              <div
+                className={`px-2 py-0.5 rounded-md text-[11px] font-black tracking-tight shadow-md flex items-center gap-1 whitespace-nowrap ${
+                  bmiData.bmi < 18.5
+                    ? 'bg-sky-500 text-slate-950'
+                    : bmiData.bmi < 25
+                    ? 'bg-emerald-500 text-slate-950'
+                    : bmiData.bmi < 30
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'bg-rose-500 text-white'
+                }`}
+              >
+                <span>You: {bmiData.bmi}</span>
+              </div>
+              <div
+                className={`w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] ${
+                  bmiData.bmi < 18.5
+                    ? 'border-t-sky-500'
+                    : bmiData.bmi < 25
+                    ? 'border-t-emerald-500'
+                    : bmiData.bmi < 30
+                    ? 'border-t-amber-500'
+                    : 'border-t-rose-500'
+                }`}
+              />
+            </div>
+
+            {/* Color Variation Spectrum Line */}
+            <div className="h-4 w-full rounded-full overflow-hidden flex shadow-inner bg-slate-200 dark:bg-slate-800 p-0.5">
+              {/* Zone 1: Underweight (< 18.5) */}
+              <div
+                style={{ width: '14%' }}
+                className="h-full rounded-l-full bg-gradient-to-r from-sky-400 to-cyan-400 relative group cursor-pointer"
+                title="Underweight (< 18.5)"
+              />
+              {/* Zone 2: Normal Weight (18.5 - 24.9) */}
+              <div
+                style={{ width: '26%' }}
+                className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 relative group cursor-pointer"
+                title="Normal / Healthy (18.5 - 24.9)"
+              />
+              {/* Zone 3: Overweight (25.0 - 29.9) */}
+              <div
+                style={{ width: '20%' }}
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-400 relative group cursor-pointer"
+                title="Overweight (25.0 - 29.9)"
+              />
+              {/* Zone 4: Obese (>= 30) */}
+              <div
+                style={{ width: '40%' }}
+                className="h-full rounded-r-full bg-gradient-to-r from-rose-500 to-red-600 relative group cursor-pointer"
+                title="Obese (>= 30.0)"
+              />
+            </div>
+
+            {/* Axis Numbers & Markings */}
+            <div className="relative mt-2 text-[10px] font-bold text-slate-400 flex justify-between select-none px-0.5">
+              <div className="flex flex-col items-start">
+                <span>15.0</span>
+                <span className="text-[9px] text-sky-500 font-semibold mt-0.5">Underweight</span>
+              </div>
+              <div className="flex flex-col items-center" style={{ marginLeft: '-8%' }}>
+                <span>18.5</span>
+                <span className="text-[9px] text-emerald-500 font-semibold mt-0.5">Healthy (18.5–24.9)</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span>25.0</span>
+                <span className="text-[9px] text-amber-500 font-semibold mt-0.5">Overweight</span>
+              </div>
+              <div className="flex flex-col items-center" style={{ marginRight: '14%' }}>
+                <span>30.0</span>
+                <span className="text-[9px] text-rose-500 font-semibold mt-0.5">Obese (30+)</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span>40.0+</span>
+                <span className="text-[9px] text-rose-600 font-semibold mt-0.5">Extreme</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Coach Insight & Update Button */}
+        <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+            <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong>Coach Guidance:</strong> {bmiData.advice}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/profile')}
+            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 shrink-0 self-end sm:self-center btn-tactile"
+          >
+            <span>Update Biometrics</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </Card3D>
 
       {/* Real Dynamic Metrics Grid */}

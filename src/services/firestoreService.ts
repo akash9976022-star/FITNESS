@@ -2589,6 +2589,15 @@ export const generateEquipmentAwareRoutine = (
       : `Equipment Maintenance Lower & Core (${experienceLevel.toUpperCase()})`;
 
   const exercises: ExerciseItem[] = selectedDefs.map((def, exIndex) => {
+    const restSecs =
+      def.splitCategory === 'Legs' ||
+      def.name.includes('Press') ||
+      def.name.includes('Deadlift') ||
+      def.name.includes('Squat') ||
+      def.name.includes('Pulldown')
+        ? 90
+        : 60;
+
     const sets: ExerciseSet[] = Array.from({ length: baseSets }, (_, sIdx) => ({
       id: `s-${Date.now()}-${exIndex}-${sIdx + 1}`,
       setNumber: sIdx + 1,
@@ -2601,13 +2610,23 @@ export const generateEquipmentAwareRoutine = (
       id: `ex-${Date.now()}-${exIndex}`,
       name: def.name,
       muscle: def.muscle,
+      targetRestSeconds: restSecs,
       sets,
     };
   });
 
+  const totalSets = exercises.reduce((acc, ex) => acc + (ex.sets || []).length, 0);
+  const totalRestSeconds = exercises.reduce(
+    (acc, ex) => acc + (ex.sets || []).length * (ex.targetRestSeconds || 90),
+    0
+  );
+  const totalDurationMinutes = Math.max(20, Math.round((totalSets * 45 + totalRestSeconds) / 60));
+
   return {
     routineName: routineTitle,
     startedAt: Date.now(),
+    durationMinutes: totalDurationMinutes,
+    duration_minutes: totalDurationMinutes,
     exercises,
   };
 };
@@ -5111,12 +5130,19 @@ export const getTemplateForCategory = (
   };
 
   const selectedExercises = standardExercises[category] || standardExercises['push'];
+  const totalSets = selectedExercises.reduce((acc, ex) => acc + (ex.sets || []).length, 0);
+  const totalRestSeconds = selectedExercises.reduce(
+    (acc, ex) => acc + (ex.sets || []).length * (ex.targetRestSeconds || 90),
+    0
+  );
+  const calculatedDuration = Math.max(20, Math.round((totalSets * 45 + totalRestSeconds) / 60));
+
   return {
     dayId,
     dayName,
     routineName: `${dayName} - ${category.toUpperCase()} Power`,
     splitCategory: category,
-    targetDurationMinutes: 42,
+    targetDurationMinutes: calculatedDuration,
     isRestDay: false,
     exercises: selectedExercises,
   };

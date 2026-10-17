@@ -169,9 +169,9 @@ export const RestTimerBanner: React.FC<RestTimerBannerProps> = ({
         {/* Glow ambient background element */}
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 pointer-events-none" />
 
-        {/* Circular Countdown Progress Ring */}
-        <div className="relative flex items-center justify-center shrink-0">
-          <svg className="w-13 h-13 -rotate-90 transform" viewBox="0 0 36 36">
+        {/* Circular Countdown Progress Ring - Fixed 56px Dimensions */}
+        <div className="relative flex items-center justify-center shrink-0 w-14 h-14 min-w-[56px] min-h-[56px]">
+          <svg className="w-14 h-14 -rotate-90 transform" viewBox="0 0 36 36">
             {/* Background track */}
             <path
               className="text-slate-800"
@@ -194,15 +194,15 @@ export const RestTimerBanner: React.FC<RestTimerBannerProps> = ({
           </svg>
 
           {/* Time readout in center */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="font-mono text-xs sm:text-sm font-black tracking-tighter text-emerald-300">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+            <span className="font-mono text-xs font-black tracking-tighter text-emerald-300">
               {timeFormatted}
             </span>
           </div>
         </div>
 
         {/* Center Information */}
-        <div className="flex-1 min-w-0 pr-1">
+        <div className="flex-1 min-w-0 pr-1 pl-1">
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider">
               <Zap className="w-2.5 h-2.5" />

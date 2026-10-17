@@ -381,20 +381,20 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
       return;
     }
 
-    // If changing from Rest -> Workout: ensure at least 1 rest day remains!
-    if (currentDayTemplate.isRestDay && restDayCount <= 1) {
-      showToast?.('Minimum rest day is 1 per week! At least 1 day must be preserved for muscle recovery and CNS health.');
-      return;
-    }
-
     // Generate calibrated template for this category
     const generated = getTemplateForCategory(catId, activeDay, currentDayTemplate.dayName, isFasting);
     await onUpdateRoutine(activeDay, {
       ...generated,
+      isRestDay: false,
       dayId: activeDay,
     });
 
-    showToast?.(`Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}!`);
+    const isRemovingLastRest = currentDayTemplate.isRestDay && restDayCount <= 1;
+    showToast?.(
+      isRemovingLastRest
+        ? `Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}! (Tip: Keep 1–3 rest days per week for optimal recovery).`
+        : `Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}!`
+    );
   };
 
   /**
@@ -410,22 +410,35 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
       return;
     }
 
-    // If attempting to remove the last rest day: block!
-    if (!willBeRest && restDayCount <= 1) {
-      showToast?.('Minimum rest day is 1 per week! At least 1 day must be preserved for muscle recovery.');
-      return;
+    if (willBeRest) {
+      await onUpdateRoutine(activeDay, {
+        isRestDay: true,
+        splitCategory: 'rest',
+        routineName: `${currentDayTemplate.dayName} - ${isFasting ? 'Sacred Fasting Rest & Recovery' : 'Rest & Muscle Rebuild'}`,
+        exercises: [],
+      });
+      showToast?.(`Marked ${currentDayTemplate.dayName} as a Rest & Active Recovery day.`);
+    } else {
+      // Switching from Rest to Active Training Day: generate complete exercises & timing
+      const targetCategory =
+        currentDayTemplate.splitCategory && currentDayTemplate.splitCategory !== 'rest'
+          ? currentDayTemplate.splitCategory
+          : 'full_body';
+      const generated = getTemplateForCategory(targetCategory, activeDay, currentDayTemplate.dayName, isFasting);
+
+      await onUpdateRoutine(activeDay, {
+        ...generated,
+        isRestDay: false,
+        dayId: activeDay,
+      });
+
+      const isRemovingLastRest = restDayCount <= 1;
+      showToast?.(
+        isRemovingLastRest
+          ? `Marked ${currentDayTemplate.dayName} as an active training day! (Tip: Keep 1–3 rest days per week for optimal recovery).`
+          : `Marked ${currentDayTemplate.dayName} as an active training day.`
+      );
     }
-
-    await onUpdateRoutine(activeDay, {
-      isRestDay: willBeRest,
-      splitCategory: willBeRest ? 'rest' : 'full_body',
-    });
-
-    showToast?.(
-      willBeRest
-        ? `Marked ${currentDayTemplate.dayName} as a Rest & Active Recovery day.`
-        : `Marked ${currentDayTemplate.dayName} as an active training day.`
-    );
   };
 
   const handleLeaveSubmitted = async (request: Omit<RestLeaveRequest, 'id' | 'createdAt'>) => {
