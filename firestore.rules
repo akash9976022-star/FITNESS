@@ -78,6 +78,9 @@ service cloud.firestore {
     // Subcollection: users/{userId}/custom_routines/{routineId}
     //   - Custom user routines and voice reminders (name, time, voicePrompt, repeat, enabled, category, icon, createdAt, updatedAt)
     //
+    // Subcollection: users/{userId}/rest_leave_requests/{requestId}
+    //   - Formal rest leave requests and AI coach permissions (id, userId, date, dayName, reasonCategory, explanation, status, coachVerdict, pledgeAccepted, createdAt)
+    //
     // ===============================================================
 
     // Helper Functions
@@ -181,6 +184,11 @@ service cloud.firestore {
 
       // Subcollection: Custom User Routines & Voice Reminders
       match /custom_routines/{routineId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Subcollection: Formal Rest Leave Requests & AI Coach Permissions
+      match /rest_leave_requests/{requestId} {
         allow read, write: if isOwner(userId);
       }
     }

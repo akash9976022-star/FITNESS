@@ -18,9 +18,16 @@ import {
   Layers,
   ArrowRight,
   X,
-  PlusCircle,
-  Loader2,
+  FileText,
+  Coffee,
+  Calendar,
+  ShieldAlert,
+  AlertCircle,
+  CalendarCheck,
+  HeartPulse,
   Timer,
+  Loader2,
+  PlusCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -32,6 +39,7 @@ import {
   subscribeUserProfile,
   generateEquipmentAwareRoutine,
   getFilteredExercisesForUser,
+  type EquipmentExerciseDef,
   saveWorkoutToCollection,
   saveSavedWorkoutRoutine,
   deleteSavedWorkoutRoutine,
@@ -48,18 +56,21 @@ import {
   type ExerciseSet,
   type CompletedWorkout,
   type UserProfile,
-  type EquipmentExerciseDef,
   type CustomExercise,
   type DayOfWeek,
   type DayRoutineTemplate,
   type UserWorkoutStats,
   type UserStreak,
-  applyModernSplitPreset,
+  submitRestLeaveRequest,
+  subscribeRestLeaveRequests,
+  type RestLeaveRequest,
 } from '../services/firestoreService';
+import { getCalendarDayInfo } from '../utils/tamilCalendar';
 import WorkoutTimer from '../components/workout/WorkoutTimer';
 import RestTimerBanner from '../components/workout/RestTimerBanner';
 import CustomExerciseLibraryModal from '../components/workout/CustomExerciseLibraryModal';
 import HevyDaySplitSelector, { getTodayDayOfWeek } from '../components/workout/HevyDaySplitSelector';
+import RestLeaveRequestModal from '../components/workout/RestLeaveRequestModal';
 import WorkoutCompletionModal, {
   type WorkoutCompletionMetrics,
 } from '../components/workout/WorkoutCompletionModal';
@@ -114,6 +125,23 @@ export const Workouts: React.FC = () => {
     setTimeout(() => setStatusToast(null), 3500);
   };
 
+  // Tabs Navigation State ('workout' | 'history' | 'templates' | 'leave_requests')
+  type WorkoutTab = 'workout' | 'history' | 'templates' | 'leave_requests';
+  const [activeTab, setActiveTab] = useState<WorkoutTab>('workout');
+
+  // Formal Rest Leave Requests & Permissions
+  const [leaveRequests, setLeaveRequests] = useState<RestLeaveRequest[]>([]);
+  const [isManualLeaveModalOpen, setIsManualLeaveModalOpen] = useState(false);
+
+  // Fasting Mode State (Tamil Calendar detection with manual toggle support)
+  const [isFasting, setIsFasting] = useState<boolean>(() => {
+    try {
+      return !!getCalendarDayInfo(new Date()).isFastingDay;
+    } catch {
+      return false;
+    }
+  });
+
   // Custom Exercises Library Modal & Data
   const [customExercises, setCustomExercises] = useState<CustomExercise[]>([]);
   const [isCustomLibraryOpen, setIsCustomLibraryOpen] = useState(false);
@@ -162,6 +190,10 @@ export const Workouts: React.FC = () => {
       setUserStreak(streak);
     });
 
+    const unsubLeaves = subscribeRestLeaveRequests(currentUser.uid, (requests) => {
+      setLeaveRequests(requests);
+    });
+
     return () => {
       unsubActive();
       unsubHistory();
@@ -171,8 +203,23 @@ export const Workouts: React.FC = () => {
       unsubDaily();
       unsubStats();
       unsubStreak();
+      unsubLeaves();
     };
   }, [currentUser?.uid]);
+
+  // Handler for submitting formal leave request
+  const handleSubmitLeaveRequest = async (
+    request: Omit<RestLeaveRequest, 'id' | 'createdAt'>
+  ) => {
+    if (!currentUser?.uid) return;
+    try {
+      await submitRestLeaveRequest(currentUser.uid, request);
+      showToast('Formal Leave Letter registered with AI Coach!');
+    } catch (err) {
+      console.error('Failed to submit leave request:', err);
+      showToast('Failed to submit leave letter.');
+    }
+  };
 
   // Handler for permanently deleting a completed workout log
   const handleDeleteCompletedWorkoutLog = async (logId: string, routineName: string) => {
@@ -450,17 +497,6 @@ export const Workouts: React.FC = () => {
     setIsRestTimerActive(true);
   };
 
-  const handleApplyModernSplitPreset = async (presetId: '2day' | '3day' | '4day') => {
-    if (!currentUser?.uid) return;
-    try {
-      await applyModernSplitPreset(currentUser.uid, presetId);
-      showToast(`Applied ${presetId.replace('day', '-Day')} Modern Split!`);
-    } catch (err) {
-      console.error('Failed to apply preset:', err);
-      showToast('Failed to apply preset.');
-    }
-  };
-
   const handleUpdateSet = async (
     exerciseId: string,
     setId: string,
@@ -574,11 +610,11 @@ export const Workouts: React.FC = () => {
   };
 
   /* ==================== QUICK-ADD FROM REGISTERED INVENTORY ==================== */
-  const availableInventoryExercises = React.useMemo(() => {
+  const availableInventoryExercises = React.useMemo((): EquipmentExerciseDef[] => {
     const list = getFilteredExercisesForUser(userProfile?.equipment || []);
     if (!activeSession) return list;
-    const activeNames = new Set((activeSession.exercises || []).map((e) => e.name.toLowerCase()));
-    return list.filter((e) => !activeNames.has(e.name.toLowerCase()));
+    const activeNames = new Set((activeSession.exercises || []).map((e: ExerciseItem) => e.name.toLowerCase()));
+    return list.filter((e: EquipmentExerciseDef) => !activeNames.has(e.name.toLowerCase()));
   }, [userProfile?.equipment, activeSession]);
 
   const handleQuickAddFromInventory = async (def: EquipmentExerciseDef) => {
@@ -789,6 +825,11 @@ export const Workouts: React.FC = () => {
     ? (activeSession.exercises || []).reduce((acc, ex) => acc + (ex.sets || []).length, 0)
     : 0;
 
+  // User-selected Rest Days Count (Weekly Quota: Min 1, Max 3)
+  const restDayCount = Object.values(dailyRoutines).filter(
+    (r) => r.splitCategory === 'rest' || r.isRestDay
+  ).length;
+
   // Defensive Guard Clause: Loading spinner when user data or active workout is loading
   if (loading || !currentUser) {
     return (
@@ -889,105 +930,113 @@ export const Workouts: React.FC = () => {
         </div>
       </div>
 
-      {/* ================= HEVY-STYLE DAY-BY-DAY ROUTINE SPLIT MANAGEMENT ================= */}
-      <HevyDaySplitSelector
-        dailyRoutines={dailyRoutines}
-        activeDay={selectedDay}
-        onSelectDay={(day) => setSelectedDay(day)}
-        onStartRoutine={handleStartDayRoutine}
-        onUpdateRoutine={handleUpdateDailyRoutine}
-        onApplyPreset={handleApplyModernSplitPreset}
-        onOpenCustomLibrary={() => setIsCustomLibraryOpen(true)}
-        customExercises={customExercises}
-        isWorkoutActive={!!activeSession}
-        showToast={showToast}
-      />
+      {/* 4-Tab Modern OLED Segmented Navigation Bar */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setActiveTab('workout')}
+          className={`px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition btn-tactile ${
+            activeTab === 'workout'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 ring-1 ring-emerald-400 font-black'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60 font-bold'
+          }`}
+        >
+          <Play className="w-3.5 h-3.5 fill-current" />
+          <span className="hidden sm:inline">Active Split &amp; Live Tracker</span>
+          <span className="sm:hidden">Split &amp; Live</span>
+          {activeSession && (
+            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-950 text-emerald-400 animate-pulse uppercase">
+              Live
+            </span>
+          )}
+        </button>
 
-      {/* EQUIPMENT-AWARE ROUTINE GENERATOR CARD */}
-      <Card3D
-        glowColor="emerald"
-        intensity={5}
-        className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-4"
-      >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-emerald-500/20 flex-shrink-0">
-              <Wrench className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  Equipment-Aware Routine Generator
-                </h3>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-500/15 text-teal-800 dark:text-teal-400">
-                  {userProfile?.experienceLevel ? `${userProfile.experienceLevel.toUpperCase()} Tier` : 'Configured'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {(userProfile?.equipment || []).length > 0
-                  ? `Strictly filtered by your ${(userProfile?.equipment || []).length} registered gym machines & platforms.`
-                  : 'No equipment registered yet. Minimal bodyweight routines will be generated.'}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => navigate('/profile')}
-            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start md:self-auto btn-tactile"
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition btn-tactile ${
+            activeTab === 'history'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 ring-1 ring-emerald-400 font-black'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60 font-bold'
+          }`}
+        >
+          <History className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Workout History &amp; Logs</span>
+          <span className="sm:hidden">History</span>
+          <span
+            className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+              activeTab === 'history'
+                ? 'bg-slate-950 text-emerald-400'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+            }`}
           >
-            <span>Modify Gym Inventory</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+            {(completedList || []).length}
+          </span>
+        </button>
 
-        {/* 3 Generator Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-          <button
-            onClick={() => handleGenerateRoutine('full_body')}
-            className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
+        <button
+          onClick={() => setActiveTab('templates')}
+          className={`px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition btn-tactile ${
+            activeTab === 'templates'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 ring-1 ring-emerald-400 font-black'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60 font-bold'
+          }`}
+        >
+          <BookmarkCheck className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Templates &amp; Library</span>
+          <span className="sm:hidden">Templates</span>
+          <span
+            className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+              activeTab === 'templates'
+                ? 'bg-slate-950 text-emerald-400'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+            }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                Full Body Maintenance
-              </span>
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500 opacity-60 group-hover:opacity-100" />
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-              Balanced push, pull, leg, and core volume mapped to your equipment.
-            </p>
-          </button>
+            {(savedTemplates || []).length}
+          </span>
+        </button>
 
-          <button
-            onClick={() => handleGenerateRoutine('upper')}
-            className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
+        <button
+          onClick={() => setActiveTab('leave_requests')}
+          className={`px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition btn-tactile ${
+            activeTab === 'leave_requests'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25 ring-1 ring-emerald-400 font-black'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60 font-bold'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Leave Letters &amp; Rest Logs</span>
+          <span className="sm:hidden">Rest &amp; Leave</span>
+          <span
+            className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+              activeTab === 'leave_requests'
+                ? 'bg-slate-950 text-emerald-400'
+                : restDayCount > 3
+                ? 'bg-rose-500/20 text-rose-500'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+            }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                Upper Body Hypertrophy
-              </span>
-              <Dumbbell className="w-3.5 h-3.5 text-teal-500 opacity-60 group-hover:opacity-100" />
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-              Chest, back, shoulder, and arm focus strictly using registered machines.
-            </p>
-          </button>
+            {restDayCount}/3 Rest
+          </span>
+        </button>
+      </div>
 
-          <button
-            onClick={() => handleGenerateRoutine('lower')}
-            className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                Lower Body & Core
-              </span>
-              <Layers className="w-3.5 h-3.5 text-amber-500 opacity-60 group-hover:opacity-100" />
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-              Quadriceps, hamstrings, glute drives, and posterior chain stabilization.
-            </p>
-          </button>
-        </div>
-      </Card3D>
+      {/* ================= TAB 1: ACTIVE SPLIT & LIVE TRACKER ================= */}
+      {activeTab === 'workout' && (
+        <div className="space-y-6">
+          <HevyDaySplitSelector
+            dailyRoutines={dailyRoutines}
+            activeDay={selectedDay}
+            onSelectDay={(day) => setSelectedDay(day)}
+            onStartRoutine={handleStartDayRoutine}
+            onUpdateRoutine={handleUpdateDailyRoutine}
+            onSubmitLeaveRequest={handleSubmitLeaveRequest}
+            onOpenCustomLibrary={() => setIsCustomLibraryOpen(true)}
+            customExercises={customExercises}
+            isWorkoutActive={!!activeSession}
+            isFasting={isFasting}
+            onToggleFasting={() => setIsFasting((prev) => !prev)}
+            userName={currentUser?.displayName || 'Champion'}
+            showToast={showToast}
+          />
 
       {/* ACTIVE WORKOUT SESSION */}
       {activeSession ? (
@@ -1309,7 +1358,7 @@ export const Workouts: React.FC = () => {
                   1-Tap Add from Registered Gym Inventory:
                 </span>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {availableInventoryExercises.slice(0, 8).map((ex) => (
+                  {availableInventoryExercises.slice(0, 8).map((ex: EquipmentExerciseDef) => (
                     <button
                       key={ex.id}
                       onClick={() => handleQuickAddFromInventory(ex)}
@@ -1418,202 +1467,578 @@ export const Workouts: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* COMPLETED WORKOUTS HISTORY (Real Firestore onSnapshot & Deletable) */}
-      <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Completed Workout History ({(completedList || []).length})
-            </h3>
-          </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Real-time Firestore logs with volume and set telemetry
-          </p>
         </div>
+      )}
 
-        {/* Dynamic Training Analytics Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              Total Volume
-            </p>
-            <p className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
-              {(completedList || [])
-                .reduce((acc, item) => acc + (Number(item.totalVolumeKg) || 0), 0)
-                .toLocaleString()}{' '}
-              <span className="text-xs font-semibold text-slate-400">kg</span>
-            </p>
-          </div>
-          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              Sessions
-            </p>
-            <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              {(completedList || []).length}
+      {/* ================= TAB 2: WORKOUT HISTORY & LOGS ================= */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Completed Workout History ({(completedList || []).length})
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Real-time Firestore logs with volume and set telemetry
             </p>
           </div>
-          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              Sets Logged
-            </p>
-            <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              {(completedList || []).reduce(
-                (acc, item) => acc + (Number(item.totalSets) || 0),
-                0
-              )}
-            </p>
-          </div>
-          <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              Avg Duration
-            </p>
-            <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              {(completedList || []).length > 0
-                ? Math.round(
-                    (completedList || []).reduce(
-                      (acc, item) =>
-                        acc +
-                        (Number(item.durationMinutes || item.duration_minutes) || 0),
-                      0
-                    ) / (completedList || []).length
-                  )
-                : 0}{' '}
-              <span className="text-xs font-semibold text-slate-400">min</span>
-            </p>
-          </div>
-        </div>
 
-        {(completedList || []).length === 0 ? (
-          <div className="p-6 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
-            No completed workouts saved yet. Finish your first workout above to record your history!
+          {/* Dynamic Training Analytics Summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Total Volume
+              </p>
+              <p className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
+                {(completedList || [])
+                  .reduce((acc, item) => acc + (Number(item.totalVolumeKg) || 0), 0)
+                  .toLocaleString()}{' '}
+                <span className="text-xs font-semibold text-slate-400">kg</span>
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Sessions
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                {(completedList || []).length}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Sets Logged
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                {(completedList || []).reduce(
+                  (acc, item) => acc + (Number(item.totalSets) || 0),
+                  0
+                )}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Avg Duration
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                {(completedList || []).length > 0
+                  ? Math.round(
+                      (completedList || []).reduce(
+                        (acc, item) =>
+                          acc +
+                          (Number(item.durationMinutes || item.duration_minutes) || 0),
+                        0
+                      ) / (completedList || []).length
+                    )
+                  : 0}{' '}
+                <span className="text-xs font-semibold text-slate-400">min</span>
+              </p>
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {(completedList || []).map((item) => (
-              <div
-                key={item.id}
-                className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 transition hover:border-slate-300 dark:hover:border-slate-700"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                      {item.routineName}
-                    </h4>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      {formatCompletedDate(item.completedAt)}
-                    </p>
+
+          {(completedList || []).length === 0 ? (
+            <div className="p-6 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
+              No completed workouts saved yet. Finish your first workout in the Split &amp; Live tab to record your history!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(completedList || []).map((item) => (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 transition hover:border-slate-300 dark:hover:border-slate-700"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {item.routineName}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        {formatCompletedDate(item.completedAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20">
+                        {(item.totalVolumeKg || 0).toLocaleString()} kg
+                      </span>
+                      <button
+                        onClick={() =>
+                          handleDeleteCompletedWorkoutLog(item.id, item.routineName)
+                        }
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        title="Permanently delete workout log"
+                        aria-label="Delete workout log"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20">
-                      {(item.totalVolumeKg || 0).toLocaleString()} kg
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                    <span>
+                      {(item.exercises || []).length} exercises • {item.totalSets || 0} sets
                     </span>
-                    <button
-                      onClick={() =>
-                        handleDeleteCompletedWorkoutLog(item.id, item.routineName)
-                      }
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                      title="Permanently delete workout log"
-                      aria-label="Delete workout log"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <span className="flex items-center gap-1 font-medium">
+                      <Clock className="w-3 h-3 text-slate-400" />{' '}
+                      {item.durationMinutes || item.duration_minutes || 0}m
+                    </span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/60">
-                  <span>
-                    {(item.exercises || []).length} exercises • {item.totalSets || 0} sets
-                  </span>
-                  <span className="flex items-center gap-1 font-medium">
-                    <Clock className="w-3 h-3 text-slate-400" />{' '}
-                    {item.durationMinutes || item.duration_minutes || 0}m
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* SAVED WORKOUT TEMPLATES FROM FIRESTORE (users/{userId}/saved_routines & workouts) */}
-      <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <BookmarkCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Saved Routines Library ({(savedTemplates || []).length})
-            </h3>
-          </div>
-          {activeSession && (
-            <button
-              onClick={handleSaveAsTemplate}
-              className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-[11px] font-semibold transition flex items-center gap-1 shadow-sm"
-            >
-              <BookmarkCheck className="w-3.5 h-3.5 text-teal-500" />
-              <span>Save Active as Template</span>
-            </button>
+              ))}
+            </div>
           )}
         </div>
+      )}
 
-        {(savedTemplates || []).length === 0 ? (
-          <div className="p-6 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
-            No saved routine templates yet. Click &quot;Save Active as Template&quot; during an active session to save custom day-by-day routines here!
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {(savedTemplates || []).map((tpl) => (
-              <div
-                key={tpl.id}
-                className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 transition hover:border-slate-300 dark:hover:border-slate-700"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                    {tpl.routineName}
-                  </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {(tpl.exercises || []).length} exercises configured
-                  </p>
+      {/* ================= TAB 3: TEMPLATES & MOVEMENT LIBRARY ================= */}
+      {activeTab === 'templates' && (
+        <div className="space-y-6">
+          {/* EQUIPMENT-AWARE ROUTINE GENERATOR CARD */}
+          <Card3D
+            glowColor="emerald"
+            intensity={5}
+            className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-4"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-emerald-500/20 flex-shrink-0">
+                  <Wrench className="w-5 h-5" />
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={() => {
-                      if (currentUser?.uid) {
-                        const cloned: WorkoutSession = {
-                          routineName: tpl.routineName,
-                          startedAt: Date.now(),
-                          exercises: (tpl.exercises || []).map((ex, eIdx) => ({
-                            ...ex,
-                            id: `ex-${Date.now()}-${eIdx}`,
-                            sets: (ex.sets || []).map((s, sIdx) => ({
-                              ...s,
-                              id: `s-${Date.now()}-${eIdx}-${sIdx}`,
-                              completed: false,
-                            })),
-                          })),
-                        };
-                        saveActiveWorkout(currentUser.uid, cloned);
-                        showToast(`Loaded routine "${tpl.routineName}"!`);
-                      }
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-bold text-[11px] whitespace-nowrap transition"
-                  >
-                    Load
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSavedRoutine(tpl.id, tpl.routineName)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                    title="Permanently delete routine template"
-                    aria-label="Delete routine template"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                      Equipment-Aware Routine Generator
+                    </h3>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-500/15 text-teal-800 dark:text-teal-400">
+                      {userProfile?.experienceLevel ? `${userProfile.experienceLevel.toUpperCase()} Tier` : 'Configured'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {(userProfile?.equipment || []).length > 0
+                      ? `Strictly filtered by your ${(userProfile?.equipment || []).length} registered gym machines & platforms.`
+                      : 'No equipment registered yet. Minimal bodyweight routines will be generated.'}
+                  </p>
                 </div>
               </div>
-            ))}
+
+              <button
+                onClick={() => navigate('/profile')}
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 flex items-center gap-1 self-start md:self-auto btn-tactile"
+              >
+                <span>Modify Gym Inventory</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 3 Generator Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              <button
+                onClick={() => {
+                  handleGenerateRoutine('full_body');
+                  setActiveTab('workout');
+                }}
+                className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                    Full Body Maintenance
+                  </span>
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-500 opacity-60 group-hover:opacity-100" />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  Balanced push, pull, leg, and core volume mapped to your equipment.
+                </p>
+              </button>
+
+              <button
+                onClick={() => {
+                  handleGenerateRoutine('upper');
+                  setActiveTab('workout');
+                }}
+                className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                    Upper Body Hypertrophy
+                  </span>
+                  <Dumbbell className="w-3.5 h-3.5 text-teal-500 opacity-60 group-hover:opacity-100" />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  Chest, back, shoulder, and arm focus strictly using registered machines.
+                </p>
+              </button>
+
+              <button
+                onClick={() => {
+                  handleGenerateRoutine('lower');
+                  setActiveTab('workout');
+                }}
+                className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/40 text-left transition group btn-tactile hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                    Lower Body &amp; Core
+                  </span>
+                  <Layers className="w-3.5 h-3.5 text-amber-500 opacity-60 group-hover:opacity-100" />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  Quadriceps, hamstrings, glute drives, and posterior chain stabilization.
+                </p>
+              </button>
+            </div>
+          </Card3D>
+
+          {/* CUSTOM MOVEMENT LIBRARY PROMPT CARD */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                <Dumbbell className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Personal Movement Library ({customExercises.length})
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Create, customize, and delete exercises tailored to your exact equipment.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsCustomLibraryOpen(true)}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Manage Custom Exercises</span>
+            </button>
           </div>
-        )}
-      </div>
+
+          {/* SAVED WORKOUT TEMPLATES FROM FIRESTORE */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BookmarkCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Saved Routines Library ({(savedTemplates || []).length})
+                </h3>
+              </div>
+              {activeSession && (
+                <button
+                  onClick={handleSaveAsTemplate}
+                  className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 border border-teal-500/20 text-[11px] font-semibold transition flex items-center gap-1 shadow-sm"
+                >
+                  <BookmarkCheck className="w-3.5 h-3.5 text-teal-500" />
+                  <span>Save Active as Template</span>
+                </button>
+              )}
+            </div>
+
+            {(savedTemplates || []).length === 0 ? (
+              <div className="p-6 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
+                No saved routine templates yet. Click &quot;Save Active as Template&quot; during an active session to save custom day-by-day routines here!
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(savedTemplates || []).map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 transition hover:border-slate-300 dark:hover:border-slate-700"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {tpl.routineName}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        {(tpl.exercises || []).length} exercises configured
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => {
+                          if (currentUser?.uid) {
+                            const cloned: WorkoutSession = {
+                              routineName: tpl.routineName,
+                              startedAt: Date.now(),
+                              exercises: (tpl.exercises || []).map((ex, eIdx) => ({
+                                ...ex,
+                                id: `ex-${Date.now()}-${eIdx}`,
+                                sets: (ex.sets || []).map((s, sIdx) => ({
+                                  ...s,
+                                  id: `s-${Date.now()}-${eIdx}-${sIdx}`,
+                                  completed: false,
+                                })),
+                              })),
+                            };
+                            saveActiveWorkout(currentUser.uid, cloned);
+                            setActiveTab('workout');
+                            showToast(`Loaded routine "${tpl.routineName}"!`);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-500/10 hover:bg-teal-100 dark:hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-bold text-[11px] whitespace-nowrap transition"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSavedRoutine(tpl.id, tpl.routineName)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        title="Permanently delete routine template"
+                        aria-label="Delete routine template"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 4: LEAVE LETTERS & REST LOGS ================= */}
+      {activeTab === 'leave_requests' && (
+        <div className="space-y-6">
+          {/* Rest Days Balance & Policy HUD */}
+          <Card3D
+            glowColor="cyan"
+            intensity={4}
+            className="p-5 sm:p-6 rounded-3xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-lg space-y-5"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-400 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 flex-shrink-0">
+                  <Coffee className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Weekly Rest Day Quota &amp; Policy
+                    </h3>
+                    <span
+                      className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                        restDayCount >= 1 && restDayCount <= 3
+                          ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30'
+                          : restDayCount > 3
+                          ? 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-400 border border-rose-500/30'
+                          : 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30'
+                      }`}
+                    >
+                      {restDayCount >= 1 && restDayCount <= 3
+                        ? 'Balanced Split'
+                        : restDayCount > 3
+                        ? 'Quota Exceeded'
+                        : 'Under Limit'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    User-selected: Minimum 1 rest day &amp; maximum 3 rest days per week. Zero inbuilt enforcement.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsManualLeaveModalOpen(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition self-start sm:self-auto active:scale-95 btn-tactile"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Apply for Extra Rest Day</span>
+              </button>
+            </div>
+
+            {/* Quota Progress Bar (3 Slots) */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/70 dark:border-slate-800/80 space-y-3">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Coffee className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Rest Days Balance:</span>
+                  <span className="text-slate-900 dark:text-white font-black text-sm">
+                    {restDayCount} / 3 Days Used
+                  </span>
+                </span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                  {7 - restDayCount} Training Days Active
+                </span>
+              </div>
+
+              {/* 3 Visual Quota Slots */}
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map((slot) => {
+                  const isFilled = restDayCount >= slot;
+                  return (
+                    <div
+                      key={slot}
+                      className={`h-2.5 rounded-full transition-all duration-300 ${
+                        isFilled
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-sm shadow-emerald-500/30'
+                          : 'bg-slate-200 dark:bg-slate-800'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Status Alert */}
+              {restDayCount === 0 && (
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 pt-1">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    You currently have 0 rest days configured. We strongly recommend selecting at least 1 rest day for optimal muscular recovery!
+                  </span>
+                </div>
+              )}
+              {restDayCount >= 1 && restDayCount <= 3 && (
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 pt-1">
+                  <CalendarCheck className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    Optimal training schedule active ({7 - restDayCount} workout days, {restDayCount} recovery days).
+                  </span>
+                </div>
+              )}
+              {restDayCount > 3 && (
+                <div className="flex items-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400 pt-1">
+                  <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    You have selected {restDayCount} rest days (exceeds the 3-day weekly cap). Submit a formal leave application below for AI Coach approval!
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Fasting Day Protocol Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-transparent border border-teal-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center flex-shrink-0">
+                  <HeartPulse className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      Fasting Day Protocol
+                    </span>
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        isFasting
+                          ? 'bg-emerald-500 text-slate-950 font-black'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {isFasting ? 'ACTIVE TODAY' : 'INACTIVE'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isFasting
+                      ? 'Calibrated to Moderate & Light Exercise Protocol (RPE 6–7, lighter dumbbell/machine loads, extended 90s–120s rest, mobility focus).'
+                      : 'Standard progressive overload pacing active. Toggle on during Tamil/religious fasting days to adapt intensity.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsFasting((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto ${
+                  isFasting
+                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700'
+                    : 'bg-teal-500 hover:bg-teal-400 text-slate-950 font-black shadow-md shadow-teal-500/20'
+                }`}
+              >
+                <span>{isFasting ? 'Disable Fasting Mode' : 'Enable Fasting Mode'}</span>
+              </button>
+            </div>
+          </Card3D>
+
+          {/* Submitted Leave Letters Archive */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-500" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Submitted Leave Letters &amp; Coach Permissions ({(leaveRequests || []).length})
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Official accountability logs
+              </span>
+            </div>
+
+            {(leaveRequests || []).length === 0 ? (
+              <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                  No Leave Letters Submitted
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                  Your attendance is in peak standing! If you ever need an extra rest day or emergency break, draft a formal application letter here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(leaveRequests || []).map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3.5 relative overflow-hidden transition hover:border-slate-300 dark:hover:border-slate-700"
+                  >
+                    {/* Top Status & Date */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                            {req.dayName} Leave Application
+                          </h4>
+                          <span
+                            className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                              req.status === 'granted'
+                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                                : req.status === 'conditional'
+                                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                            }`}
+                          >
+                            {req.status === 'granted' ? 'Official Approval' : req.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>Target Date: {req.date}</span>
+                          <span className="mx-1">•</span>
+                          <span className="capitalize">{req.reasonCategory.replace('_', ' ')}</span>
+                        </p>
+                      </div>
+
+                      <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+
+                    {/* Applicant's Reason Statement */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/60 text-xs text-slate-700 dark:text-slate-300 italic">
+                      &quot;{req.explanation}&quot;
+                    </div>
+
+                    {/* Coach Verdict Box */}
+                    <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                        <Sparkles className="w-3 h-3" />
+                        <span>AI Coach Verdict:</span>
+                      </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                        {req.coachVerdict}
+                      </p>
+                    </div>
+
+                    {/* Accountability Pledge Badge */}
+                    {req.pledgeAccepted && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-teal-600 dark:text-teal-400 font-semibold pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                        <Check className="w-3.5 h-3.5 stroke-[3] text-teal-500" />
+                        <span>Accountability Pledge: Tomorrow at 6:00 AM volume will be made up</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* DELETABLE CUSTOM MOVEMENT LIBRARY MODAL */}
       {currentUser?.uid && (
@@ -1633,6 +2058,20 @@ export const Workouts: React.FC = () => {
         onClose={handleCloseCompletionModal}
         metrics={completionMetrics}
         onShareSuccess={showToast}
+      />
+
+      {/* FORMAL REST LEAVE REQUEST APPLICATION MODAL */}
+      <RestLeaveRequestModal
+        isOpen={isManualLeaveModalOpen}
+        onClose={() => setIsManualLeaveModalOpen(false)}
+        dayName={dailyRoutines[selectedDay]?.dayName || 'Rest Day'}
+        dayId={selectedDay}
+        userName={currentUser?.displayName || 'Champion'}
+        onSubmitLeave={async (req: Omit<RestLeaveRequest, 'id' | 'createdAt'>) => {
+          await handleSubmitLeaveRequest(req);
+          setIsManualLeaveModalOpen(false);
+        }}
+        showToast={showToast}
       />
 
       {/* SMART FLOATING REST TIMER BANNER */}

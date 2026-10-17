@@ -15,15 +15,18 @@ import {
   Footprints,
   Moon,
   Timer,
+  Zap,
 } from 'lucide-react';
-import type {
-  DayOfWeek,
-  DayRoutineTemplate,
-  CustomExercise,
-  ExerciseItem,
-  ExerciseSet,
-  ModernSplitPresetId,
+import {
+  type DayOfWeek,
+  type DayRoutineTemplate,
+  type CustomExercise,
+  type ExerciseItem,
+  type ExerciseSet,
+  type RestLeaveRequest,
+  getTemplateForCategory,
 } from '../../services/firestoreService';
+import RestLeaveRequestModal from './RestLeaveRequestModal';
 
 interface HevyDaySplitSelectorProps {
   dailyRoutines: Record<DayOfWeek, DayRoutineTemplate>;
@@ -31,10 +34,13 @@ interface HevyDaySplitSelectorProps {
   onSelectDay: (day: DayOfWeek) => void;
   onStartRoutine: (routine: DayRoutineTemplate) => void;
   onUpdateRoutine: (dayId: DayOfWeek, updated: Partial<DayRoutineTemplate>) => Promise<void>;
-  onApplyPreset?: (presetId: '2day' | '3day' | '4day') => Promise<void>;
+  onSubmitLeaveRequest?: (request: Omit<RestLeaveRequest, 'id' | 'createdAt'>) => Promise<void>;
   onOpenCustomLibrary: () => void;
   customExercises: CustomExercise[];
   isWorkoutActive: boolean;
+  isFasting?: boolean;
+  onToggleFasting?: () => void;
+  userName?: string;
   showToast?: (msg: string) => void;
 }
 
@@ -46,6 +52,20 @@ const DAYS_ORDER: { id: DayOfWeek; short: string; label: string }[] = [
   { id: 'friday', short: 'Fri', label: 'Friday' },
   { id: 'saturday', short: 'Sat', label: 'Saturday' },
   { id: 'sunday', short: 'Sun', label: 'Sunday' },
+];
+
+const SPLIT_CATEGORIES: Array<{
+  id: 'push' | 'pull' | 'legs' | 'upper' | 'lower' | 'full_body' | 'rest';
+  label: string;
+  icon: string;
+}> = [
+  { id: 'rest', label: 'Rest Day', icon: '☕' },
+  { id: 'legs', label: 'Legs', icon: '🦵' },
+  { id: 'push', label: 'Push', icon: '🏋️' },
+  { id: 'pull', label: 'Pull', icon: '🚣' },
+  { id: 'upper', label: 'Upper', icon: '⚡' },
+  { id: 'lower', label: 'Lower', icon: '🏃' },
+  { id: 'full_body', label: 'Full Body', icon: '🔥' },
 ];
 
 export const getTodayDayOfWeek = (): DayOfWeek => {
@@ -68,10 +88,13 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
   onSelectDay,
   onStartRoutine,
   onUpdateRoutine,
-  onApplyPreset,
+  onSubmitLeaveRequest,
   onOpenCustomLibrary,
   customExercises,
   isWorkoutActive,
+  isFasting = false,
+  onToggleFasting,
+  userName = 'Athlete',
   showToast,
 }) => {
   const currentDayTemplate = dailyRoutines[activeDay];
@@ -79,7 +102,7 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
-  const [isApplyingPreset, setIsApplyingPreset] = useState(false);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
 
   // Inline exercise adding states for this day's routine
   const [isAddingExercise, setIsAddingExercise] = useState(false);
@@ -93,17 +116,6 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
   // Compute current training and rest days counts
   const routineList = Object.values(dailyRoutines);
   const restDayCount = routineList.filter((r) => r.isRestDay).length;
-  const trainingDayCount = 7 - restDayCount;
-
-  // Detect which preset matches current setup, if any
-  const detectActivePreset = (): ModernSplitPresetId => {
-    if (trainingDayCount === 3 && restDayCount === 4) return '3day';
-    if (trainingDayCount === 2 && restDayCount === 5) return '2day';
-    if (trainingDayCount === 4 && restDayCount === 3) return '4day';
-    return 'custom';
-  };
-
-  const activePresetId = detectActivePreset();
 
   const handleStartEditTitle = () => {
     setTitleDraft(currentDayTemplate?.routineName || '');
@@ -121,23 +133,63 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
   };
 
   /**
-   * Enforces user rules:
-   * 1. Minimum rest day is 1 (cannot have 7 training days / 0 rest days).
-   * 2. Minimum training days is 2 (cannot have fewer than 2 training days).
+   * 1-Tap Category Switcher Handler
+   */
+  const handleSelectCategory = async (catId: 'push' | 'pull' | 'legs' | 'upper' | 'lower' | 'full_body' | 'rest') => {
+    if (!currentDayTemplate) return;
+
+    if (catId === 'rest') {
+      // If user is already on a rest day, do nothing
+      if (currentDayTemplate.isRestDay) return;
+
+      // If user already has 3 rest days, require formal permission letter!
+      if (restDayCount >= 3) {
+        setIsLeaveModalOpen(true);
+        return;
+      }
+
+      await onUpdateRoutine(activeDay, {
+        isRestDay: true,
+        splitCategory: 'rest',
+        routineName: `${currentDayTemplate.dayName} - ${isFasting ? 'Sacred Fasting Rest & Recovery' : 'Rest & Muscle Rebuild'}`,
+        exercises: [],
+      });
+      showToast?.(`Marked ${currentDayTemplate.dayName} as a Rest & Recovery day.`);
+      return;
+    }
+
+    // If changing from Rest -> Workout: ensure at least 1 rest day remains!
+    if (currentDayTemplate.isRestDay && restDayCount <= 1) {
+      showToast?.('Minimum rest day is 1 per week! At least 1 day must be preserved for muscle recovery and CNS health.');
+      return;
+    }
+
+    // Generate calibrated template for this category
+    const generated = getTemplateForCategory(catId, activeDay, currentDayTemplate.dayName, isFasting);
+    await onUpdateRoutine(activeDay, {
+      ...generated,
+      dayId: activeDay,
+    });
+
+    showToast?.(`Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}!`);
+  };
+
+  /**
+   * Direct Toggle Rest Day (with Leave Application trigger when > 3)
    */
   const handleToggleRestDay = async () => {
     if (!currentDayTemplate) return;
     const willBeRest = !currentDayTemplate.isRestDay;
 
-    // Guardrail 1: Turning Rest Day -> Training Day: Must keep at least 1 rest day!
-    if (!willBeRest && restDayCount <= 1) {
-      showToast?.('Minimum rest day is 1! At least 1 day per week must be preserved for muscle recovery.');
+    // If attempting to take more than 3 rest days: open formal leave modal!
+    if (willBeRest && restDayCount >= 3) {
+      setIsLeaveModalOpen(true);
       return;
     }
 
-    // Guardrail 2: Turning Training Day -> Rest Day: Must keep at least 2 training days!
-    if (willBeRest && trainingDayCount <= 2) {
-      showToast?.('Minimum training days is 2! At least 2 workout days are required for progressive overload.');
+    // If attempting to remove the last rest day: block!
+    if (!willBeRest && restDayCount <= 1) {
+      showToast?.('Minimum rest day is 1 per week! At least 1 day must be preserved for muscle recovery.');
       return;
     }
 
@@ -153,27 +205,27 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
     );
   };
 
-  const handleSelectPreset = async (presetId: '2day' | '3day' | '4day') => {
-    if (!onApplyPreset || isApplyingPreset) return;
-    setIsApplyingPreset(true);
-    try {
-      await onApplyPreset(presetId);
-    } catch {
-      showToast?.('Failed to apply preset');
-    } finally {
-      setIsApplyingPreset(false);
+  const handleLeaveSubmitted = async (request: Omit<RestLeaveRequest, 'id' | 'createdAt'>) => {
+    if (onSubmitLeaveRequest) {
+      await onSubmitLeaveRequest(request);
     }
+    // Mark the requested day as a rest day
+    await onUpdateRoutine(activeDay, {
+      isRestDay: true,
+      splitCategory: 'rest',
+      routineName: `${currentDayTemplate.dayName} - Emergency Rest (${request.reasonCategory.toUpperCase()})`,
+      exercises: [],
+    });
   };
 
   const handleCycleExerciseRest = async (exerciseId: string, currentRest = 90) => {
     if (!currentDayTemplate) return;
-    // Cycle 60s -> 90s -> 120s -> 45s -> 60s
     const nextRest = currentRest === 60 ? 90 : currentRest === 90 ? 120 : currentRest === 120 ? 45 : 60;
     const updatedExercises = (currentDayTemplate.exercises || []).map((ex) =>
       ex.id === exerciseId ? { ...ex, targetRestSeconds: nextRest } : ex
     );
     await onUpdateRoutine(activeDay, { exercises: updatedExercises });
-    showToast?.(`Rest set to ${nextRest}s`);
+    showToast?.(`Rest interval set to ${nextRest}s`);
   };
 
   const handleAddExerciseToRoutine = async (e: React.FormEvent) => {
@@ -238,91 +290,62 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 1. MODERN SPLIT PRESET SELECTOR & SCHEDULE SUMMARY */}
-      <div className="p-3 sm:p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Dumbbell className="w-4 h-4" />
-              </span>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
-                Modern Workout Split & Rest Schedule
-              </h3>
+      {/* 1. FASTING DETECTOR & PROTOCOL ALERT BANNER */}
+      {isFasting && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-500/40 backdrop-blur-xl flex items-center justify-between gap-3 animate-fade-in shadow-lg shadow-amber-950/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <Moon className="w-5 h-5 fill-amber-400/20" />
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Calibrated for busy professionals: 2 to 4 training days with guaranteed recovery (Min 1 Rest Day).
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                  Sacred Fasting Day Active
+                </span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500 text-slate-950 uppercase tracking-widest">
+                  Moderate Pacing
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Heavy failure sets paused. Rest intervals extended to 90s–120s to prevent dehydration & dizziness.
+              </p>
+            </div>
           </div>
 
-          {/* Schedule Telemetry Badge */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-              <Dumbbell className="w-3 h-3" />
-              {trainingDayCount} Training Days
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30">
+          {onToggleFasting && (
+            <button
+              type="button"
+              onClick={onToggleFasting}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 transition shrink-0"
+            >
+              Fasting Options
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 2. 7-DAY HEVY WEEK BAR WITH VISUAL BADGES */}
+      <div className="p-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-xl">
+        {/* Header HUD: Rest Days Balance */}
+        <div className="flex items-center justify-between px-2 pt-1 pb-2">
+          <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <Dumbbell className="w-3.5 h-3.5 text-emerald-500" />
+            Weekly Routine Split
+          </span>
+
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
+              restDayCount <= 3 && restDayCount >= 1
+                ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
+                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+            }`}>
               <Coffee className="w-3 h-3" />
-              {restDayCount} Rest Days
+              Rest Days: {restDayCount} / 3 (Min 1, Max 3)
             </span>
           </div>
         </div>
 
-        {/* 3-Way Modern Presets Segmented Pills */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80">
-          <button
-            type="button"
-            onClick={() => handleSelectPreset('2day')}
-            disabled={isApplyingPreset}
-            className={`py-2 px-2 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center text-center ${
-              activePresetId === '2day'
-                ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span>2-Day Split</span>
-            <span className="text-[10px] font-normal text-slate-400">Full Body A & B (5 Rest)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectPreset('3day')}
-            disabled={isApplyingPreset}
-            className={`py-2 px-2 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center text-center relative ${
-              activePresetId === '3day'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span className="flex items-center gap-1">
-              <span>3-Day Split</span>
-              <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[8px] uppercase tracking-wider font-black bg-emerald-950 text-emerald-300">
-                Ideal
-              </span>
-            </span>
-            <span className={`text-[10px] ${activePresetId === '3day' ? 'text-slate-950 font-semibold' : 'text-slate-400'}`}>
-              Push / Pull / Legs (4 Rest)
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelectPreset('4day')}
-            disabled={isApplyingPreset}
-            className={`py-2 px-2 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center text-center ${
-              activePresetId === '4day'
-                ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm font-black'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span>4-Day Split</span>
-            <span className="text-[10px] font-normal text-slate-400">Upper / Lower (3 Rest)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. 7-DAY HEVY INTERACTIVE WEEK BAR */}
-      <div className="p-1.5 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-xl">
+        {/* 7-Day Day Chips */}
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {DAYS_ORDER.map((d) => {
             const isSelected = activeDay === d.id;
@@ -334,7 +357,7 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
               <button
                 key={d.id}
                 onClick={() => onSelectDay(d.id)}
-                className={`flex flex-col items-center justify-center py-2 sm:py-3 px-1 rounded-xl text-center transition-all duration-200 relative btn-tactile ${
+                className={`flex flex-col items-center justify-center py-2.5 sm:py-3 px-1 rounded-xl text-center transition-all duration-200 relative btn-tactile ${
                   isSelected
                     ? isRest
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-black shadow-lg shadow-indigo-500/25 scale-[1.03]'
@@ -344,7 +367,7 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
                     : 'hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
-                {/* Today Indicator Dot */}
+                {/* Today Indicator */}
                 {isToday && (
                   <span
                     className={`absolute -top-1 px-1.5 py-0.2 rounded-full text-[8px] font-black uppercase tracking-widest ${
@@ -361,12 +384,11 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
                   {d.short}
                 </span>
 
-                {/* Training vs Rest Icon */}
                 <div className="mt-1 flex items-center justify-center">
                   {isRest ? (
-                    <Coffee className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-indigo-400'}`} />
+                    <Coffee className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-indigo-400'}`} />
                   ) : (
-                    <Dumbbell className={`w-3 h-3 ${isSelected ? 'text-slate-950' : 'text-emerald-500'}`} />
+                    <Dumbbell className={`w-3.5 h-3.5 ${isSelected ? 'text-slate-950' : 'text-emerald-500'}`} />
                   )}
                 </div>
 
@@ -377,19 +399,58 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
                         ? 'text-white font-black'
                         : 'text-slate-950 font-black'
                       : isRest
-                      ? 'text-indigo-600 dark:text-indigo-400'
+                      ? 'text-indigo-500 dark:text-indigo-400'
                       : 'text-emerald-600 dark:text-emerald-400'
                   }`}
                 >
-                  {isRest ? 'Rest' : routine?.splitCategory || 'Train'}
+                  {isRest ? 'Rest' : routine?.splitCategory?.toUpperCase() || 'TRAIN'}
                 </span>
               </button>
             );
           })}
         </div>
+
+        {/* 3. 1-TAP MUSCLE SPLIT QUICK-CHANGER BAR */}
+        <div className="mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+          <div className="flex items-center justify-between mb-1.5 px-1">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <Zap className="w-3 h-3 text-amber-500" />
+              1-Tap Switch {currentDayTemplate?.dayName} to:
+            </span>
+            <span className="text-[10px] text-slate-400">
+              {currentDayTemplate?.isRestDay ? 'Currently Rest' : `Currently ${currentDayTemplate?.splitCategory?.toUpperCase()}`}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            {SPLIT_CATEGORIES.map((cat) => {
+              const isCurrent = currentDayTemplate?.isRestDay
+                ? cat.id === 'rest'
+                : currentDayTemplate?.splitCategory === cat.id;
+
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => handleSelectCategory(cat.id)}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 ${
+                    isCurrent
+                      ? cat.id === 'rest'
+                        ? 'bg-indigo-600 text-white shadow-md font-black'
+                        : 'bg-emerald-600 text-white shadow-md font-black'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* 3. ACTIVE DAY DETAIL: REST RECOVERY HUB vs TRAINING ROUTINE */}
+      {/* 4. ACTIVE DAY DETAIL: REST RECOVERY HUB vs TRAINING ROUTINE */}
       {currentDayTemplate && (
         <div className="rounded-3xl bg-white/85 dark:bg-slate-900/85 border border-slate-200/80 dark:border-slate-800/80 shadow-lg backdrop-blur-xl overflow-hidden transition-all duration-200">
           {/* Card Top Banner */}
@@ -399,7 +460,7 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
                 <span className={`text-xs font-black uppercase tracking-wider ${
                   currentDayTemplate.isRestDay ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'
                 }`}>
-                  {currentDayTemplate.dayName} {currentDayTemplate.isRestDay ? 'Recovery Day' : 'Training Split'}
+                  {currentDayTemplate.dayName} {currentDayTemplate.isRestDay ? 'Recovery Day' : 'Training Routine'}
                 </span>
 
                 {todayDayId === activeDay && (
@@ -758,7 +819,7 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
                     No exercises planned for this training day
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Tap "Add Movement" above or select one of the 2-Day, 3-Day, or 4-Day modern presets above.
+                    Tap any of the category chips above (Legs, Push, Pull, etc.) or "Add Movement" to populate exercises.
                   </p>
                 </div>
               ) : (
@@ -820,6 +881,17 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
           )}
         </div>
       )}
+
+      {/* 5. FORMAL LEAVE REQUEST MODAL (FOR EXTRA REST DAYS) */}
+      <RestLeaveRequestModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => setIsLeaveModalOpen(false)}
+        dayName={currentDayTemplate?.dayName || 'Today'}
+        dayId={activeDay}
+        userName={userName}
+        onSubmitLeave={handleLeaveSubmitted}
+        showToast={showToast}
+      />
     </div>
   );
 };
