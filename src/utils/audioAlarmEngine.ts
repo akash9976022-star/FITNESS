@@ -10,6 +10,7 @@
  */
 
 import type { TamilDateInfo } from './tamilCalendar';
+import { GoogleGenAI } from '@google/genai';
 
 export interface BriefingSection {
   id: string;
@@ -286,13 +287,14 @@ export const buildMorningBriefingContent = ({
   const fatsGrams = Math.round((calories * 0.25) / 9);
 
   // Section 1: Greeting & Calendar Date
+  // Section 1: Greeting & Calendar Date
   const section1: BriefingSection = {
     id: 'section-1-greeting',
     category: 'greeting',
     titleEn: 'Morning Greeting & Calendar',
     titleTa: 'காலை வணக்கம் & தமிழ் நாட்காட்டி',
     textEn: `Good morning, ${userName}! Today is ${dateStrEn}. In the traditional Tamil solar calendar, today is ${dateStrTa}. May your day begin with clear focus, peace, and boundless vitality.`,
-    textTa: `வணக்கம் ${userName}, உங்கள் காலைப் பொழுது இனிதாக அமையட்டும். இன்று ஆங்கிலத் தேதி ${date.getDate()} ${monthNamesEn[date.getMonth()]}. தமிழ் பாரம்பரிய நாட்காட்டியின்படி இன்று ${dateStrTa}. உங்கள் நாள் புத்துணர்ச்சியுடனும், அமைதியுடனும், சிறந்த ஆற்றலுடனும் தொடங்க வாழ்த்துகள்.`,
+    textTa: `இனிய காலை வணக்கம் ${userName}! உங்கள் காலைப் பொழுது மகிழ்ச்சியாகவும் அமைதியாகவும் அமையட்டும். இன்று ${dayOfWeekTa}, ${tamilMonthName} மாதம் ${tamilDate}-ஆம் நாள். புதிய உற்சாகத்தோடும், அசாத்திய ஆற்றலோடும் இந்த இனிய நாளை தொடங்குங்கள்!`,
   };
 
   // Section 2: Fitness & Nutrition Targets (Today's Nutrients)
@@ -302,22 +304,22 @@ export const buildMorningBriefingContent = ({
     titleEn: 'Daily Nutrients & Fitness Targets',
     titleTa: 'இன்றைய ஊட்டச்சத்து & உடற்பயிற்சி',
     textEn: `Here is your daily nutrition and fitness target: Aim for ${calories} kilocalories today, with a target of ${proteinGrams} grams of protein, ${carbsGrams} grams of carbohydrates, and ${fatsGrams} grams of healthy fats. Remember to stay well hydrated with at least 3 liters of water. Working towards your target weight of ${targetWeightKg} kilograms requires daily consistency, discipline, and hitting your protein split. Your routine is loaded and ready.`,
-    textTa: `இன்றைய ஊட்டச்சத்து மற்றும் உடற்பயிற்சி வழிகாட்டல்: உங்கள் தினசரி உடல் பராமரிப்பு கலோரி அளவு ${calories} கலோரிகள் ஆகும். இன்று ${proteinGrams} கிராம் புரதச்சத்து, ${carbsGrams} கிராம் மாவுச்சத்து, மற்றும் ${fatsGrams} கிராம் ஆரோக்கியமான கொழுப்பு உட்கொள்ள இலக்கு வையுங்கள். குறைந்தது மூன்று லிட்டர் தண்ணீர் அருந்தி, உங்கள் உடற்பயிற்சி அட்டவணையை தவறாமல் பின்பற்றி உடலை கட்டுக்கோப்பாக வைத்துக் கொள்ளுங்கள்.`,
+    textTa: `இன்றைய ஊட்டச்சத்து மற்றும் உடற்பயிற்சி வழிகாட்டல்: உங்கள் உடலை கட்டுக்கோப்பாகவும் வலிமையாகவும் வைக்க, இன்று ${calories} கலோரிகள் மற்றும் ${proteinGrams} கிராம் புரதச்சத்து எடுத்துக்கொள்ள இலக்கு வையுங்கள். மறக்காமல் குறைந்தது மூன்று லிட்டர் தண்ணீர் அருந்துங்கள். திட்டமிட்ட உடற்பயிற்சியை தவறாமல் செய்து, உங்கள் இலக்கு எடையை (${targetWeightKg} கிலோ) நோக்கி உற்சாகமாக முன்னேறுங்கள்!`,
   };
 
   // Section 3: Motivational Quote of the Day
   const quotes = [
     {
       en: 'Thought for the day: Consistency and discipline forge the unbreakable athlete. Rise with conviction, conquer your training, and honor your vessel.',
-      ta: 'இன்றைய சிந்தனை மற்றும் ஊக்கமளிக்கும் பொன்மொழி: தினசரி ஒழுக்கமும் பயிற்சியுமே வெல்ல முடியாத உடலையும், அசைக்க முடியாத மன உறுதியையும் உருவாக்கும். எழுந்து சாதிப்போம்!',
+      ta: 'தினசரி செய்யும் தொடர் பயிற்சியும் ஒழுக்கமும்தான் உங்களை எவராலும் வெல்ல முடியாத சாதனையாளராக மாற்றும். தன்னம்பிக்கையோடு எழுந்து இந்த நாளை வென்றிடுங்கள்!',
     },
     {
       en: 'Thought for the day: Small daily disciplines accumulated over time lead to miraculous transformations. You hold the power today.',
-      ta: 'இன்றைய சிந்தனை மற்றும் ஊக்கமளிக்கும் பொன்மொழி: சிறு துளி பெருவெள்ளம் போல, தினசரி செய்யும் ஒழுக்கமான பயிற்சியே அற்புத மாற்றத்திற்கு வித்திடும். இந்த நாளை வென்றிடுங்கள்!',
+      ta: 'சிறு துளி பெருவெள்ளம் போல, தினசரி செய்யும் அர்ப்பணிப்பான உழைப்பே வியக்கத்தக்க மாற்றத்திற்கு வித்திடும். உங்கள் லட்சியத்தில் எப்போதும் உறுதியாக இருங்கள்!',
     },
     {
       en: 'Thought for the day: What hurts today makes you stronger tomorrow. Step onto the floor with courage and passion.',
-      ta: 'இன்றைய சிந்தனை மற்றும் ஊக்கமளிக்கும் பொன்மொழி: இன்று நீங்கள் செய்யும் அர்ப்பணிப்பான உடற்பயிற்சியே நாளைய வலிமையாக மாறும். தன்னம்பிக்கையுடன் இந்த நாளை தொடங்குங்கள்!',
+      ta: 'இன்று நீங்கள் சிந்துகிற வியர்வைதான், நாளை உங்கள் வெற்றியாக மாறும். அச்சமின்றி களத்தில் இறங்கி சாதியுங்கள்!',
     },
   ];
   const selectedQuote = quotes[date.getDate() % quotes.length];
@@ -328,7 +330,7 @@ export const buildMorningBriefingContent = ({
     titleEn: 'Thought of the Day & Motivation',
     titleTa: 'இன்றைய சிந்தனை & பொன்மொழி',
     textEn: selectedQuote.en,
-    textTa: selectedQuote.ta,
+    textTa: `இன்றைய ஊக்கமளிக்கும் சிந்தனை: ${selectedQuote.ta}`,
   };
 
   // Section 4: Panchangam & Auspicious Timings
@@ -350,7 +352,7 @@ export const buildMorningBriefingContent = ({
     titleEn: 'Panchangam & Auspicious Timings',
     titleTa: 'பஞ்சாங்கம் & நல்ல நேர வழிகாட்டுதல்',
     textEn: `Today's traditional Panchangam: The prevailing Thithi is ${panchangam.thithi.nameEnglish}, with ${panchangam.nakshatram.nameEnglish} Nakshatram and ${panchangam.yogam.nameEnglish} Yogam. Auspicious Nalla Neram is ${nallaNeramStrEn}. Inauspicious Ragukalam is observed at ${ragukalamStrEn}. ${festivalMentionEn}`,
-    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம்: திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, மற்றும் யோகம் ${panchangam.yogam.nameTamil}. நல்ல நேரம்: காலையில் ${panchangam.nallaNeramMorning}, மற்றும் மாலையில் ${panchangam.nallaNeramEvening}. இராகு காலம் ${panchangam.ragukalam}. எமகண்டம் ${panchangam.yemagandam}. ${festivalMentionTa}`,
+    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம்: இன்று திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, யோகம் ${panchangam.yogam.nameTamil}. இன்றைய நல்ல நேரம்: காலையில் ${panchangam.nallaNeramMorning}, மாலையில் ${panchangam.nallaNeramEvening}. இராகு காலம் ${panchangam.ragukalam}. எமகண்டம் ${panchangam.yemagandam}. ${festivalMentionTa}`,
   };
 
   // Section 5: Rasipalan Outlook
@@ -359,73 +361,73 @@ export const buildMorningBriefingContent = ({
       nameEn: 'Aries (Mesham)',
       nameTa: 'மேஷ ராசி',
       en: 'Mesham: Fire energy is high. Channel your determination into progressive strength training. Stay well hydrated and maintain calm composure.',
-      ta: 'மேஷம்: செவ்வாயின் ஆதிக்கம் நிறைந்த நாள். அதீத ஆற்றல் உண்டாகும். தீவிர உடற்பயிற்சிகளை துணிச்சலுடன் செய்து முடிக்கலாம். போதுமான நீர் அருந்தி நிதானம் காக்கவும்.',
+      ta: 'இன்று உங்கள் ஆற்றலும் தைரியமும் அதிகமாக இருக்கும் நாள். கடினமான பயிற்சிகளையும் உற்சாகமாக செய்து முடிக்கலாம். போதுமான நீர் அருந்தி நிதானம் காக்கவும்.',
     },
     rishabam: {
       nameEn: 'Taurus (Rishabam)',
       nameTa: 'ரிஷப ராசி',
       en: 'Rishabam: Grounded endurance supports compound lifts today. Prioritize healthy dietary fats and restorative recovery.',
-      ta: 'ரிஷபம்: நிதானமும் சகிப்புத்தன்மையும் கூடும். கனமான பயிற்சிகளை கவனமாகச் செய்யலாம். சத்தான ஆரோக்கிய உணவுகளுக்கு முன்னுரிமை அளியுங்கள்.',
+      ta: 'இன்று உங்கள் பொறுமையும் சகிப்புத்தன்மையும் மேலோங்கும். கனமான பயிற்சிகளை கவனமாகச் செய்யுங்கள். ஆரோக்கியமான சத்தான உணவுகளுக்கு முன்னுரிமை கொடுங்கள்.',
     },
     mithunam: {
       nameEn: 'Gemini (Mithunam)',
       nameTa: 'மிதுன ராசி',
       en: 'Mithunam: Mental sharpness and metabolic agility are heightened. Dynamic functional movements and HIIT will yield great results.',
-      ta: 'மிதுனம்: சுறுசுறுப்பும் புத்தி கூர்மையும் மிளிரும் நாள். விரைவான செயல்பாடுகளும் கார்டியோ பயிற்சிகளும் சிறந்த பலனைத் தரும்.',
+      ta: 'இன்று சுறுசுறுப்பும் புத்தி கூர்மையும் மிளிரும் நாள். விரைவான செயல்பாடுகளும் கார்டியோ பயிற்சிகளும் உங்களுக்கு சிறந்த பலனைத் தரும்.',
     },
     kadagam: {
       nameEn: 'Cancer (Kadagam)',
       nameTa: 'கடக ராசி',
       en: 'Kadagam: Listen attentively to your joints and central nervous system. Focus on core stability, mobility, and peaceful breathing.',
-      ta: 'கடகம்: உள்ளுணர்வும் அமைதியும் தேவைப்படும் நாள். மூச்சுப்பயிற்சி மற்றும் யோகாசனங்கள் மன அமைதியையும் உடல் ஆரோக்கியத்தையும் பெருக்கும்.',
+      ta: 'இன்று உள்ளுணர்வும் மன அமைதியும் தேவைப்படும் நாள். மூச்சுப்பயிற்சி மற்றும் இதமான பயிற்சிகள் உங்கள் உடலையும் மனதையும் புத்துணர்ச்சியாக வைக்கும்.',
     },
     simmam: {
       nameEn: 'Leo (Simmam)',
       nameTa: 'சிம்ம ராசி',
       en: 'Simmam: Solar vigor is unmatched today. Lift with pride, hit your protein goals, and set the standard for discipline.',
-      ta: 'சிம்மம்: சூரியனின் ஆற்றலால் கம்பீரமும் தைரியமும் கூடும். திட்டமிட்ட உடற்பயிற்சியை வெற்றிகரமாக செய்து முடித்து ஆரோக்கியத்தை நிலைநிறுத்துங்கள்.',
+      ta: 'சூரியனின் நேர்மறை ஆற்றலால் உங்கள் கம்பீரமும் தன்னம்பிக்கையும் கூடும். திட்டமிட்ட உடற்பயிற்சியை வெற்றிகரமாக முடித்து உடலை வலிமையாக்குங்கள்.',
     },
     kanni: {
       nameEn: 'Virgo (Kanni)',
       nameTa: 'கன்னி ராசி',
       en: 'Kanni: Precision in form and micronutrient intake will reward you. Fine-tune your exercise technique and recovery window.',
-      ta: 'கன்னி: நுணுக்கமான திட்டமிடல் வெற்றி தரும் நாள். சரியான உடற்பயிற்சி முறைகளையும், அளவான சரிவிகித உணவையும் தவறாது பின்பற்றுங்கள்.',
+      ta: 'நுணுக்கமான திட்டமிடல் வெற்றி தரும் நாள். சரியான பயிற்சி முறைகளையும், அளவான சரிவிகித உணவையும் தவறாமல் பின்பற்றுங்கள்.',
     },
     thulaam: {
       nameEn: 'Libra (Thulaam)',
       nameTa: 'துலாம் ராசி',
       en: 'Thulaam: Strive for equilibrium between physical exertion and mental serenity. Unilateral exercises bring optimal symmetry.',
-      ta: 'துலாம்: சமநிலையே உங்கள் பலம். தீவிர உடற்பயிற்சியுடன் போதுமான ஓய்வையும் சமமாக கடைப்பிடித்து உடல் அழகையும் ஆரோக்கியத்தையும் காத்திடுங்கள்.',
+      ta: 'சமநிலையே உங்கள் பலம். தீவிர உடற்பயிற்சியுடன் போதுமான ஓய்வையும் சமமாக கடைப்பிடித்து உடல் ஆரோக்கியத்தை பாதுகாத்துக் கொள்ளுங்கள்.',
     },
     viruchigam: {
       nameEn: 'Scorpio (Viruchigam)',
       nameTa: 'விருச்சிக ராசி',
       en: 'Viruchigam: Unrelenting willpower is at your command. Break through training plateaus with unwavering focus.',
-      ta: 'விருச்சிகம்: அசாத்திய மன உறுதி உண்டாகும். கடினமான இலக்குகளையும் எளிதில் அடைவீர்கள். போதுமான ஓய்வும் நீராகாரமும் அவசியம்.',
+      ta: 'அசாத்திய மன உறுதி உண்டாகும். எத்தகைய கடினமான உடற்பயிற்சி சவால்களையும் எளிதாக வென்றிடுவீர்கள். போதுமான ஓய்வும் நீராகாரமும் அவசியம்.',
     },
     dhanusu: {
       nameEn: 'Sagittarius (Dhanusu)',
       nameTa: 'தனுசு ராசி',
       en: 'Dhanusu: Optimism powers your morning. Outdoor conditioning or expansive mobility flows will elevate your mood.',
-      ta: 'தனுசு: புதிய உற்சாகமும் நம்பிக்கையும் பிறக்கும் நாள். நடைபயிற்சி மற்றும் திறந்தவெளி பயிற்சிகள் உங்கள் புத்துணர்ச்சியை இரட்டிப்பாக்கும்.',
+      ta: 'புதிய உற்சாகமும் நேர்மறை சிந்தனைகளும் பிறக்கும் நாள். நடைபயிற்சியும் திறந்தவெளி உடற்பயிற்சிகளும் உங்கள் புத்துணர்ச்சியை அதிகரிக்கும்.',
     },
     makaram: {
       nameEn: 'Capricorn (Makaram)',
       nameTa: 'மகர ராசி',
       en: 'Makaram: Consistent structure is your greatest asset. Execute your progressive overload methodically without rush.',
-      ta: 'மகரம்: விடாமுயற்சியும் கடமை உணர்வும் மேலோங்கும். திட்டமிட்ட உடற்பயிற்சி அட்டவணையை அமைதியாக செய்து உடலை வலிமையாக்குங்கள்.',
+      ta: 'விடாமுயற்சியும் ஒழுக்கமும் உங்கள் அடையாளம். திட்டமிட்ட உடற்பயிற்சி அட்டவணையை அமைதியாக செய்து முடித்து இலக்கை அடைந்திடுங்கள்.',
     },
     kumbam: {
       nameEn: 'Aquarius (Kumbam)',
       nameTa: 'கும்ப ராசி',
       en: 'Kumbam: Innovation in movement is favored. Try variations in grip, stance, or tempo for refreshing stimulus.',
-      ta: 'கும்பம்: புதுமையான சிந்தனைகள் தோன்றும். புதிய உடற்பயிற்சி நுட்பங்களை முயற்சி செய்து உடலை உற்சாகமாக வைத்திருங்கள்.',
+      ta: 'புதுமையான சிந்தனைகள் தோன்றும் நாள். புதிய உடற்பயிற்சி நுட்பங்களை ஆர்வத்துடன் முயற்சி செய்து உடலை சுறுசுறுப்பாக வைத்திருங்கள்.',
     },
     meenam: {
       nameEn: 'Pisces (Meenam)',
       nameTa: 'மீன ராசி',
       en: 'Meenam: Fluid recovery and deep hydration are essential. Engage in stretching, mobility, and restorative contemplation.',
-      ta: 'மீனம்: அமைதியான மனநிலை உதவும். உடலை வருத்தாமல் இதமான உடற்பயிற்சிகளையும் தியானத்தையும் மேற்கொண்டு உடலையும் உள்ளத்தையும் பாதுகாக்கவும்.',
+      ta: 'அமைதியான மனநிலை உதவும். உடலை வருத்தாமல் இதமான உடற்பயிற்சிகளையும் தியானத்தையும் மேற்கொண்டு ஆரோக்கியத்தை மேம்படுத்துங்கள்.',
     },
   };
 
@@ -437,13 +439,95 @@ export const buildMorningBriefingContent = ({
     titleEn: `Rasipalan Outlook - ${rasiData.nameEn}`,
     titleTa: `ராசிபலன் வழிகாட்டுதல் - ${rasiData.nameTa}`,
     textEn: `Rasipalan guidance for ${rasiData.nameEn}: ${rasiData.en}`,
-    textTa: `இன்றைய ராசிபலன் வழிகாட்டுதல், ${rasiData.nameTa}: ${rasiData.ta}`,
+    textTa: `இன்றைய ${rasiData.nameTa} வழிகாட்டல்: ${rasiData.ta}`,
   };
 
   return [section1, section2, section3, section4, section5];
 };
 
-/* ==================== 6. DUAL-LANGUAGE SPEECH SYNTHESIS ENGINE ==================== */
+/* ==================== 6. GEMINI NEURAL NATURAL SPEECH SYNTHESIZER ==================== */
+
+const getGeminiApiKey = (): string => {
+  const envKey = (import.meta as any).env?.VITE_GEMINI_API_KEY?.trim();
+  if (envKey) return envKey;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return (
+        localStorage.getItem('VITE_GEMINI_API_KEY')?.trim() ||
+        localStorage.getItem('gemini_api_key')?.trim() ||
+        ''
+      );
+    }
+  } catch {
+    // ignore
+  }
+  return '';
+};
+
+// In-memory cache for synthesized audio URLs so that we never regenerate twice in a session
+const geminiAudioCache = new Map<string, string>();
+
+/**
+ * Synthesizes studio-grade, natural, fluent native Tamil speech via Gemini 3.8 Flash-Lite TTS.
+ * Converts raw WAV audio into an HTML5 Blob URL for seamless browser playback.
+ */
+export async function synthesizeGeminiSpeech(
+  text: string,
+  style: string = 'natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence'
+): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  if (geminiAudioCache.has(text)) {
+    return geminiAudioCache.get(text)!;
+  }
+
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return null;
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash-lite-tts',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text,
+              speechMetadata: { style },
+            },
+          ],
+        },
+      ],
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: { voice: 'Aoede' }, // 'Aoede' produces warm, fluent, clear human diction
+        },
+      },
+    });
+
+    const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Data) return null;
+
+    // Convert Base64 into Blob URL
+    const binaryString = window.atob(base64Data);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'audio/wav' });
+    const audioUrl = URL.createObjectURL(blob);
+    geminiAudioCache.set(text, audioUrl);
+    return audioUrl;
+  } catch (err) {
+    console.warn('Gemini natural TTS notice, falling back to browser synthesis:', err);
+    return null;
+  }
+}
+
+/* ==================== 7. DUAL-LANGUAGE SPEECH SYNTHESIS ENGINE ==================== */
 
 export interface SpeechBriefingCallbacks {
   onSectionStart?: (sectionIndex: number, language: 'en' | 'ta', segment?: 'english' | 'tamil') => void;
@@ -458,6 +542,7 @@ class SpeechBriefingEngine {
   private currentSectionIndex: number = 0;
   private currentLang: 'en' | 'ta' = 'en';
   private currentSegment: 'english' | 'tamil' = 'english';
+  private activeAudio: HTMLAudioElement | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -472,8 +557,23 @@ class SpeechBriefingEngine {
   }
 
   /**
+   * Pre-fetches all Tamil audio clips asynchronously in background during Phase 1 (English)
+   * so by the time English finishes, every Tamil segment is already in memory with 0 lag.
+   */
+  public prefetchTamilAudio(texts: string[]) {
+    (async () => {
+      for (const text of texts) {
+        if (this.isCancelled) break;
+        if (!geminiAudioCache.has(text)) {
+          await synthesizeGeminiSpeech(text);
+        }
+      }
+    })();
+  }
+
+  /**
    * Finds the best matching voice for natural English (en-IN / en-US / natural neural)
-   * or authentic native Tamil (Google தமிழ் / ta-IN / Valluvar).
+   * or authentic native Tamil (Google தமிழ் / ta-IN / Valluvar) for browser fallback.
    */
   private getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
@@ -510,13 +610,11 @@ class SpeechBriefingEngine {
       const anyTaVoice = voices.find((v) => v.lang.toLowerCase().startsWith('ta'));
       if (anyTaVoice) return anyTaVoice;
 
-      // CRITICAL: NEVER return an English voice when speaking Tamil!
-      // Returning null allows the browser engine to route by utterance.lang = 'ta-IN'
+      // Never return an English voice when speaking Tamil
       return null;
     } else {
       // English: Select highest quality natural / conversational voice
       const naturalEnVoice =
-        // Natural / Neural online voices
         voices.find((v) => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
@@ -525,19 +623,16 @@ class SpeechBriefingEngine {
             (n.includes('natural') || n.includes('neural') || n.includes('online'))
           );
         }) ||
-        // Indian English (natural & clear)
         voices.find((v) => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
           return l === 'en-in' || n.includes('india') || n.includes('ravi') || n.includes('heera');
         }) ||
-        // Google English voices
         voices.find((v) => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
           return l.startsWith('en') && n.includes('google');
         }) ||
-        // Standard high-quality voices
         voices.find((v) => {
           const n = v.name.toLowerCase();
           return (
@@ -548,7 +643,6 @@ class SpeechBriefingEngine {
             n.includes('karen')
           );
         }) ||
-        // Any English voice
         voices.find((v) => v.lang.toLowerCase().startsWith('en'));
 
       return naturalEnVoice || voices[0] || null;
@@ -556,9 +650,9 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Promisified speech synthesis utterance with watchdog timeout and natural pacing
+   * Browser Speech Synthesis Fallback with watchdog timer
    */
-  private speakUtterance(text: string, lang: 'en' | 'ta'): Promise<void> {
+  private speakWithBrowserSynthesis(text: string, lang: 'en' | 'ta'): Promise<void> {
     return new Promise((resolve) => {
       if (typeof window === 'undefined' || !window.speechSynthesis) {
         resolve();
@@ -577,11 +671,7 @@ class SpeechBriefingEngine {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
-      
-      // Natural pacing:
-      // English: 0.94x (comfortable, relaxed natural conversational cadence)
-      // Tamil: 0.88x (clear native Dravidian articulation, respecting long vowels & pauses)
-      utterance.rate = lang === 'ta' ? 0.88 : 0.94;
+      utterance.rate = lang === 'ta' ? 0.90 : 0.94;
       utterance.pitch = 1.0;
 
       const voice = this.getBestVoice(lang);
@@ -589,7 +679,6 @@ class SpeechBriefingEngine {
         utterance.voice = voice;
       }
 
-      // Safety timeout safeguard based on text length (~120ms per character + 3s buffer)
       let timer: NodeJS.Timeout | null = null;
       const cleanup = () => {
         if (timer) clearTimeout(timer);
@@ -607,7 +696,7 @@ class SpeechBriefingEngine {
       };
       utterance.onerror = (e) => {
         cleanup();
-        console.warn('Speech synthesis utterance notice:', e);
+        console.warn('Browser speech synthesis notice:', e);
         resolve();
       };
 
@@ -616,12 +705,60 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Refined Bilingual Voice Briefing Sequence:
+   * Speaks utterance using Gemini AI Studio-grade Neural Speech for fluent Tamil,
+   * with seamless fallback to enhanced browser synthesis if offline.
+   */
+  private async speakUtterance(text: string, lang: 'en' | 'ta'): Promise<void> {
+    if (this.isCancelled) return;
+
+    if (lang === 'ta') {
+      // 1. Try Gemini Neural Natural Spoken Tamil First (fluent, natural human voice)
+      const audioUrl = await synthesizeGeminiSpeech(
+        text,
+        'natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence'
+      );
+
+      if (audioUrl && !this.isCancelled) {
+        return new Promise<void>((resolve) => {
+          if (this.isCancelled) {
+            resolve();
+            return;
+          }
+
+          const audio = new Audio(audioUrl);
+          this.activeAudio = audio;
+
+          audio.onended = () => {
+            this.activeAudio = null;
+            resolve();
+          };
+
+          audio.onerror = (e) => {
+            console.warn('Gemini audio playback notice, falling back to browser speech:', e);
+            this.activeAudio = null;
+            this.speakWithBrowserSynthesis(text, lang).then(resolve);
+          };
+
+          audio.play().catch((err) => {
+            console.warn('Audio play notice, falling back to browser speech:', err);
+            this.activeAudio = null;
+            this.speakWithBrowserSynthesis(text, lang).then(resolve);
+          });
+        });
+      }
+    }
+
+    // 2. English or Fallback: Browser Web Speech API
+    return this.speakWithBrowserSynthesis(text, lang);
+  }
+
+  /**
+   * Bilingual Voice Briefing Sequence:
    * 1. English Segment First:
    *    - Greeting (Personalized greeting with name and date)
    *    - Today's Nutrients & Fitness Targets (Calories, Protein, Hydration)
    *    - Quote of the Day (Thought for the day)
-   * 2. Tamil Segment Immediately Following:
+   * 2. Tamil Segment Immediately Following (Natural Fluent Spoken Tamil):
    *    - Greeting in Tamil (வணக்கம் [Name]...)
    *    - Today's Nutrients in Tamil (இன்றைய ஊட்டச்சத்து & உடற்பயிற்சி...)
    *    - Quote of the Day in Tamil (இன்றைய சிந்தனை & பொன்மொழி...)
@@ -632,7 +769,7 @@ class SpeechBriefingEngine {
     sections: BriefingSection[],
     callbacks?: SpeechBriefingCallbacks
   ): Promise<void> {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
+    if (typeof window === 'undefined') {
       if (callbacks?.onAllComplete) callbacks.onAllComplete();
       return;
     }
@@ -690,7 +827,6 @@ class SpeechBriefingEngine {
 
       // =========================================================================
       // PHASE 2: TAMIL (Greeting -> Nutrients -> Quote -> Panchangam -> Rasipalan)
-      // "after reading english start in taml start with greeting all content is tell in tamil"
       // =========================================================================
       if (greetingIdx !== -1) {
         steps.push({
@@ -757,6 +893,10 @@ class SpeechBriefingEngine {
         }
       });
 
+      // Start background prefetching for all Tamil audio so it's ready in memory when English finishes
+      const tamilTexts = steps.filter((s) => s.lang === 'ta').map((s) => s.text);
+      this.prefetchTamilAudio(tamilTexts);
+
       for (let i = 0; i < steps.length; i++) {
         if (this.isCancelled) break;
         const step = steps[i];
@@ -790,12 +930,18 @@ class SpeechBriefingEngine {
   }
 
   public pause() {
+    if (this.activeAudio && !this.activeAudio.paused) {
+      this.activeAudio.pause();
+    }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.pause();
     }
   }
 
   public resume() {
+    if (this.activeAudio && this.activeAudio.paused) {
+      this.activeAudio.play().catch(() => {});
+    }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.resume();
     }
@@ -804,6 +950,11 @@ class SpeechBriefingEngine {
   public stop() {
     this.isCancelled = true;
     this.isSpeaking = false;
+    if (this.activeAudio) {
+      this.activeAudio.pause();
+      this.activeAudio.currentTime = 0;
+      this.activeAudio = null;
+    }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }

@@ -280,8 +280,8 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
 
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       {activeLanguage === 'en'
-                        ? 'Natural English (Conversational 0.94x)'
-                        : 'இயற்கையான தாய்மொழி தமிழ் (Native Tamil 0.88x)'}
+                        ? 'Natural English (Conversational)'
+                        : 'Gemini AI Fluent Voice (இயற்கையான தாய்மொழி தமிழ்)'}
                     </span>
                   </div>
 
