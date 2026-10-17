@@ -405,18 +405,21 @@ export async function speakChunk(
     return;
   }
 
-  // 1. For Tamil: Google Neural TTS delivers authentic, native, fluent human Tamil intonation
-  // and works on 100% of devices (Windows, Android, iOS) without requiring an installed OS voice pack.
-  if (lang === 'ta') {
-    const googlePlayed = await playGoogleNeuralTTS(trimmed, 'ta', options.onStart);
-    if (googlePlayed) {
-      options.onEnd?.();
-      return;
-    }
-    // If network failed, fall through to browser SpeechSynthesis
+  // Auto-detect language strictly from text characters to prevent mispronunciation:
+  // If text contains Tamil letters, speak in Tamil; if it contains English letters, speak in English.
+  const hasTamilGlyphs = /[\u0B80-\u0BFF]/.test(trimmed);
+  const resolvedLang: 'en' | 'ta' = hasTamilGlyphs ? 'ta' : (lang === 'ta' ? 'en' : lang);
+
+  // 1. Google Studio-Grade Neural TTS for BOTH English & Tamil
+  // Streams ultra-natural human conversational speech (warm Indian-English or native fluent Tamil).
+  // Operates across all platforms (Windows, Android, iOS) with 100% human tone.
+  const googlePlayed = await playGoogleNeuralTTS(trimmed, resolvedLang, options.onStart);
+  if (googlePlayed) {
+    options.onEnd?.();
+    return;
   }
 
-  // 2. Browser SpeechSynthesis (for English or offline fallback)
+  // 2. Browser SpeechSynthesis (offline fallback only)
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     options.onEnd?.();
     return;
@@ -429,7 +432,7 @@ export async function speakChunk(
   } catch {}
 
   const voices = options.voices || window.speechSynthesis.getVoices();
-  const voice = getBestNaturalVoice(lang, voices);
+  const voice = getBestNaturalVoice(resolvedLang, voices);
 
   // If language is Tamil and NO Tamil voice is available on device and Google TTS failed, return cleanly
   if (lang === 'ta' && !voice) {

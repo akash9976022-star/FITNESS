@@ -150,15 +150,37 @@ export function buildSpokenPhrase(
     return getConversationalRoutinePhrase(routine, cleanedName, mode).text;
   }
 
-  if (routine.voicePrompt && routine.voicePrompt.trim().length > 0) {
-    const prompt = routine.voicePrompt.trim();
+  const prompt = routine.voicePrompt?.trim() || '';
+  const category = routine.category || routine.name;
+
+  // If user selected Tamil or Tanglish, but prompt is empty or default English placeholder,
+  // return the rich colloquial Tamil / Tanglish phrase!
+  const isDefaultEnglishPrompt =
+    !prompt ||
+    /time for your morning walk/i.test(prompt) ||
+    /time for your scheduled/i.test(prompt) ||
+    /hydration break/i.test(prompt) ||
+    /drink a glass of water/i.test(prompt) ||
+    /protein shake/i.test(prompt) ||
+    /evening meditation/i.test(prompt) ||
+    /bedtime routine/i.test(prompt) ||
+    /scheduled routine/i.test(prompt);
+
+  if ((mode === 'ta' || mode === 'tanglish') && isDefaultEnglishPrompt) {
+    return getConversationalRoutinePhrase(category, cleanedName, mode).text;
+  }
+
+  if (mode === 'en' && isDefaultEnglishPrompt) {
+    return getConversationalRoutinePhrase(category, cleanedName, 'en').text;
+  }
+
+  if (prompt) {
     if (/{name}/i.test(prompt)) {
       return prompt.replace(/{name}/gi, cleanedName);
     }
     return `${cleanedName}, ${prompt}`;
   }
 
-  const category = routine.category || routine.name;
   return getConversationalRoutinePhrase(category, cleanedName, mode).text;
 }
 
@@ -260,8 +282,8 @@ export async function speakRoutineVoiceReminder(
         ? buildSpokenPhrase(routine, userName, mode)
         : phraseInfo.text;
 
-      const isTamil = mode === 'ta' || mode === 'tanglish' || /[\u0B80-\u0BFF]/.test(textToSpeak);
-      const targetLang: 'en' | 'ta' = isTamil ? 'ta' : 'en';
+      const hasTamilGlyphs = /[\u0B80-\u0BFF]/.test(textToSpeak);
+      const targetLang: 'en' | 'ta' = hasTamilGlyphs ? 'ta' : (mode === 'ta' ? 'ta' : 'en');
 
       const sentences = splitIntoSentences(textToSpeak);
       for (let i = 0; i < sentences.length; i++) {
