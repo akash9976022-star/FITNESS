@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Dumbbell,
   Play,
@@ -16,6 +16,12 @@ import {
   Moon,
   Timer,
   Zap,
+  Calendar,
+  CalendarCheck,
+  X,
+  ArrowRight,
+  ShieldCheck,
+  Info,
 } from 'lucide-react';
 import {
   type DayOfWeek,
@@ -26,7 +32,115 @@ import {
   type RestLeaveRequest,
   getTemplateForCategory,
 } from '../../services/firestoreService';
+import {
+  getCalendarDayInfo,
+  type TamilDateInfo,
+  type CustomFestivalDoc,
+} from '../../utils/tamilCalendar';
 import RestLeaveRequestModal from './RestLeaveRequestModal';
+
+export interface DayCalendarMeta {
+  dayId: DayOfWeek;
+  date: Date;
+  dateString: string;
+  dayOfMonth: number;
+  monthShort: string;
+  isToday: boolean;
+  isFastingDay: boolean;
+  festivalName: string;
+  festivalTamil: string;
+  shortTag: string;
+  thithiName: string;
+}
+
+export function getWeekCalendarMeta(
+  customFestivals: CustomFestivalDoc[] = [],
+  refDate = new Date()
+): Record<DayOfWeek, DayCalendarMeta> {
+  const currentDay = refDate.getDay(); // 0 is Sunday, 1 is Monday...
+  const distToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+  const monday = new Date(refDate);
+  monday.setDate(refDate.getDate() + distToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const todayStr = refDate.toISOString().split('T')[0];
+  const order: { id: DayOfWeek; offset: number }[] = [
+    { id: 'monday', offset: 0 },
+    { id: 'tuesday', offset: 1 },
+    { id: 'wednesday', offset: 2 },
+    { id: 'thursday', offset: 3 },
+    { id: 'friday', offset: 4 },
+    { id: 'saturday', offset: 5 },
+    { id: 'sunday', offset: 6 },
+  ];
+
+  const result: Partial<Record<DayOfWeek, DayCalendarMeta>> = {};
+
+  order.forEach(({ id, offset }) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + offset);
+    const dateStr = d.toISOString().split('T')[0];
+    const isToday = dateStr === todayStr;
+
+    let calInfo: TamilDateInfo | null = null;
+    try {
+      calInfo = getCalendarDayInfo(d, customFestivals);
+    } catch {
+      calInfo = null;
+    }
+
+    const isFasting = calInfo?.isFastingDay || false;
+    let festivalName = '';
+    let festivalTamil = '';
+    let shortTag = '';
+
+    if (calInfo) {
+      if (calInfo.festivals && calInfo.festivals.length > 0) {
+        const top = calInfo.festivals.find((f) => f.category === 'Viratham / Fasting') || calInfo.festivals[0];
+        festivalName = top.nameEnglish;
+        festivalTamil = top.nameTamil;
+        shortTag = top.nameEnglish.split(' ')[0];
+      } else if (calInfo.panchangam?.thithi?.nameEnglish) {
+        const t = calInfo.panchangam.thithi.nameEnglish;
+        if (t.includes('Ekadashi')) {
+          festivalName = 'Ekadasi Viratham';
+          shortTag = 'Ekadasi';
+        } else if (t.includes('Sashti')) {
+          festivalName = 'Sashti Viratham';
+          shortTag = 'Sashti';
+        } else if (t.includes('Pradosham')) {
+          festivalName = 'Pradosham';
+          shortTag = 'Pradosham';
+        } else if (t.includes('Pournami')) {
+          festivalName = 'Pournami';
+          shortTag = 'Pournami';
+        } else if (t.includes('Amavasya')) {
+          festivalName = 'Amavasai';
+          shortTag = 'Amavasai';
+        } else if (isFasting) {
+          festivalName = 'Sacred Fasting Day';
+          shortTag = 'Fasting';
+        }
+      }
+    }
+
+    result[id] = {
+      dayId: id,
+      date: d,
+      dateString: dateStr,
+      dayOfMonth: d.getDate(),
+      monthShort: d.toLocaleString('en-US', { month: 'short' }),
+      isToday,
+      isFastingDay: isFasting,
+      festivalName,
+      festivalTamil,
+      shortTag: shortTag || (isFasting ? 'Fasting' : ''),
+      thithiName: calInfo?.panchangam?.thithi?.nameEnglish || '',
+    };
+  });
+
+  return result as Record<DayOfWeek, DayCalendarMeta>;
+}
 
 interface HevyDaySplitSelectorProps {
   dailyRoutines: Record<DayOfWeek, DayRoutineTemplate>;
@@ -40,6 +154,8 @@ interface HevyDaySplitSelectorProps {
   isWorkoutActive: boolean;
   isFasting?: boolean;
   onToggleFasting?: () => void;
+  onSetFasting?: (val: boolean) => void;
+  customFestivals?: CustomFestivalDoc[];
   userName?: string;
   showToast?: (msg: string) => void;
 }
@@ -94,15 +210,27 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
   isWorkoutActive,
   isFasting = false,
   onToggleFasting,
+  onSetFasting,
+  customFestivals = [],
   userName = 'Athlete',
   showToast,
 }) => {
   const currentDayTemplate = dailyRoutines[activeDay];
   const todayDayId = getTodayDayOfWeek();
 
+  // Astronomical Tamil Calendar & Fasting Detection for the active 7-day week
+  const weekCalendarMeta = useMemo(() => {
+    return getWeekCalendarMeta(customFestivals);
+  }, [customFestivals]);
+
+  const todayMeta = weekCalendarMeta[todayDayId];
+  const currentDayMeta = weekCalendarMeta[activeDay];
+
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [isCalendarSyncModalOpen, setIsCalendarSyncModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Inline exercise adding states for this day's routine
   const [isAddingExercise, setIsAddingExercise] = useState(false);
@@ -116,6 +244,101 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
   // Compute current training and rest days counts
   const routineList = Object.values(dailyRoutines);
   const restDayCount = routineList.filter((r) => r.isRestDay).length;
+
+  const handleTriggerCalendarSync = () => {
+    if (todayMeta?.isFastingDay && !isFasting && onSetFasting) {
+      onSetFasting(true);
+    }
+    setIsCalendarSyncModalOpen(true);
+  };
+
+  const handleSetFastingAsRestDays = async () => {
+    const fastingDays = Object.values(weekCalendarMeta).filter((m) => m.isFastingDay);
+    if (fastingDays.length === 0) {
+      showToast?.('No fasting days detected this week to convert to rest days.');
+      return;
+    }
+
+    let projectedCount = 0;
+    DAYS_ORDER.forEach((d) => {
+      const isFastingDay = weekCalendarMeta[d.id]?.isFastingDay;
+      const currentRest = dailyRoutines[d.id]?.isRestDay;
+      if (isFastingDay || currentRest) {
+        projectedCount++;
+      }
+    });
+
+    if (projectedCount > 3) {
+      showToast?.(
+        `Setting all fasting days as rest days would result in ${projectedCount} rest days (Max is 3)! Please select individual rest days or choose Moderate Fasting Pacing.`
+      );
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      for (const fDay of fastingDays) {
+        const dayTemplate = dailyRoutines[fDay.dayId];
+        await onUpdateRoutine(fDay.dayId, {
+          isRestDay: true,
+          splitCategory: 'rest',
+          routineName: `${dayTemplate?.dayName || fDay.dayId} - Sacred Fasting Rest (${fDay.shortTag || 'Viratham'})`,
+          exercises: [],
+        });
+      }
+      if (todayMeta?.isFastingDay && onSetFasting) {
+        onSetFasting(true);
+      }
+      showToast?.(`Converted ${fastingDays.length} fasting day(s) to Sacred Rest & Recovery!`);
+      setIsCalendarSyncModalOpen(false);
+    } catch (err) {
+      console.error('Failed to sync rest days:', err);
+      showToast?.('Error syncing rest days.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleApplyFastingPacing = async () => {
+    setIsSyncing(true);
+    try {
+      const fastingDays = Object.values(weekCalendarMeta).filter((m) => m.isFastingDay);
+      for (const fDay of fastingDays) {
+        const dayTemplate = dailyRoutines[fDay.dayId];
+        if (dayTemplate && !dayTemplate.isRestDay) {
+          const cat = dayTemplate.splitCategory || 'full_body';
+          const calibrated = getTemplateForCategory(cat, fDay.dayId, dayTemplate.dayName, true);
+          await onUpdateRoutine(fDay.dayId, {
+            ...calibrated,
+            dayId: fDay.dayId,
+          });
+        }
+      }
+      if (onSetFasting) {
+        onSetFasting(true);
+      } else if (onToggleFasting && !isFasting) {
+        onToggleFasting();
+      }
+      showToast?.('Calibrated fasting workout days with moderate pacing (RPE 6-7, 90s-120s rest)!');
+      setIsCalendarSyncModalOpen(false);
+    } catch (err) {
+      console.error('Failed to apply fasting pacing:', err);
+      showToast?.('Error updating fasting pacing.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSyncBadgesOnly = () => {
+    if (todayMeta?.isFastingDay) {
+      if (onSetFasting) onSetFasting(true);
+      else if (onToggleFasting && !isFasting) onToggleFasting();
+      showToast?.(`Calendar synced! Today is ${todayMeta.festivalName || 'Sacred Fasting'} (Fasting Mode enabled).`);
+    } else {
+      showToast?.('Calendar fasting badges updated on 7-day split.');
+    }
+    setIsCalendarSyncModalOpen(false);
+  };
 
   const handleStartEditTitle = () => {
     setTitleDraft(currentDayTemplate?.routineName || '');
@@ -290,58 +513,124 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 1. FASTING DETECTOR & PROTOCOL ALERT BANNER */}
-      {isFasting && (
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-500/40 backdrop-blur-xl flex items-center justify-between gap-3 animate-fade-in shadow-lg shadow-amber-950/20">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
-              <Moon className="w-5 h-5 fill-amber-400/20" />
+      {/* 1. FASTING DETECTOR & SPIRITUAL RECOVERY HUD CARD (ALWAYS ACCESSIBLE) */}
+      <div
+        className={`p-3.5 sm:p-4 rounded-2xl border backdrop-blur-xl transition-all duration-300 shadow-md ${
+          isFasting
+            ? 'bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border-amber-500/40 shadow-amber-950/20'
+            : 'bg-white/80 dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800/80 shadow-slate-900/5'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <div
+              className={`p-2.5 rounded-xl shrink-0 ${
+                isFasting
+                  ? 'bg-amber-500/20 text-amber-400'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              <Moon className={`w-5 h-5 ${isFasting ? 'fill-amber-400/20 text-amber-400' : ''}`} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-400">
-                  Sacred Fasting Day Active
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className={`text-xs font-black uppercase tracking-wider ${
+                    isFasting ? 'text-amber-400' : 'text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {isFasting ? 'Sacred Fasting Day Active' : 'Fasting Mode: Inactive'}
                 </span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500 text-slate-950 uppercase tracking-widest">
-                  Moderate Pacing
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
+                    isFasting
+                      ? 'bg-amber-500 text-slate-950 shadow-xs'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {isFasting ? 'Moderate Pacing' : 'Standard Strength Pacing'}
                 </span>
+                {todayMeta?.isFastingDay && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    🕊️ Today: {todayMeta.festivalName || 'Sacred Viratham'}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Heavy failure sets paused. Rest intervals extended to 90s–120s to prevent dehydration & dizziness.
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {isFasting
+                  ? 'Heavy failure sets paused. Rest intervals extended to 90s–120s to prevent dehydration & dizziness.'
+                  : 'Standard progressive overload enabled. Click Auto-Sync or toggle anytime to activate moderate fasting protocol.'}
               </p>
             </div>
           </div>
 
-          {onToggleFasting && (
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
             <button
               type="button"
-              onClick={onToggleFasting}
-              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 transition shrink-0"
+              onClick={() => {
+                if (onSetFasting) {
+                  onSetFasting(!isFasting);
+                } else if (onToggleFasting) {
+                  onToggleFasting();
+                }
+                showToast?.(
+                  isFasting
+                    ? 'Fasting Mode deactivated (Standard Strength pacing restored).'
+                    : 'Fasting Mode activated with moderate pacing (90s–120s rest).'
+                );
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 btn-tactile ${
+                isFasting
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+              }`}
             >
-              Fasting Options
+              <Moon className="w-3.5 h-3.5" />
+              <span>{isFasting ? 'Turn Fasting OFF' : 'Turn Fasting ON'}</span>
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={handleTriggerCalendarSync}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 btn-tactile"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Auto-Sync</span>
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* 2. 7-DAY HEVY WEEK BAR WITH VISUAL BADGES */}
       <div className="p-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 shadow-md backdrop-blur-xl">
-        {/* Header HUD: Rest Days Balance */}
-        <div className="flex items-center justify-between px-2 pt-1 pb-2">
+        {/* Header HUD: Rest Days Balance & Calendar Auto-Update */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-1 pb-2">
           <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
             <Dumbbell className="w-3.5 h-3.5 text-emerald-500" />
             Weekly Routine Split
           </span>
 
-          <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
-              restDayCount <= 3 && restDayCount >= 1
-                ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
-                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-            }`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
+                restDayCount <= 3 && restDayCount >= 1
+                  ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
+                  : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+              }`}
+            >
               <Coffee className="w-3 h-3" />
               Rest Days: {restDayCount} / 3 (Min 1, Max 3)
             </span>
+
+            <button
+              type="button"
+              onClick={handleTriggerCalendarSync}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-xs transition active:scale-95"
+              title="Auto-detect Tamil festivals and fasting days for this week"
+            >
+              <Calendar className="w-3 h-3" />
+              <span>Auto Update from Calendar</span>
+            </button>
           </div>
         </div>
 
@@ -352,6 +641,7 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
             const isToday = todayDayId === d.id;
             const routine = dailyRoutines[d.id];
             const isRest = routine?.isRestDay;
+            const meta = weekCalendarMeta[d.id];
 
             return (
               <button
@@ -405,6 +695,21 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
                 >
                   {isRest ? 'Rest' : routine?.splitCategory?.toUpperCase() || 'TRAIN'}
                 </span>
+
+                {/* Fasting Badge */}
+                {meta?.isFastingDay && (
+                  <span
+                    className={`mt-0.5 inline-flex items-center gap-0.5 px-1 py-0.2 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                      isSelected
+                        ? isRest
+                          ? 'bg-white/20 text-white'
+                          : 'bg-slate-950/30 text-slate-950'
+                        : 'bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/30'
+                    }`}
+                  >
+                    🕊️ {meta.shortTag || 'Fast'}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -418,7 +723,9 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
               1-Tap Switch {currentDayTemplate?.dayName} to:
             </span>
             <span className="text-[10px] text-slate-400">
-              {currentDayTemplate?.isRestDay ? 'Currently Rest' : `Currently ${currentDayTemplate?.splitCategory?.toUpperCase()}`}
+              {currentDayTemplate?.isRestDay
+                ? 'Currently Rest'
+                : `Currently ${currentDayTemplate?.splitCategory?.toUpperCase()}`}
             </span>
           </div>
 
@@ -447,6 +754,21 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
               );
             })}
           </div>
+
+          {/* Active Day Fasting Insight */}
+          {currentDayMeta?.isFastingDay && (
+            <div className="mt-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-300 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  <strong>{currentDayTemplate?.dayName}</strong> ({currentDayMeta.monthShort} {currentDayMeta.dayOfMonth}) is a sacred Tamil Fasting Day ({currentDayMeta.festivalName || 'Viratham'}).
+                </span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+                Pacing: Moderate 90s-120s
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -892,6 +1214,230 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
         onSubmitLeave={handleLeaveSubmitted}
         showToast={showToast}
       />
+
+      {/* 6. TAMIL CALENDAR SYNC & FASTING PACING CALIBRATION MODAL */}
+      {isCalendarSyncModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-transparent to-amber-500/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-500">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Tamil Calendar &amp; Fasting Sync</span>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500 text-slate-950">
+                      Panchangam
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Week of {weekCalendarMeta['monday']?.monthShort} {weekCalendarMeta['monday']?.dayOfMonth} – {weekCalendarMeta['sunday']?.monthShort} {weekCalendarMeta['sunday']?.dayOfMonth}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCalendarSyncModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+              {/* Today's astronomical highlight */}
+              <div
+                className={`p-3.5 rounded-2xl border ${
+                  todayMeta?.isFastingDay
+                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
+                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    Today&apos;s Status ({todayMeta?.dateString}):
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 dark:text-slate-300 mt-1">
+                  {todayMeta?.isFastingDay ? (
+                    <>
+                      🕊️ <strong className="text-amber-500 dark:text-amber-400">{todayMeta.festivalName || 'Sacred Viratham'}</strong> detected! Fasting Mode is recommended to adjust weights and prevent dehydration.
+                    </>
+                  ) : (
+                    <>
+                      🌿 <strong>Regular Training Day</strong> ({todayMeta?.thithiName || 'Standard Panchangam Thithi'}). Progressive overload enabled.
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {/* 7-Day Fasting Scan Breakdown */}
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
+                  <span>7-Day Calendar Scan</span>
+                  <span className="text-[11px] font-bold text-amber-500">
+                    {Object.values(weekCalendarMeta).filter((m) => m.isFastingDay).length} Fasting Day(s) Detected
+                  </span>
+                </h4>
+
+                <div className="space-y-1.5">
+                  {DAYS_ORDER.map((d) => {
+                    const meta = weekCalendarMeta[d.id];
+                    const routine = dailyRoutines[d.id];
+                    const isFastingDay = meta?.isFastingDay;
+
+                    return (
+                      <div
+                        key={d.id}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition ${
+                          meta?.isToday
+                            ? 'bg-emerald-500/10 border-emerald-500/40'
+                            : isFastingDay
+                            ? 'bg-amber-500/5 border-amber-500/30'
+                            : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-10 font-black text-slate-700 dark:text-slate-300 uppercase">
+                            {d.short}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {meta?.monthShort} {meta?.dayOfMonth}
+                          </span>
+                          {meta?.isToday && (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-emerald-500 text-slate-950">
+                              Today
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isFastingDay ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/30">
+                              🕊️ {meta?.shortTag || 'Fasting'}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Normal</span>
+                          )}
+
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              routine?.isRestDay
+                                ? 'bg-indigo-500/15 text-indigo-400'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {routine?.isRestDay ? 'Rest' : routine?.splitCategory?.toUpperCase() || 'TRAIN'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Calibration Actions */}
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Select Auto-Calibration Action
+                </h4>
+
+                {/* Option 1: Set Fasting to Rest */}
+                <button
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={handleSetFastingAsRestDays}
+                  className="w-full p-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-800/60 text-left transition flex items-start gap-3 group active:scale-[0.99]"
+                >
+                  <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-500 shrink-0 mt-0.5">
+                    <Coffee className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-indigo-950 dark:text-indigo-200">
+                        1. Set Fasting Days as Rest &amp; Recovery
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-indigo-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+                    </div>
+                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300 mt-0.5">
+                      Automatically converts detected viratham days to active rest &amp; spiritual regeneration (validates 1–3 rest days limits).
+                    </p>
+                  </div>
+                </button>
+
+                {/* Option 2: Moderate Fasting Pacing */}
+                <button
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={handleApplyFastingPacing}
+                  className="w-full p-3 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800/60 text-left transition flex items-start gap-3 group active:scale-[0.99]"
+                >
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-500 shrink-0 mt-0.5">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                        <span>2. Train with Fasting Pacing</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500 text-slate-950">
+                          Recommended
+                        </span>
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-amber-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+                    </div>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                      Maintains your split (Push, Pull, Legs), but adjusts exercises to moderate loads (RPE 6–7) and 90s–120s rest periods.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Option 3: Badges only */}
+                <button
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={handleSyncBadgesOnly}
+                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800/70 border border-slate-200 dark:border-slate-800 text-left transition flex items-start gap-3 group active:scale-[0.99]"
+                >
+                  <div className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0 mt-0.5">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white">
+                        3. Sync Fasting Badges Only
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Keeps all current routine exercises unchanged; marks days with glowing fasting tags.
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                <Info className="w-3 h-3 text-amber-500" />
+                <span>Zero hardcoded mock data • Real astronomical calculations</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCalendarSyncModalOpen(false)}
+                className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

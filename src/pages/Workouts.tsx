@@ -64,8 +64,10 @@ import {
   submitRestLeaveRequest,
   subscribeRestLeaveRequests,
   type RestLeaveRequest,
+  subscribeCustomFestivals,
+  type CustomFestivalItem,
 } from '../services/firestoreService';
-import { getCalendarDayInfo } from '../utils/tamilCalendar';
+import { getCalendarDayInfo, type CustomFestivalDoc } from '../utils/tamilCalendar';
 import WorkoutTimer from '../components/workout/WorkoutTimer';
 import RestTimerBanner from '../components/workout/RestTimerBanner';
 import CustomExerciseLibraryModal from '../components/workout/CustomExerciseLibraryModal';
@@ -142,6 +144,9 @@ export const Workouts: React.FC = () => {
     }
   });
 
+  // User Custom Temple & Regional Festivals from Firestore
+  const [customFestivals, setCustomFestivals] = useState<CustomFestivalItem[]>([]);
+
   // Custom Exercises Library Modal & Data
   const [customExercises, setCustomExercises] = useState<CustomExercise[]>([]);
   const [isCustomLibraryOpen, setIsCustomLibraryOpen] = useState(false);
@@ -194,6 +199,10 @@ export const Workouts: React.FC = () => {
       setLeaveRequests(requests);
     });
 
+    const unsubFestivals = subscribeCustomFestivals(currentUser.uid, (festivals) => {
+      setCustomFestivals(festivals);
+    });
+
     return () => {
       unsubActive();
       unsubHistory();
@@ -204,8 +213,22 @@ export const Workouts: React.FC = () => {
       unsubStats();
       unsubStreak();
       unsubLeaves();
+      unsubFestivals();
     };
   }, [currentUser?.uid]);
+
+  const mappedCustomFestivals: CustomFestivalDoc[] = (customFestivals || []).map((cf) => ({
+    id: cf.id,
+    userId: currentUser?.uid || '',
+    nameEnglish: cf.nameEnglish,
+    nameTamil: cf.nameTamil || cf.nameEnglish,
+    date: cf.date,
+    category: cf.category,
+    deity: cf.deity,
+    templeLocation: cf.templeLocation,
+    fastingNotes: cf.fastingNotes,
+    reminderEnabled: cf.reminderEnabled,
+  }));
 
   // Handler for submitting formal leave request
   const handleSubmitLeaveRequest = async (
@@ -1034,6 +1057,8 @@ export const Workouts: React.FC = () => {
             isWorkoutActive={!!activeSession}
             isFasting={isFasting}
             onToggleFasting={() => setIsFasting((prev) => !prev)}
+            onSetFasting={(val) => setIsFasting(val)}
+            customFestivals={mappedCustomFestivals}
             userName={currentUser?.displayName || 'Champion'}
             showToast={showToast}
           />
