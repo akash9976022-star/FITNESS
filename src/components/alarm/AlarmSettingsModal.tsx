@@ -48,6 +48,9 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   onTriggerTestAlarm,
   onUpdateSettings,
 }) => {
+  // Local Videos List State (Optimistic & Local-First)
+  const [videosList, setVideosList] = useState<AlarmVideoItem[]>(customVideos);
+
   // Form State
   const [enabled, setEnabled] = useState(alarmSettings.enabled ?? true);
   const [alarmTime, setAlarmTime] = useState(alarmSettings.time || '06:00');
@@ -57,6 +60,16 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   );
   const [selectedRasi, setSelectedRasi] = useState<string>(alarmSettings.selectedRasi || 'mesham');
   const [playDevotionals, setPlayDevotionals] = useState(alarmSettings.playDevotionals ?? true);
+
+  // Sync videosList when prop updates
+  React.useEffect(() => {
+    if (customVideos && customVideos.length >= 0) {
+      setVideosList(customVideos);
+      if (!selectedVideoId && customVideos.length > 0) {
+        setSelectedVideoId(customVideos[0].id);
+      }
+    }
+  }, [customVideos]);
 
   // File Upload and Add Custom Video State
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -71,6 +84,12 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   const [videoPreviewItem, setVideoPreviewItem] = useState<{ title: string; url: string } | null>(null);
 
   if (!isOpen) return null;
+
+  const handleSelectVideo = async (videoId: string) => {
+    setSelectedVideoId(videoId);
+    if (onUpdateSettings) onUpdateSettings({ selectedVideoId: videoId });
+    await saveAlarmSettings(userId, { selectedVideoId: videoId });
+  };
 
   const handleSaveAll = async () => {
     const updated: Partial<UserAlarmSettings> = {
@@ -120,9 +139,25 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
         duration: duration || '05:00',
       });
 
-      if (videoId) {
-        setSelectedVideoId(videoId);
-      }
+      const effectiveId = videoId || `upload_${Date.now()}`;
+      const newVideoItem: AlarmVideoItem = {
+        id: effectiveId,
+        title: cleanTitle || 'Custom Wake-Up Song',
+        artistOrDeity: 'User Uploaded',
+        videoUrl: downloadUrl,
+        videoType: 'upload',
+        duration: duration || '05:00',
+        createdAt: Date.now(),
+      };
+
+      // Optimistically add to local list immediately
+      setVideosList((prev) => [newVideoItem, ...prev.filter((v) => v.id !== effectiveId)]);
+      setSelectedVideoId(effectiveId);
+
+      // Auto-save this video as the active selected alarm video
+      if (onUpdateSettings) onUpdateSettings({ selectedVideoId: effectiveId });
+      await saveAlarmSettings(userId, { selectedVideoId: effectiveId });
+
       setUploadStatus('Video song added to your library successfully!');
       setTimeout(() => setUploadStatus(null), 3000);
     } catch (err) {
@@ -151,9 +186,21 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
         duration: newDuration || '05:00',
       });
 
-      if (videoId) {
-        setSelectedVideoId(videoId);
-      }
+      const effectiveId = videoId || `link_${Date.now()}`;
+      const newVideoItem: AlarmVideoItem = {
+        id: effectiveId,
+        title: newTitle.trim(),
+        artistOrDeity: newArtist.trim() || undefined,
+        videoUrl: normalized.embedUrl || newUrl.trim(),
+        videoType: normalized.isYouTube ? 'youtube' : 'direct',
+        duration: newDuration || '05:00',
+        createdAt: Date.now(),
+      };
+
+      setVideosList((prev) => [newVideoItem, ...prev.filter((v) => v.id !== effectiveId)]);
+      setSelectedVideoId(effectiveId);
+      if (onUpdateSettings) onUpdateSettings({ selectedVideoId: effectiveId });
+      await saveAlarmSettings(userId, { selectedVideoId: effectiveId });
 
       setNewTitle('');
       setNewArtist('');
@@ -169,15 +216,23 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   const handleDeleteCustomVideo = async (videoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm('Delete this custom alarm video?')) return;
-    const targetVideo = customVideos.find((v) => v.id === videoId);
+
+    // Optimistically remove from local list
+    const remaining = videosList.filter((v) => v.id !== videoId);
+    setVideosList(remaining);
+
+    const targetVideo = videosList.find((v) => v.id === videoId);
     if (targetVideo?.videoUrl?.startsWith('indexeddb:')) {
       const localKey = targetVideo.videoUrl.replace('indexeddb:', '').trim();
       deleteVideoBlob(localKey);
     }
     await deleteAlarmVideo(userId, videoId);
+
     if (selectedVideoId === videoId) {
-      const remaining = customVideos.filter((v) => v.id !== videoId);
-      setSelectedVideoId(remaining[0]?.id || '');
+      const nextId = remaining[0]?.id || '';
+      setSelectedVideoId(nextId);
+      if (onUpdateSettings) onUpdateSettings({ selectedVideoId: nextId });
+      await saveAlarmSettings(userId, { selectedVideoId: nextId });
     }
   };
 
@@ -231,7 +286,17 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
 
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                const updated: Partial<UserAlarmSettings> = {
+                  enabled,
+                  time: alarmTime,
+                  maxVolume,
+                  selectedVideoId,
+                  selectedRasi,
+                  playDevotionals,
+                };
+                if (onUpdateSettings) onUpdateSettings(updated);
+                await saveAlarmSettings(userId, updated);
                 onClose();
                 onTriggerTestAlarm();
               }}
@@ -475,7 +540,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
             )}
 
             {/* Video Cards Grid / Empty State */}
-            {customVideos.length === 0 ? (
+            {videosList.length === 0 ? (
               <div className="p-8 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-center space-y-3 bg-slate-50/50 dark:bg-slate-950/30">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
                   <Video className="w-6 h-6" />
@@ -499,12 +564,12 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {customVideos.map((video) => {
+                {videosList.map((video) => {
                   const isSelected = selectedVideoId === video.id;
                   return (
                     <div
                       key={video.id}
-                      onClick={() => setSelectedVideoId(video.id)}
+                      onClick={() => handleSelectVideo(video.id)}
                       className={`p-3.5 rounded-2xl border cursor-pointer flex flex-col justify-between space-y-3 transition ${
                         isSelected
                           ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'

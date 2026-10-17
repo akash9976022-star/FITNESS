@@ -59,18 +59,19 @@ const blobUrlCache = new Map<string, string>();
  * (.mp4, .MP4, .mov, .MOV, .webm, .WEBM, .mkv, .MKV, .3gp, .3GP, .avi, .AVI, etc.)
  */
 export function getCleanVideoMimeType(fileName: string, rawMime?: string): string {
-  if (rawMime && rawMime.startsWith('video/')) return rawMime;
   const ext = (fileName || '').split('.').pop()?.toLowerCase();
   switch (ext) {
     case 'mp4':
     case 'm4v':
       return 'video/mp4';
+    case 'mov':
+      // Quicktime/MOV is usually H.264/AAC and decoded best in HTML5 video elements as video/mp4
+      return 'video/mp4';
     case 'webm':
       return 'video/webm';
-    case 'mov':
-      return 'video/quicktime';
     case 'mkv':
-      return 'video/x-matroska';
+      // Matroska with H.264/AAC plays with maximum hardware compatibility as video/mp4 in browsers
+      return 'video/mp4';
     case '3gp':
       return 'video/3gpp';
     case 'avi':
@@ -82,6 +83,7 @@ export function getCleanVideoMimeType(fileName: string, rawMime?: string): strin
     case 'ogv':
       return 'video/ogg';
     default:
+      if (rawMime && rawMime.startsWith('video/')) return rawMime;
       return 'video/mp4';
   }
 }
@@ -207,7 +209,9 @@ export async function resolveVideoUrl(videoUrl: string): Promise<string> {
     }
     const blob = await getVideoBlob(key);
     if (blob) {
-      const url = URL.createObjectURL(blob);
+      const mime = blob.type && blob.type.startsWith('video/') ? blob.type : 'video/mp4';
+      const cleanBlob = blob.type === mime ? blob : new Blob([blob], { type: mime });
+      const url = URL.createObjectURL(cleanBlob);
       blobUrlCache.set(key, url);
       return url;
     }
@@ -218,12 +222,12 @@ export async function resolveVideoUrl(videoUrl: string): Promise<string> {
 }
 
 /**
- * Helper to inspect the real duration of a local video file
+ * Helper to inspect the real duration of a local video file with fast 800ms fallback
  */
 export function extractVideoDuration(file: File): Promise<string> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
-      resolve('05:00');
+      resolve('03:45');
       return;
     }
     try {
@@ -241,8 +245,8 @@ export function extractVideoDuration(file: File): Promise<string> {
 
       const timer = setTimeout(() => {
         cleanup();
-        resolve('05:00');
-      }, 3500);
+        resolve('03:45');
+      }, 800);
 
       tempVideo.onloadedmetadata = () => {
         clearTimeout(timer);
@@ -253,19 +257,19 @@ export function extractVideoDuration(file: File): Promise<string> {
           const remSec = sec % 60;
           resolve(`${String(mins).padStart(2, '0')}:${String(remSec).padStart(2, '0')}`);
         } else {
-          resolve('05:00');
+          resolve('03:45');
         }
       };
 
       tempVideo.onerror = () => {
         clearTimeout(timer);
         cleanup();
-        resolve('05:00');
+        resolve('03:45');
       };
 
       tempVideo.src = objectUrl;
     } catch {
-      resolve('05:00');
+      resolve('03:45');
     }
   });
 }

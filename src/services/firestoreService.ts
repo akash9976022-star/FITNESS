@@ -2709,7 +2709,7 @@ export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
   enabled: true,
   time: '06:00',
   maxVolume: true,
-  selectedVideoId: 'murugan-kavasam-video',
+  selectedVideoId: null,
   selectedRasi: 'mesham',
   playDevotionals: true,
   backgroundMusicVolume: 0.15,
@@ -2717,13 +2717,28 @@ export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
 
 /**
  * Subscribes to custom alarm videos stored at users/{userId}/alarm_videos
+ * with zero-latency local cache emission and Firestore real-time sync.
  */
 export const subscribeAlarmVideos = (
   userId: string,
   callback: (videos: AlarmVideoItem[]) => void
 ): Unsubscribe => {
-  if (!db || !userId) {
+  if (!userId) {
     callback([]);
+    return () => {};
+  }
+
+  // 1. Immediately emit cached videos for zero latency
+  const cached = localStorage.getItem(`fit_alarm_videos_${userId}`);
+  if (cached) {
+    try {
+      callback(JSON.parse(cached));
+    } catch {
+      // Ignored
+    }
+  }
+
+  if (!db) {
     return () => {};
   }
 
@@ -2737,10 +2752,25 @@ export const subscribeAlarmVideos = (
         id: docSnap.id,
         ...(docSnap.data() as Omit<AlarmVideoItem, 'id'>),
       }));
+      try {
+        localStorage.setItem(`fit_alarm_videos_${userId}`, JSON.stringify(items));
+      } catch {
+        // Ignored
+      }
       callback(items);
     },
     (err) => {
       console.warn('Alarm videos snapshot notice:', err);
+      // Retain cached list so videos never disappear on network error
+      const fallback = localStorage.getItem(`fit_alarm_videos_${userId}`);
+      if (fallback) {
+        try {
+          callback(JSON.parse(fallback));
+          return;
+        } catch {
+          // Ignored
+        }
+      }
       callback([]);
     }
   );
@@ -2748,30 +2778,94 @@ export const subscribeAlarmVideos = (
 
 /**
  * Adds a new custom alarm video to users/{userId}/alarm_videos
+ * with optimistic local caching.
  */
 export const addAlarmVideo = async (
   userId: string,
   video: Omit<AlarmVideoItem, 'id' | 'createdAt'>
 ): Promise<string | null> => {
-  if (!db || !userId) return null;
-  const videosRef = collection(db, 'users', userId, 'alarm_videos');
-  const docRef = await addDoc(videosRef, {
+  if (!userId) return null;
+
+  const tempId = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const newRecord: AlarmVideoItem = {
+    id: tempId,
     ...video,
-    createdAt: serverTimestamp(),
-  });
-  return docRef.id;
+    createdAt: new Date().toISOString(),
+  };
+
+  // 1. Immediately cache in localStorage for instant UI updates
+  try {
+    const cachedStr = localStorage.getItem(`fit_alarm_videos_${userId}`);
+    const list: AlarmVideoItem[] = cachedStr ? JSON.parse(cachedStr) : [];
+    const updated = [newRecord, ...list.filter((x) => x.id !== tempId)];
+    localStorage.setItem(`fit_alarm_videos_${userId}`, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('localStorage cache notice for alarm video:', err);
+  }
+
+  // 2. Persist to Firestore
+  if (db) {
+    try {
+      const videosRef = collection(db, 'users', userId, 'alarm_videos');
+      const docRef = await addDoc(videosRef, {
+        ...video,
+        createdAt: serverTimestamp(),
+      });
+
+      // Update cache with real Firestore document ID
+      try {
+        const cachedStr = localStorage.getItem(`fit_alarm_videos_${userId}`);
+        if (cachedStr) {
+          const list: AlarmVideoItem[] = JSON.parse(cachedStr);
+          const updated = list.map((item) =>
+            item.id === tempId ? { ...item, id: docRef.id } : item
+          );
+          localStorage.setItem(`fit_alarm_videos_${userId}`, JSON.stringify(updated));
+        }
+      } catch {
+        // Ignored
+      }
+
+      return docRef.id;
+    } catch (err) {
+      console.warn('Firestore addDoc alarm video notice, preserved locally:', err);
+      return tempId;
+    }
+  }
+
+  return tempId;
 };
 
 /**
- * Deletes a custom alarm video from users/{userId}/alarm_videos
+ * Deletes a custom alarm video from users/{userId}/alarm_videos and local cache
  */
 export const deleteAlarmVideo = async (
   userId: string,
   videoId: string
 ): Promise<void> => {
-  if (!db || !userId || !videoId) return;
-  const docRef = doc(db, 'users', userId, 'alarm_videos', videoId);
-  await deleteDoc(docRef);
+  if (!userId || !videoId) return;
+
+  // 1. Immediately purge from local cache
+  try {
+    const cachedStr = localStorage.getItem(`fit_alarm_videos_${userId}`);
+    if (cachedStr) {
+      const list: AlarmVideoItem[] = JSON.parse(cachedStr);
+      const filtered = list.filter((v) => v.id !== videoId);
+      localStorage.setItem(`fit_alarm_videos_${userId}`, JSON.stringify(filtered));
+    }
+  } catch {
+    // Ignored
+  }
+
+  // 2. Purge from Firestore
+  if (db) {
+    try {
+      const docRef = doc(db, 'users', userId, 'alarm_videos', videoId);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('Error deleting alarm video from Firestore:', err);
+    }
+  }
 };
 
 /**

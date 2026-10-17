@@ -37,6 +37,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
   const [selectedVideo, setSelectedVideo] = useState<AlarmVideoItem | null>(null);
   const [playableUrl, setPlayableUrl] = useState<string>('');
   const [videoError, setVideoError] = useState(false);
+  const [isMutedAutoplay, setIsMutedAutoplay] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Digital clock update
@@ -63,6 +64,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     if (!isOpen) return;
 
     setVideoError(false);
+    setIsMutedAutoplay(false);
     const videoId = alarmSettings.selectedVideoId;
 
     if (videoId) {
@@ -73,6 +75,21 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
       }
     }
 
+    // Direct check of cached videos from localStorage if not yet in state
+    try {
+      const cached = localStorage.getItem('fit_alarm_videos_cache');
+      if (cached) {
+        const parsed: AlarmVideoItem[] = JSON.parse(cached);
+        const match = videoId ? parsed.find((v) => v.id === videoId) : parsed[0];
+        if (match) {
+          setSelectedVideo(match);
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     // Default to first user-uploaded video if available, or null (Tibetan singing bowl)
     setSelectedVideo(customVideos[0] || null);
   }, [isOpen, alarmSettings.selectedVideoId, customVideos]);
@@ -81,11 +98,15 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
   useEffect(() => {
     let isCancelled = false;
     if (selectedVideo?.videoUrl) {
-      resolveVideoUrl(selectedVideo.videoUrl).then((url) => {
-        if (!isCancelled) {
-          setPlayableUrl(url);
-        }
-      });
+      resolveVideoUrl(selectedVideo.videoUrl)
+        .then((url) => {
+          if (!isCancelled) {
+            setPlayableUrl(url);
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) setPlayableUrl('');
+        });
     } else {
       setPlayableUrl('');
     }
@@ -94,26 +115,52 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     };
   }, [selectedVideo]);
 
-  // Max-Volume Audio / Video Trigger
+  // Max-Volume Audio / Video Trigger with Mobile Autoplay Policy Resilience
   useEffect(() => {
     if (!isOpen) {
       tibetanBowlSynth.stopAlarm();
       return;
     }
 
-    // Attempt video playback at volume = 1.0 (max volume override)
-    const normalized = playableUrl ? normalizeVideoUrl(playableUrl) : null;
-
-    if (!selectedVideo || !playableUrl || videoError || (!normalized?.isYouTube && !normalized?.embedUrl)) {
-      // Fallback: Max-Volume Tibetan Singing Bowl awakening chime
+    // If no video is selected or video explicitly failed, start Tibetan singing bowl immediately
+    if (!selectedVideo || videoError) {
       tibetanBowlSynth.startAlarm(1.0);
-    } else if (normalized && !normalized.isYouTube && videoRef.current) {
-      // Direct MP4 video tag
-      videoRef.current.volume = 1.0;
-      videoRef.current.play().catch(() => {
-        // If browser blocks video sound without interaction, start bowl as backup
-        tibetanBowlSynth.startAlarm(1.0);
-      });
+      return;
+    }
+
+    // Wait until playableUrl has resolved
+    if (!playableUrl) {
+      return;
+    }
+
+    const normalized = normalizeVideoUrl(playableUrl);
+
+    if (!normalized.isYouTube && videoRef.current) {
+      const videoEl = videoRef.current;
+      videoEl.volume = 1.0;
+      videoEl.muted = false;
+
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Unmuted autoplay succeeded
+            setIsMutedAutoplay(false);
+            tibetanBowlSynth.stopAlarm();
+          })
+          .catch((err) => {
+            console.warn(
+              'Unmuted autoplay blocked by browser/mobile policy; enabling muted video + chime backup:',
+              err
+            );
+            // Muted video playback is 100% permitted across all browsers, iOS Safari, and Android Chrome
+            videoEl.muted = true;
+            videoEl.play().catch((e) => console.error('Muted autoplay error:', e));
+            setIsMutedAutoplay(true);
+            // Sound the alarm bowl chime so heavy sleeper is awakened
+            tibetanBowlSynth.startAlarm(1.0);
+          });
+      }
     }
 
     return () => {
@@ -124,6 +171,16 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
   if (!isOpen) return null;
 
   const normalized = playableUrl ? normalizeVideoUrl(playableUrl) : null;
+
+  const handleScreenUnmute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      videoRef.current.volume = 1.0;
+      videoRef.current.play().catch(() => {});
+    }
+    tibetanBowlSynth.stopAlarm();
+    setIsMutedAutoplay(false);
+  };
 
   const handleDismiss = () => {
     // Fade out and stop alarm sounds
@@ -136,7 +193,8 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-black text-white overflow-hidden select-none"
+      onClick={handleScreenUnmute}
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-black text-white overflow-hidden select-none cursor-pointer"
       style={{ touchAction: 'none' }}
     >
       {/* ================= BACKGROUND VIDEO / AMBIENT LAYER ================= */}
@@ -157,8 +215,10 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
               autoPlay
               playsInline
               loop
-              className="w-full h-full object-cover opacity-70"
-              onError={() => setVideoError(true)}
+              className="w-full h-full object-cover opacity-75"
+              onError={(e) => {
+                console.warn('Video element encounter load issue:', e);
+              }}
             />
           )
         ) : (
@@ -231,6 +291,17 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
 
       {/* ================= BOTTOM DISMISSAL GATE ================= */}
       <div className="relative z-10 w-full max-w-lg px-6 pb-12 sm:pb-16 space-y-3">
+        {/* Floating Tap-to-Unmute Banner if Browser Policy Enforced Muted Autoplay */}
+        {isMutedAutoplay && (
+          <div
+            onClick={handleScreenUnmute}
+            className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-amber-500/30 animate-bounce transition cursor-pointer"
+          >
+            <Volume2 className="w-4 h-4 animate-ping" />
+            <span>🔊 TAP SCREEN TO ENABLE FULL VIDEO SOUND</span>
+          </div>
+        )}
+
         {/* Un-swipable Stop Alarm & Start Briefing Button */}
         <button
           type="button"
