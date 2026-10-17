@@ -11,6 +11,7 @@ import {
   tibetanBowlSynth,
   normalizeVideoUrl,
 } from '../../utils/audioAlarmEngine';
+import { resolveVideoUrl } from '../../utils/indexedDBVideoStore';
 import type { AlarmVideoItem, UserAlarmSettings } from '../../services/firestoreService';
 import type { TamilDateInfo } from '../../utils/tamilCalendar';
 
@@ -34,6 +35,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   const [currentDateStr, setCurrentDateStr] = useState('');
   const [selectedVideo, setSelectedVideo] = useState<AlarmVideoItem | null>(null);
+  const [playableUrl, setPlayableUrl] = useState<string>('');
   const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -75,6 +77,23 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     setSelectedVideo(customVideos[0] || null);
   }, [isOpen, alarmSettings.selectedVideoId, customVideos]);
 
+  // Asynchronously resolve playable URL (for IndexedDB blobs and remote URLs)
+  useEffect(() => {
+    let isCancelled = false;
+    if (selectedVideo?.videoUrl) {
+      resolveVideoUrl(selectedVideo.videoUrl).then((url) => {
+        if (!isCancelled) {
+          setPlayableUrl(url);
+        }
+      });
+    } else {
+      setPlayableUrl('');
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedVideo]);
+
   // Max-Volume Audio / Video Trigger
   useEffect(() => {
     if (!isOpen) {
@@ -83,9 +102,9 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     }
 
     // Attempt video playback at volume = 1.0 (max volume override)
-    const normalized = selectedVideo ? normalizeVideoUrl(selectedVideo.videoUrl) : null;
+    const normalized = playableUrl ? normalizeVideoUrl(playableUrl) : null;
 
-    if (!selectedVideo || videoError || (!normalized?.isYouTube && !normalized?.embedUrl)) {
+    if (!selectedVideo || !playableUrl || videoError || (!normalized?.isYouTube && !normalized?.embedUrl)) {
       // Fallback: Max-Volume Tibetan Singing Bowl awakening chime
       tibetanBowlSynth.startAlarm(1.0);
     } else if (normalized && !normalized.isYouTube && videoRef.current) {
@@ -100,11 +119,11 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     return () => {
       tibetanBowlSynth.stopAlarm();
     };
-  }, [isOpen, selectedVideo, videoError]);
+  }, [isOpen, selectedVideo, playableUrl, videoError]);
 
   if (!isOpen) return null;
 
-  const normalized = selectedVideo ? normalizeVideoUrl(selectedVideo.videoUrl) : null;
+  const normalized = playableUrl ? normalizeVideoUrl(playableUrl) : null;
 
   const handleDismiss = () => {
     // Fade out and stop alarm sounds

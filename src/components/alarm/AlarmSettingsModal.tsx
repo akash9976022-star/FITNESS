@@ -22,6 +22,11 @@ import {
   type UserAlarmSettings,
 } from '../../services/firestoreService';
 import { uploadAlarmVideo } from '../../services/storageService';
+import {
+  resolveVideoUrl,
+  deleteVideoBlob,
+  extractVideoDuration,
+} from '../../utils/indexedDBVideoStore';
 import { TAMIL_RASIS } from '../../utils/tamilCalendar';
 
 interface AlarmSettingsModalProps {
@@ -87,27 +92,31 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
     if (!file) return;
 
     setIsUploadingVideo(true);
-    setUploadStatus('Uploading video to Firebase Storage...');
+    setUploadStatus('Saving video song to library...');
     try {
-      const downloadUrl = await uploadAlarmVideo(userId, file, file.name);
+      // Calculate real video duration in parallel with persisting
+      const [downloadUrl, duration] = await Promise.all([
+        uploadAlarmVideo(userId, file, file.name),
+        extractVideoDuration(file),
+      ]);
       const cleanTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 
       const videoId = await addAlarmVideo(userId, {
         title: cleanTitle || 'Custom Wake-Up Song',
         artistOrDeity: 'User Uploaded',
         videoUrl: downloadUrl,
-        videoType: 'direct',
-        duration: '05:00',
+        videoType: 'upload',
+        duration: duration || '05:00',
       });
 
       if (videoId) {
         setSelectedVideoId(videoId);
       }
-      setUploadStatus('Video song uploaded and added to library!');
+      setUploadStatus('Video song added to your library successfully!');
       setTimeout(() => setUploadStatus(null), 3000);
     } catch (err) {
       console.error('Failed to upload video:', err);
-      alert('Could not upload video. Please ensure the file is an .mp4 or valid video file.');
+      alert('Could not add video. Please ensure the file is an .mp4 or valid video file.');
     } finally {
       setIsUploadingVideo(false);
       if (fileInputRef.current) {
@@ -149,6 +158,11 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   const handleDeleteCustomVideo = async (videoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm('Delete this custom alarm video?')) return;
+    const targetVideo = customVideos.find((v) => v.id === videoId);
+    if (targetVideo?.videoUrl?.startsWith('indexeddb:')) {
+      const localKey = targetVideo.videoUrl.replace('indexeddb:', '').trim();
+      deleteVideoBlob(localKey);
+    }
     await deleteAlarmVideo(userId, videoId);
     if (selectedVideoId === videoId) {
       const remaining = customVideos.filter((v) => v.id !== videoId);
@@ -521,9 +535,10 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              setVideoPreviewItem({ title: video.title, url: video.videoUrl });
+                              const playableUrl = await resolveVideoUrl(video.videoUrl);
+                              setVideoPreviewItem({ title: video.title, url: playableUrl });
                             }}
                             className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-emerald-500 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
                           >
