@@ -8,7 +8,7 @@
  * 4. Personalized, human-like phrases for Wake-Up, Walking, Workout, and Bedtime routines.
  */
 
-export type RoutineType = 'wakeUp' | 'walking' | 'workout' | 'bedtime';
+export type RoutineType = 'wakeUp' | 'walking' | 'workout' | 'bedtime' | 'hydration';
 
 interface RoutineSpeechContent {
   title: string;
@@ -45,6 +45,13 @@ export const ROUTINE_DEFINITIONS: Record<RoutineType, RoutineSpeechContent> = {
     phrase: (name) =>
       `Good evening ${name}. It is time for your bedtime routine. Dim the lights, put away your screens, and enjoy deep, restorative sleep for tomorrow.`,
     icon: '🌙',
+  },
+  hydration: {
+    title: 'Hydration Break',
+    titleTamil: 'தண்ணீர் குடிக்கும் நேரம்',
+    phrase: (name) =>
+      `${name}, time for a hydration break! Drink a glass of water to stay fresh and energized.`,
+    icon: '💧',
   },
 };
 

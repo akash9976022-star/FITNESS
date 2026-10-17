@@ -10,6 +10,8 @@ import {
   X,
   Sparkles,
   ArrowRight,
+  Droplets,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   type RoutineType,
@@ -18,7 +20,12 @@ import {
   stopRoutineSpeech,
   buildSpokenPhrase,
 } from '../../utils/routineVoiceEngine';
-import type { CustomRoutineItem } from '../../services/firestoreService';
+import {
+  type CustomRoutineItem,
+  logWaterIntake,
+  getTodayDateString,
+} from '../../services/firestoreService';
+import { useAuth } from '../../context/AuthContext';
 
 interface RoutineReminderModalProps {
   isOpen: boolean;
@@ -42,14 +49,26 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   onAcknowledge,
 }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isWaterLogged, setIsWaterLogged] = useState(false);
+  const [isLoggingWater, setIsLoggingWater] = useState(false);
 
   const resolvedRoutine = routine || customRoutine || routineType || 'wakeUp';
   const isCustom = typeof resolvedRoutine === 'object' && resolvedRoutine !== null;
   const activeCustom = isCustom ? (resolvedRoutine as CustomRoutineItem) : null;
 
+  const isHydration =
+    routineType === 'hydration' ||
+    activeCustom?.category?.toLowerCase() === 'hydration' ||
+    activeCustom?.name?.toLowerCase().includes('hydration') ||
+    activeCustom?.name?.toLowerCase().includes('water') ||
+    activeCustom?.name?.toLowerCase().includes('தண்ணீர்');
+
   const activeType: RoutineType = !isCustom
     ? (resolvedRoutine as RoutineType)
+    : isHydration
+    ? 'hydration'
     : (activeCustom?.category?.toLowerCase().includes('walk') || activeCustom?.name?.toLowerCase().includes('walk')
         ? 'walking'
         : activeCustom?.category?.toLowerCase().includes('workout') || activeCustom?.name?.toLowerCase().includes('workout')
@@ -80,6 +99,25 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   const handleStopSpeech = () => {
     stopRoutineSpeech();
     setIsSpeaking(false);
+  };
+
+  const handleLogWater = async () => {
+    if (!currentUser?.uid || isLoggingWater || isWaterLogged) return;
+    setIsLoggingWater(true);
+    try {
+      await logWaterIntake(currentUser.uid, getTodayDateString(), 250);
+      setIsWaterLogged(true);
+      handleStopSpeech();
+      setTimeout(() => {
+        onAcknowledge?.();
+        onDismiss();
+      }, 1000);
+    } catch (err) {
+      console.warn('Error logging water intake from reminder:', err);
+      onDismiss();
+    } finally {
+      setIsLoggingWater(false);
+    }
   };
 
   const handlePrimaryAction = () => {
@@ -113,6 +151,18 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
   const getThemeDetails = () => {
     const lowerName = (activeCustom?.name || activeType).toLowerCase();
     const lowerCat = (activeCustom?.category || '').toLowerCase();
+
+    if (isHydration) {
+      return {
+        icon: Droplets,
+        gradient: 'from-cyan-500 via-blue-500 to-indigo-600',
+        badgeBg: 'bg-cyan-100 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:border-cyan-500/30',
+        ringGlow: 'shadow-[0_0_50px_rgba(6,182,212,0.25)]',
+        primaryBtn: 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-600 hover:to-blue-700 text-white',
+        btnText: 'Logged (+250ml)',
+        isHydration: true,
+      };
+    }
 
     if (activeType === 'wakeUp' || lowerName.includes('wake') || lowerCat.includes('wake')) {
       return {
@@ -270,13 +320,42 @@ export const RoutineReminderModal: React.FC<RoutineReminderModalProps> = ({
 
           {/* Action Buttons */}
           <div className="space-y-2 pt-1">
-            <button
-              onClick={handlePrimaryAction}
-              className={`w-full py-3.5 px-5 rounded-2xl font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${theme.primaryBtn}`}
-            >
-              <span>{theme.btnText}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            {isHydration ? (
+              <button
+                onClick={handleLogWater}
+                disabled={isLoggingWater || isWaterLogged}
+                className={`w-full py-3.5 px-5 rounded-2xl font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${
+                  isWaterLogged
+                    ? 'bg-emerald-600 text-white shadow-emerald-500/20'
+                    : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-600 hover:to-blue-700 text-white shadow-cyan-500/25'
+                }`}
+              >
+                {isWaterLogged ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 animate-bounce" />
+                    <span>Logged (+250ml)! Added to Daily Goal</span>
+                  </>
+                ) : isLoggingWater ? (
+                  <>
+                    <Droplets className="w-4 h-4 animate-spin" />
+                    <span>Logging Intake...</span>
+                  </>
+                ) : (
+                  <>
+                    <Droplets className="w-4 h-4 fill-white/20" />
+                    <span>Logged (+250ml)</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handlePrimaryAction}
+                className={`w-full py-3.5 px-5 rounded-2xl font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${theme.primaryBtn}`}
+              >
+                <span>{theme.btnText}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
 
             <button
               onClick={handleClose}

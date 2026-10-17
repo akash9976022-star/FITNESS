@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  Droplets,
+  CheckCircle2,
+  X,
+  ExternalLink,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribeRoutineSettings,
   subscribeCustomRoutines,
   subscribeUserProfile,
   dismissCustomRoutineForToday,
+  logWaterIntake,
+  getTodayDateString,
   type UserRoutineSettings,
   type CustomRoutineItem,
   type UserProfile,
@@ -16,8 +24,19 @@ import {
   stopRoutineSpeech,
   initUserGestureAudioUnlock,
   isRoutineActiveToday,
+  buildSpokenPhrase,
 } from '../../utils/routineVoiceEngine';
 import RoutineReminderModal from './RoutineReminderModal';
+
+interface ActiveToastNotification {
+  routine: CustomRoutineItem | RoutineType;
+  isHydration: boolean;
+  title: string;
+  time?: string;
+  phrase: string;
+  isLogging?: boolean;
+  isLogged?: boolean;
+}
 
 export const RoutineManager: React.FC = () => {
   const { currentUser } = useAuth();
@@ -29,6 +48,9 @@ export const RoutineManager: React.FC = () => {
   const [activeRoutine, setActiveRoutine] = useState<CustomRoutineItem | RoutineType | null>(null);
   const activeRoutineRef = useRef<CustomRoutineItem | RoutineType | null>(null);
   activeRoutineRef.current = activeRoutine;
+
+  // Active Top-Floating Toast Alert State
+  const [activeToast, setActiveToast] = useState<ActiveToastNotification | null>(null);
 
   // Track latest settings & custom routines in refs to avoid stale closures in setInterval
   const settingsRef = useRef<UserRoutineSettings>(settings);
@@ -76,7 +98,27 @@ export const RoutineManager: React.FC = () => {
       const customEvent = event as CustomEvent<{ routine?: CustomRoutineItem; routineType?: RoutineType }>;
       const targetRoutine = customEvent.detail?.routine || customEvent.detail?.routineType || 'walking';
 
-      setActiveRoutine(targetRoutine);
+      const isHydration = typeof targetRoutine === 'string'
+        ? targetRoutine === 'hydration'
+        : targetRoutine.category?.toLowerCase() === 'hydration' ||
+          targetRoutine.name.toLowerCase().includes('hydration') ||
+          targetRoutine.name.toLowerCase().includes('தண்ணீர்') ||
+          targetRoutine.icon === '💧';
+
+      const phrase = buildSpokenPhrase(targetRoutine, userName);
+
+      setActiveToast({
+        routine: targetRoutine,
+        isHydration,
+        title: typeof targetRoutine === 'string' ? targetRoutine : targetRoutine.name,
+        time: typeof targetRoutine === 'string' ? '' : targetRoutine.time,
+        phrase,
+      });
+
+      if (settingsRef.current.inAppNotificationEnabled) {
+        setActiveRoutine(targetRoutine);
+      }
+
       if (settingsRef.current.voiceRemindersEnabled) {
         speakRoutineVoiceReminder(targetRoutine, userName, {
           rate: settingsRef.current.voiceRate,
@@ -114,19 +156,51 @@ export const RoutineManager: React.FC = () => {
         if (item.time === currentTime) {
           // Fire only if not already dismissed today
           if (item.lastDismissedDate !== todayStr) {
-            setActiveRoutine(item);
+            const isHydration =
+              item.category?.toLowerCase() === 'hydration' ||
+              item.name.toLowerCase().includes('hydration') ||
+              item.name.toLowerCase().includes('தண்ணீர்') ||
+              item.icon === '💧';
+
+            const phrase = buildSpokenPhrase(item, userName);
+
+            // Trigger floating top toast alert
+            setActiveToast({
+              routine: item,
+              isHydration,
+              title: item.name,
+              time: item.time,
+              phrase,
+            });
+
+            // Trigger modal if inAppNotificationEnabled is true
+            if (currentSettings.inAppNotificationEnabled) {
+              setActiveRoutine(item);
+            }
 
             // Mark as dismissed for today so it doesn't repeat within the same minute
             if (currentUser?.uid) {
               dismissCustomRoutineForToday(currentUser.uid, item.id, todayStr);
             }
 
-            // Speak natural voice reminder
+            // Speak natural human-like voice reminder
             if (currentSettings.voiceRemindersEnabled) {
               speakRoutineVoiceReminder(item, userName, {
                 rate: currentSettings.voiceRate,
                 playChimeFirst: true,
               });
+            }
+
+            // Trigger native browser notification if allowed
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(item.name || 'Hydration Break', {
+                  body: phrase,
+                  icon: '/icon-192.png',
+                });
+              } catch {
+                // Ignored
+              }
             }
 
             break; // Handle one routine trigger at a time
@@ -139,18 +213,135 @@ export const RoutineManager: React.FC = () => {
     return () => clearInterval(timer);
   }, [currentUser?.uid, userName]);
 
+  // 1-Click Water Logging from Floating Toast Alert
+  const handleToastLogWater = async () => {
+    if (!currentUser?.uid || !activeToast || activeToast.isLogging || activeToast.isLogged) return;
+    setActiveToast((prev) => (prev ? { ...prev, isLogging: true } : null));
+    try {
+      await logWaterIntake(currentUser.uid, getTodayDateString(), 250);
+      setActiveToast((prev) => (prev ? { ...prev, isLogging: false, isLogged: true } : null));
+      stopRoutineSpeech();
+      setTimeout(() => {
+        setActiveToast(null);
+        setActiveRoutine(null);
+      }, 1400);
+    } catch (err) {
+      console.warn('Error logging water intake from routine toast:', err);
+      setActiveToast(null);
+    }
+  };
+
   const handleDismiss = () => {
     stopRoutineSpeech();
     setActiveRoutine(null);
+    setActiveToast(null);
   };
 
   const handleAcknowledge = () => {
     stopRoutineSpeech();
     setActiveRoutine(null);
+    setActiveToast(null);
   };
 
   return (
     <>
+      {/* Top Floating Toast Notification Alert */}
+      {activeToast && (
+        <div className="fixed top-4 inset-x-0 z-50 flex justify-center px-4 pointer-events-none animate-in slide-in-from-top-4 duration-300">
+          <div className="w-full max-w-lg rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-cyan-300 dark:border-cyan-700/80 shadow-2xl shadow-cyan-500/20 p-3.5 sm:p-4 flex items-center justify-between gap-3 pointer-events-auto">
+            {/* Icon & Details */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white shadow-md ${
+                  activeToast.isHydration
+                    ? 'bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 shadow-cyan-500/25'
+                    : 'bg-gradient-to-tr from-emerald-500 to-teal-600 shadow-emerald-500/25'
+                }`}
+              >
+                {activeToast.isHydration ? (
+                  <Droplets className="w-5 h-5 fill-white/20" />
+                ) : (
+                  <span className="text-lg">⏰</span>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate">
+                    {activeToast.title}
+                  </h4>
+                  {activeToast.time && (
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {activeToast.time}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-xs sm:max-w-sm">
+                  {activeToast.phrase}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions: Logged Button + Dismiss */}
+            <div className="flex items-center gap-2 shrink-0">
+              {activeToast.isHydration && (
+                <button
+                  type="button"
+                  onClick={handleToastLogWater}
+                  disabled={activeToast.isLogging || activeToast.isLogged}
+                  className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition active:scale-95 shadow-md ${
+                    activeToast.isLogged
+                      ? 'bg-emerald-600 text-white shadow-emerald-500/25'
+                      : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-600 hover:to-blue-700 text-white shadow-cyan-500/25'
+                  }`}
+                >
+                  {activeToast.isLogged ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 animate-bounce" />
+                      <span>+250ml Logged!</span>
+                    </>
+                  ) : activeToast.isLogging ? (
+                    <>
+                      <Droplets className="w-3.5 h-3.5 animate-spin" />
+                      <span>Logging...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Droplets className="w-3.5 h-3.5 fill-white/20" />
+                      <span>Logged (+250ml)</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {!activeRoutine && (
+                <button
+                  type="button"
+                  onClick={() => setActiveRoutine(activeToast.routine)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 transition text-xs font-bold"
+                  title="Open full reminder"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  stopRoutineSpeech();
+                  setActiveToast(null);
+                }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                title="Dismiss notification"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Routine Reminder Interactive Modal */}
       {activeRoutine && (
         <RoutineReminderModal
           isOpen={Boolean(activeRoutine)}

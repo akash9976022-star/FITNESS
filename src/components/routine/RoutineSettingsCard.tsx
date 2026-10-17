@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Check,
   AlertTriangle,
+  Droplets,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -25,10 +26,14 @@ import {
   updateCustomRoutine,
   deleteCustomRoutine,
   subscribeUserProfile,
+  calculateHydrationSlots,
+  generateAndSaveHydrationSchedule,
+  clearHydrationSchedule,
   type UserRoutineSettings,
   type CustomRoutineItem,
   type RoutineRepeatFrequency,
   type UserProfile,
+  type HydrationIntervalConfig,
   DEFAULT_ROUTINE_SETTINGS,
   DEFAULT_CUSTOM_ROUTINES,
 } from '../../services/firestoreService';
@@ -131,6 +136,16 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
   const [routineToDelete, setRoutineToDelete] = useState<CustomRoutineItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Hydration Auto-Generation Engine State
+  const [hydrationIntervalHours, setHydrationIntervalHours] = useState<number>(2);
+  const [hydrationStartTime, setHydrationStartTime] = useState<string>('09:00');
+  const [hydrationEndTime, setHydrationEndTime] = useState<string>('20:00');
+  const [hydrationVoicePrompt, setHydrationVoicePrompt] = useState<string>(
+    '{name}, time for a hydration break! Drink a glass of water to stay fresh.'
+  );
+  const [isGeneratingHydration, setIsGeneratingHydration] = useState(false);
+  const [isClearingHydration, setIsClearingHydration] = useState(false);
+
   const userName = profile?.age ? currentUser?.displayName || 'Akash' : currentUser?.displayName || 'Akash';
   const firstName = userName.trim().split(' ')[0];
 
@@ -140,6 +155,20 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
 
     const unsubSettings = subscribeRoutineSettings(currentUser.uid, (data) => {
       setSettings(data);
+      if (data.hydrationInterval) {
+        if (typeof data.hydrationInterval.intervalHours === 'number' && data.hydrationInterval.intervalHours > 0) {
+          setHydrationIntervalHours(data.hydrationInterval.intervalHours);
+        }
+        if (data.hydrationInterval.startTime) {
+          setHydrationStartTime(data.hydrationInterval.startTime);
+        }
+        if (data.hydrationInterval.endTime) {
+          setHydrationEndTime(data.hydrationInterval.endTime);
+        }
+        if (data.hydrationInterval.voicePrompt) {
+          setHydrationVoicePrompt(data.hydrationInterval.voicePrompt);
+        }
+      }
     });
 
     const unsubRoutines = subscribeCustomRoutines(currentUser.uid, (items) => {
@@ -330,6 +359,73 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     }
   };
 
+  // Real-time preview of calculated hydration slots based on current inputs
+  const previewHydrationSlots = calculateHydrationSlots(
+    hydrationStartTime,
+    hydrationEndTime,
+    hydrationIntervalHours
+  );
+
+  // List of active hydration routines currently saved in Firestore/routines
+  const existingHydrationRoutines = routines.filter(
+    (r) =>
+      r.category?.toLowerCase() === 'hydration' ||
+      r.name.toLowerCase().includes('hydration') ||
+      r.name.toLowerCase().includes('தண்ணீர்')
+  );
+
+  // Auto-generate hydration schedule across active hours
+  const handleGenerateHydrationSchedule = async () => {
+    if (!currentUser?.uid) return;
+    if (previewHydrationSlots.length === 0) {
+      showToast('End time must be later than start time.');
+      return;
+    }
+
+    setIsGeneratingHydration(true);
+    try {
+      const config: HydrationIntervalConfig = {
+        enabled: true,
+        intervalHours: hydrationIntervalHours,
+        startTime: hydrationStartTime,
+        endTime: hydrationEndTime,
+        voicePrompt: hydrationVoicePrompt.trim(),
+      };
+      const created = await generateAndSaveHydrationSchedule(
+        currentUser.uid,
+        config,
+        firstName
+      );
+      showToast(`Generated ${created.length} hydration breaks every ${hydrationIntervalHours}h!`);
+      onSaved?.();
+    } catch (err) {
+      console.warn('Error generating hydration schedule:', err);
+      showToast('Error generating hydration schedule.');
+    } finally {
+      setIsGeneratingHydration(false);
+    }
+  };
+
+  // Clear all auto-generated hydration routines
+  const handleClearHydrationBreaks = async () => {
+    if (!currentUser?.uid) return;
+    if (existingHydrationRoutines.length === 0) {
+      showToast('No active hydration breaks to clear.');
+      return;
+    }
+    setIsClearingHydration(true);
+    try {
+      const count = await clearHydrationSchedule(currentUser.uid);
+      showToast(`Removed ${count} hydration breaks.`);
+      onSaved?.();
+    } catch (err) {
+      console.warn('Error clearing hydration schedule:', err);
+      showToast('Error clearing hydration breaks.');
+    } finally {
+      setIsClearingHydration(false);
+    }
+  };
+
   return (
     <div
       className={`p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${className}`}
@@ -381,6 +477,240 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
             <Plus className="w-4 h-4" />
             <span>Add New Routine</span>
           </button>
+        </div>
+      </div>
+
+      {/* ==================== AUTO-GENERATE HYDRATION BREAKS SECTION ==================== */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-cyan-50/70 via-blue-50/40 to-indigo-50/30 dark:from-cyan-950/20 dark:via-blue-950/15 dark:to-slate-900/40 border border-cyan-200/80 dark:border-cyan-800/40 shadow-sm space-y-5 transition-all">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-cyan-100 dark:border-cyan-900/40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/25">
+              <Droplets className="w-5 h-5 fill-white/20" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-base font-black text-slate-900 dark:text-white">
+                  Auto-Generate Hydration Breaks
+                </h4>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/30">
+                  Smart Interval Engine
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Set interval hours and active window to automatically generate recurring spoken hydration reminders.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {existingHydrationRoutines.length > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-cyan-100 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/40">
+                <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                {existingHydrationRoutines.length} Breaks Active
+              </span>
+            ) : (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                Not Configured
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Configuration Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Left Column: Interval Selector & Active Time Pickers (7 cols) */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Interval Hours Selector */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Interval Frequency
+                </label>
+                <span className="text-xs font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                  Every {hydrationIntervalHours} {hydrationIntervalHours === 1 ? 'Hour' : 'Hours'}
+                </span>
+              </div>
+
+              {/* Quick Select Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map((hours) => {
+                  const isSelected = hydrationIntervalHours === hours;
+                  return (
+                    <button
+                      key={hours}
+                      type="button"
+                      onClick={() => setHydrationIntervalHours(hours)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+                        isSelected
+                          ? 'bg-cyan-600 text-white border-cyan-600 shadow-md shadow-cyan-600/25 dark:bg-cyan-500 dark:border-cyan-500'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-cyan-300 dark:hover:border-cyan-600'
+                      }`}
+                    >
+                      <Droplets className={`w-3.5 h-3.5 ${isSelected ? 'fill-white/30' : 'text-cyan-500'}`} />
+                      <span>Every {hours}h</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Interval Stepper Input */}
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  Custom Interval:
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="8"
+                    step="0.5"
+                    value={hydrationIntervalHours}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val > 0) setHydrationIntervalHours(val);
+                    }}
+                    className="w-20 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                  <span className="text-xs text-slate-500 dark:text-slate-400">hours</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Active Start and End Time Pickers */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                Active Hydration Hours Window
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
+                    Start Reminders
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                    <input
+                      type="time"
+                      value={hydrationStartTime}
+                      onChange={(e) => setHydrationStartTime(e.target.value)}
+                      className="bg-transparent text-sm font-black font-mono text-slate-900 dark:text-white focus:outline-none w-full cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
+                    End Reminders
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                    <input
+                      type="time"
+                      value={hydrationEndTime}
+                      onChange={(e) => setHydrationEndTime(e.target.value)}
+                      className="bg-transparent text-sm font-black font-mono text-slate-900 dark:text-white focus:outline-none w-full cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Voice Prompt Customization */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Personalized Spoken Voice Reminder
+                </label>
+                <span className="text-[11px] text-cyan-600 dark:text-cyan-400 font-mono font-semibold">
+                  Use {'{name}'} for personalized user name
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={hydrationVoicePrompt}
+                  onChange={(e) => setHydrationVoicePrompt(e.target.value)}
+                  placeholder="{name}, time for a hydration break! Drink a glass of water to stay fresh."
+                  className="w-full px-3.5 py-2.5 pr-20 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleTestVoice({
+                      name: 'Hydration Break',
+                      voicePrompt: hydrationVoicePrompt,
+                      icon: '💧',
+                    })
+                  }
+                  className="absolute right-1.5 top-1.5 px-2.5 py-1 rounded-lg bg-cyan-600 text-white text-[11px] font-bold hover:bg-cyan-500 transition shadow-xs flex items-center gap-1"
+                >
+                  <Volume2 className="w-3 h-3" />
+                  <span>Preview</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Calculated Slots Live Preview & Actions (5 cols) */}
+          <div className="lg:col-span-5 flex flex-col justify-between p-4 rounded-2xl bg-white/90 dark:bg-slate-800/80 border border-cyan-100 dark:border-cyan-900/30 space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  Schedule Preview
+                </span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300">
+                  {previewHydrationSlots.length} Slots Computed
+                </span>
+              </div>
+
+              {previewHydrationSlots.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1">
+                  {previewHydrationSlots.map((slot, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-50 dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/40"
+                    >
+                      <span>💧</span>
+                      <span>{slot.displayTime}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-xs text-rose-500 font-medium">
+                  End time must be after start time to compute slots.
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Clicking generate will calculate recurring intervals, save them to your routines, and enable voice alerts with 1-click water logging.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={handleGenerateHydrationSchedule}
+                disabled={isGeneratingHydration || previewHydrationSlots.length === 0}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-black shadow-md shadow-cyan-600/25 transition active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Droplets className="w-4 h-4 fill-white/20" />
+                <span>{isGeneratingHydration ? 'Generating Slots...' : 'Generate Hydration Schedule'}</span>
+              </button>
+
+              {existingHydrationRoutines.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearHydrationBreaks}
+                  disabled={isClearingHydration}
+                  className="w-full py-2 px-3 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isClearingHydration ? 'Clearing...' : 'Clear All Hydration Breaks'}</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

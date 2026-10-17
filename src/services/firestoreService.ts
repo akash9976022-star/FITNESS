@@ -4310,11 +4310,20 @@ export interface RoutineItemSetting {
   labelTa: string;
 }
 
+export interface HydrationIntervalConfig {
+  intervalHours: number; // e.g. 1, 2, 3, 4
+  startTime: string; // e.g. '09:00'
+  endTime: string; // e.g. '20:00'
+  enabled: boolean;
+  voicePrompt?: string;
+}
+
 export interface UserRoutineSettings {
   wakeUp: RoutineItemSetting;
   walking: RoutineItemSetting;
   workout: RoutineItemSetting;
   bedtime: RoutineItemSetting;
+  hydrationInterval?: HydrationIntervalConfig;
   voiceRemindersEnabled: boolean;
   voiceRate: number; // default: 0.95 (relaxed natural human cadence)
   voicePitch: number; // default: 1.0
@@ -4347,6 +4356,13 @@ export const DEFAULT_ROUTINE_SETTINGS: UserRoutineSettings = {
     enabled: true,
     labelEn: 'Bedtime & Night Recovery',
     labelTa: 'இரவு உறக்க நேரம்',
+  },
+  hydrationInterval: {
+    intervalHours: 2,
+    startTime: '09:00',
+    endTime: '20:00',
+    enabled: true,
+    voicePrompt: '{name}, time for a hydration break! Drink a glass of water to stay fresh.',
   },
   voiceRemindersEnabled: true,
   voiceRate: 0.95,
@@ -4793,6 +4809,209 @@ export const dismissCustomRoutineForToday = async (
   await updateCustomRoutine(userId, routineId, {
     lastDismissedDate: dateStr,
   });
+};
+
+/**
+ * Calculates recurring hydration time slots between startTime and endTime
+ * based on the provided interval in hours
+ */
+export const calculateHydrationSlots = (
+  startTime: string,
+  endTime: string,
+  intervalHours: number
+): { time: string; displayTime: string }[] => {
+  const parseMinutes = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const format24Hour = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const format12Hour = (time24: string) => {
+    const [h, m] = time24.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  const startMin = parseMinutes(startTime);
+  const endMin = parseMinutes(endTime);
+  const stepMin = Math.round(intervalHours * 60);
+
+  if (stepMin <= 0 || endMin <= startMin) return [];
+
+  const slots: { time: string; displayTime: string }[] = [];
+  for (let m = startMin; m <= endMin; m += stepMin) {
+    const time24 = format24Hour(m);
+    slots.push({
+      time: time24,
+      displayTime: format12Hour(time24),
+    });
+  }
+  return slots;
+};
+
+/**
+ * Automatically generates, replaces, and saves a recurring interval hydration schedule
+ * in Firestore (users/{userId}/custom_routines) and updates routine_settings.
+ */
+export const generateAndSaveHydrationSchedule = async (
+  userId: string,
+  config: HydrationIntervalConfig,
+  _userName = 'Athlete'
+): Promise<CustomRoutineItem[]> => {
+  if (!userId) return [];
+
+  const slots = calculateHydrationSlots(config.startTime, config.endTime, config.intervalHours);
+  if (slots.length === 0) return [];
+
+  const promptTemplate =
+    config.voicePrompt?.trim() ||
+    '{name}, time for a hydration break! Drink a glass of water to stay fresh.';
+
+  // 1. Fetch current routines to identify existing hydration breaks
+  const cacheKey = `fit_custom_routines_${userId}`;
+  let currentRoutines: CustomRoutineItem[] = [];
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) currentRoutines = JSON.parse(cached);
+  } catch {
+    // Ignored
+  }
+
+  // 2. Remove previously generated hydration breaks to prevent duplicates
+  const nonHydrationRoutines = currentRoutines.filter(
+    (r) =>
+      r.category?.toLowerCase() !== 'hydration' &&
+      !r.name.toLowerCase().includes('hydration') &&
+      !r.name.toLowerCase().includes('தண்ணீர்')
+  );
+
+  const hydrationToDelete = currentRoutines.filter(
+    (r) =>
+      r.category?.toLowerCase() === 'hydration' ||
+      r.name.toLowerCase().includes('hydration') ||
+      r.name.toLowerCase().includes('தண்ணீர்')
+  );
+
+  if (db) {
+    for (const oldItem of hydrationToDelete) {
+      try {
+        await deleteDoc(doc(db, 'users', userId, 'custom_routines', oldItem.id));
+      } catch (err) {
+        console.warn('Error clearing old hydration break:', err);
+      }
+    }
+  }
+
+  // 3. Create the new hydration routine items
+  const createdRoutines: CustomRoutineItem[] = [];
+  const routinesRef = db ? collection(db, 'users', userId, 'custom_routines') : null;
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const newRoutineData: Omit<CustomRoutineItem, 'id'> = {
+      name: `Hydration Break (${slot.displayTime})`,
+      nameTamil: 'தண்ணீர் இடைவேளை',
+      time: slot.time,
+      voicePrompt: promptTemplate,
+      repeat: 'daily',
+      enabled: config.enabled ?? true,
+      category: 'Hydration',
+      icon: '💧',
+      isDefault: false,
+    };
+
+    let newId = `hydration_${Date.now()}_${i}`;
+    if (routinesRef) {
+      try {
+        const docRef = await addDoc(routinesRef, {
+          ...newRoutineData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        newId = docRef.id;
+      } catch (err) {
+        console.warn('Error saving hydration routine to Firestore:', err);
+      }
+    }
+
+    createdRoutines.push({
+      id: newId,
+      ...newRoutineData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  // 4. Update local storage cache optimistically
+  const mergedList = [...nonHydrationRoutines, ...createdRoutines].sort((a, b) =>
+    a.time.localeCompare(b.time)
+  );
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(mergedList));
+  } catch {
+    // Ignored
+  }
+
+  // 5. Save the generator configuration in routine_settings
+  await saveRoutineSettings(userId, {
+    hydrationInterval: config,
+  });
+
+  return createdRoutines;
+};
+
+/**
+ * Removes all auto-generated hydration routines from users/{userId}/custom_routines
+ */
+export const clearHydrationSchedule = async (userId: string): Promise<number> => {
+  if (!userId) return 0;
+
+  const cacheKey = `fit_custom_routines_${userId}`;
+  let currentRoutines: CustomRoutineItem[] = [];
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) currentRoutines = JSON.parse(cached);
+  } catch {
+    // Ignored
+  }
+
+  const hydrationItems = currentRoutines.filter(
+    (r) =>
+      r.category?.toLowerCase() === 'hydration' ||
+      r.name.toLowerCase().includes('hydration') ||
+      r.name.toLowerCase().includes('தண்ணீர்')
+  );
+
+  const retainedRoutines = currentRoutines.filter(
+    (r) =>
+      r.category?.toLowerCase() !== 'hydration' &&
+      !r.name.toLowerCase().includes('hydration') &&
+      !r.name.toLowerCase().includes('தண்ணீர்')
+  );
+
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(retainedRoutines));
+  } catch {
+    // Ignored
+  }
+
+  if (db) {
+    for (const item of hydrationItems) {
+      try {
+        await deleteDoc(doc(db, 'users', userId, 'custom_routines', item.id));
+      } catch (err) {
+        console.warn('Error deleting hydration item from Firestore:', err);
+      }
+    }
+  }
+
+  return hydrationItems.length;
 };
 
 /* ==================== FLUSH & RESET USER APP DATA ==================== */
