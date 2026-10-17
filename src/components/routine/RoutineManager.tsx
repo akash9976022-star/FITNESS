@@ -129,7 +129,11 @@ export const RoutineManager: React.FC = () => {
           targetRoutine.name.toLowerCase().includes('தண்ணீர்') ||
           targetRoutine.icon === '💧';
 
-      const phrase = buildSpokenPhrase(targetRoutine, userName);
+      const phrase = buildSpokenPhrase(
+        targetRoutine,
+        userName,
+        settingsRef.current.routineLanguage || 'tanglish'
+      );
 
       setActiveToast({
         routine: targetRoutine,
@@ -212,7 +216,11 @@ export const RoutineManager: React.FC = () => {
               item.name.toLowerCase().includes('தண்ணீர்') ||
               item.icon === '💧';
 
-            const phrase = buildSpokenPhrase(item, userName);
+            const phrase = buildSpokenPhrase(
+              item,
+              userName,
+              currentSettings.routineLanguage || 'tanglish'
+            );
 
             // Trigger floating top toast alert
             setActiveToast({

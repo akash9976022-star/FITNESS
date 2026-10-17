@@ -61,6 +61,8 @@ interface QuickSuggestion {
   icon: string;
   repeat: RoutineRepeatFrequency;
   voicePrompt: string;
+  voicePromptTamil?: string;
+  voicePromptTanglish?: string;
 }
 
 const QUICK_SUGGESTIONS: QuickSuggestion[] = [
@@ -72,6 +74,8 @@ const QUICK_SUGGESTIONS: QuickSuggestion[] = [
     icon: '🚶',
     repeat: 'daily',
     voicePrompt: '{name}, time for your morning walk! Step outside, breathe in the fresh air, and reach your step count.',
+    voicePromptTamil: '{name} ப்ரோ, வாக்கிங் போலாம் வாங்க... நல்லா காத்து வாங்கிட்டு சுறுசுறுப்பா கொஞ்சம் நடந்துட்டு வரலாம்!',
+    voicePromptTanglish: '{name} ப்ரோ, வாக்கிங் போலாம் வாங்க... வெளிய போய் ஸ்டெப்ஸை முடிச்சிடலாம்!',
   },
   {
     name: 'Post-Workout Protein',
@@ -81,6 +85,8 @@ const QUICK_SUGGESTIONS: QuickSuggestion[] = [
     icon: '🥗',
     repeat: 'daily',
     voicePrompt: '{name}, remember to drink your post-workout protein shake or have a nutritious high-protein meal.',
+    voicePromptTamil: '{name} ப்ரோ, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது சத்தான உணவை சாப்பிட மறந்துடாதீங்க!',
+    voicePromptTanglish: '{name} ப்ரோ, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது ஹை-புரோட்டீன் மீல் சாப்பிட மறந்துடாதீங்க!',
   },
   {
     name: 'Evening Meditation',
@@ -90,6 +96,8 @@ const QUICK_SUGGESTIONS: QuickSuggestion[] = [
     icon: '🧘',
     repeat: 'daily',
     voicePrompt: '{name}, time for your evening meditation session! Take deep breaths, calm your mind, and let go of stress.',
+    voicePromptTamil: '{name}, கொஞ்ச நேரம் அமைதியா உக்காந்து மெடிடேஷன் பண்ணுங்க... ஆழமா மூச்சு விட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க.',
+    voicePromptTanglish: '{name}, கொஞ்ச நேரம் அமைதியா உக்காந்து மெடிடேஷன் பண்ணுங்க... மைண்ட் நல்லா ரிலாக்ஸ் ஆகும்.',
   },
   {
     name: 'Hydration Break',
@@ -99,6 +107,8 @@ const QUICK_SUGGESTIONS: QuickSuggestion[] = [
     icon: '💧',
     repeat: 'daily',
     voicePrompt: '{name}, time for a hydration break! Drink a tall glass of fresh water to keep your body optimized.',
+    voicePromptTamil: '{name} ப்ரோ, உடனே ஒரு கிளாஸ் தண்ணி குடிங்க... பாடி நல்லா ஃப்ரெஷ்ஷா எனர்ஜியா இருக்கும்!',
+    voicePromptTanglish: '{name} ப்ரோ, உடனே ஒரு கிளாஸ் தண்ணி குடிங்க... பாடி நல்லா ஃப்ரெஷ்ஷா இருக்கும்!',
   },
   {
     name: 'Night Reading & Journal',
@@ -108,8 +118,18 @@ const QUICK_SUGGESTIONS: QuickSuggestion[] = [
     icon: '📖',
     repeat: 'daily',
     voicePrompt: 'Good evening {name}. Time for your evening reading and gratitude journaling before bed.',
+    voicePromptTamil: 'தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் அமைதியா புக் படிச்சிட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க {name}.',
+    voicePromptTanglish: 'தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் புக் படிச்சிட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க {name}.',
   },
 ];
+
+function getSuggestionPrompt(sug: QuickSuggestion, lang: VoiceLanguageMode = 'tanglish'): string {
+  if (lang === 'ta' && sug.voicePromptTamil) return sug.voicePromptTamil;
+  if (lang === 'tanglish' && (sug.voicePromptTanglish || sug.voicePromptTamil)) {
+    return sug.voicePromptTanglish || sug.voicePromptTamil!;
+  }
+  return sug.voicePrompt;
+}
 
 const AVAILABLE_ICONS = ['🌅', '🚶', '🏋️', '🌙', '💧', '🧘', '🥗', '⏰', '🍎', '🚴', '📖', '💊', '🥑', '🏃', '🎯'];
 
@@ -199,12 +219,25 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
   // Open Modal in Create Mode
   const handleOpenAddModal = () => {
     setEditingRoutine(null);
-    setFormName('');
     setFormTime('07:00');
     setFormRepeat('daily');
-    setFormPrompt('{name}, time for your scheduled routine!');
-    setFormIcon('⏰');
-    setFormCategory('Custom');
+    const lang = settings.routineLanguage || 'tanglish';
+    if (lang === 'ta') {
+      setFormName('காலை நடைப்பயிற்சி');
+      setFormPrompt('{name} ப்ரோ, வாக்கிங் போலாம் வாங்க... நல்லா காத்து வாங்கிட்டு சுறுசுறுப்பா கொஞ்சம் நடந்துட்டு வரலாம்!');
+      setFormCategory('Cardio');
+      setFormIcon('🚶');
+    } else if (lang === 'tanglish') {
+      setFormName('Morning Walk');
+      setFormPrompt('{name} ப்ரோ, வாக்கிங் போலாம் வாங்க... வெளிய போய் ஸ்டெப்ஸை முடிச்சிடலாம்!');
+      setFormCategory('Cardio');
+      setFormIcon('🚶');
+    } else {
+      setFormName('Morning Walk');
+      setFormPrompt('{name}, time for your morning walk! Step outside, breathe in the fresh air, and reach your step count.');
+      setFormCategory('Cardio');
+      setFormIcon('🚶');
+    }
     setIsModalOpen(true);
   };
 
@@ -214,7 +247,14 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     setFormName(item.name);
     setFormTime(item.time);
     setFormRepeat(item.repeat || 'daily');
-    setFormPrompt(item.voicePrompt || `{name}, time for your scheduled ${item.name}!`);
+    const lang = settings.routineLanguage || 'tanglish';
+    const hasTamilGlyphs = /[\u0B80-\u0BFF]/.test(item.voicePrompt || '');
+    // If user's active language is Tamil or Tanglish, but stored routine was English, adapt it to active language
+    if ((lang === 'ta' || lang === 'tanglish') && !hasTamilGlyphs) {
+      setFormPrompt(buildSpokenPhrase(item, '{name}', lang));
+    } else {
+      setFormPrompt(item.voicePrompt || buildSpokenPhrase(item, '{name}', lang));
+    }
     setFormIcon(item.icon || '⏰');
     setFormCategory(item.category || 'Custom');
     setIsModalOpen(true);
@@ -222,10 +262,11 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
 
   // Quick fill suggestion
   const handleApplySuggestion = (sug: QuickSuggestion) => {
-    setFormName(sug.name);
+    const lang = settings.routineLanguage || 'tanglish';
+    setFormName(lang === 'ta' && sug.nameTamil ? sug.nameTamil : sug.name);
     setFormTime(sug.time);
     setFormRepeat(sug.repeat);
-    setFormPrompt(sug.voicePrompt);
+    setFormPrompt(getSuggestionPrompt(sug, lang));
     setFormIcon(sug.icon);
     setFormCategory(sug.category);
   };
@@ -1472,13 +1513,46 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
 
                 {/* 5. Custom Spoken Voice Prompt */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                       Spoken Voice Reminder Prompt
                     </label>
-                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
-                      Use {'{name}'} for personalized name
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-slate-400">Fill in:</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormPrompt(
+                            buildSpokenPhrase({ name: formName || 'Routine', category: formCategory }, '{name}', 'en')
+                          )
+                        }
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500 hover:text-white transition"
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormPrompt(
+                            buildSpokenPhrase({ name: formName || 'ரொட்டீன்', category: formCategory }, '{name}', 'ta')
+                          )
+                        }
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500 hover:text-white transition"
+                      >
+                        தமிழ்
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormPrompt(
+                            buildSpokenPhrase({ name: formName || 'Routine', category: formCategory }, '{name}', 'tanglish')
+                          )
+                        }
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500 hover:text-white transition"
+                      >
+                        Tanglish
+                      </button>
+                    </div>
                   </div>
                   <textarea
                     rows={2}
@@ -1491,7 +1565,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                   {/* Spoken Preview Box & Voice Test */}
                   <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-between gap-3">
                     <div className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-2">
-                      🗣️ "{buildSpokenPhrase({ name: formName || 'Routine', voicePrompt: formPrompt }, firstName)}"
+                      🗣️ "{buildSpokenPhrase({ name: formName || 'Routine', voicePrompt: formPrompt }, firstName, settings.routineLanguage || 'tanglish')}"
                     </div>
                     <button
                       type="button"

@@ -101,7 +101,7 @@ export function buildConversationalOfflinePillars(
   if (summary.workoutCompleted) {
     const workoutLabel = summary.workoutNames?.[0] || "today's session";
     achEn.push(`You absolutely crushed ${workoutLabel}! Showing up and putting in the hard work... that's how champions are made.`);
-    achTa.push(`இன்னைக்கு ஒர்க்அவுட்டை வேற லெவல்ல முடிச்சிருக்கீங்க! சோம்பேறித்தனம் படாம போய் உடற்பயிற்சி பண்ணதே செம கெத்து.`);
+    achTa.push(`இன்னைக்கு ஒர்க்அவுட்டை வேற லெவல்ல முடிச்சிருக்கீங்க! சோம்பேறித்தனம் பாக்காம போய் ஜிம்ல மாஸ் காட்டிட்டீங்க, செம கெத்து ப்ரோ!`);
     achTanglish.push(
       { lang: 'en-IN', text: `Hey ${firstName}! Honestly, great job crushing your workout today!` },
       { lang: 'ta-IN', text: `ஒர்க்அவுட் வேற லெவல் ப்ரோ, உண்மையாவே சூப்பரா பண்ணிருக்கீங்க!` }
@@ -110,16 +110,16 @@ export function buildConversationalOfflinePillars(
 
   if (summary.waterPercent >= 80) {
     achEn.push(`Hydration was spot on... over ${summary.waterMl} milliliters logged! Your muscles and brain are thanking you.`);
-    achTa.push(`தண்ணீர் அளவும் பக்காவா மெயின்டெய்ன் பண்ணிருக்கீங்க. உடம்பு நல்லா ஹைட்ரேட்டடா இருந்தா தான் எனர்ஜி கூடும்.`);
+    achTa.push(`தண்ணீரும் கரெக்டா குடிச்சு உடம்பை ஃப்ரெஷ்ஷா வச்சிருக்கீங்க. உடம்புல தண்ணி நல்லா இருந்தா தான் எனர்ஜி கூடும்!`);
     achTanglish.push(
       { lang: 'en-IN', text: `And hydration was on point with ${summary.waterMl} ml logged!` },
-      { lang: 'ta-IN', text: `தண்ணீர் கரெக்டா குடிச்சிருக்கீங்க, உடம்பு நல்லா பிரெஷ்ஷா இருக்கும்.` }
+      { lang: 'ta-IN', text: `தண்ணீர் கரெக்டா குடிச்சிருக்கீங்க, பாடி நல்லா ஃப்ரெஷ்ஷா இருக்கும்.` }
     );
   }
 
   if (summary.streakCount > 1) {
     achEn.push(`Your consistency streak is now locked at ${summary.streakCount} days! That's real dedication, ${firstName}.`);
-    achTa.push(`தொடர்ந்து ${summary.streakCount} நாள் ஸ்ட்ரீக் மெயின்டெய்ன் பண்ணிருக்கீங்க! இந்த கட்டுப்பாடு தான் உங்களை அடுத்த கட்டத்துக்கு கொண்டு போகும்.`);
+    achTa.push(`ஸ்ட்ரீக் வேற தொடர்ந்து ${summary.streakCount} நாளா போயிட்டே இருக்கு! இந்த விடாமுயற்சியை மட்டும் விட்றாதீங்க.`);
     achTanglish.push(
       { lang: 'en-IN', text: `Your streak is locked at ${summary.streakCount} days straight.` },
       { lang: 'ta-IN', text: `இந்த விடாமுயற்சி தான் ப்ரோ நிஜமான வெற்றி!` }
@@ -128,7 +128,7 @@ export function buildConversationalOfflinePillars(
 
   if (achEn.length === 0) {
     achEn.push(`You showed up for your nightly review... and showing up for honest accountability is where real transformation starts.`);
-    achTa.push(`இன்னைக்கு இந்த இரவு ரிவ்யூக்கு வந்து நின்னதே நல்ல தொடக்கம்தான். இந்த சுய ஒழுக்கம் தான் நாளைய மாற்றத்துக்கு விதை.`);
+    achTa.push(`இன்னைக்கு இந்த நைட் ரிவ்யூக்கு வந்து நின்னதே நல்ல விஷயம்தான். இந்த சுய ஒழுக்கம் தான் உங்களை மாத்தும்.`);
     achTanglish.push(
       { lang: 'en-IN', text: `Hey ${firstName}, good to see you showing up for your nightly debrief!` },
       { lang: 'ta-IN', text: `இன்னைக்கு வந்து ரிவ்யூ பண்றதே நல்ல சுய கட்டுப்பாடு தான்.` }
@@ -144,27 +144,27 @@ export function buildConversationalOfflinePillars(
   if (!summary.workoutCompleted) {
     escapedScold = false;
     scoldEn.push(`Now listen bro... you skipped your workout today! There were twenty-four full hours on the clock, and you couldn't dedicate forty-five minutes to your own health? Excuses don't build muscle!`);
-    scoldTa.push(`இப்ப விஷயத்துக்கு வருவோம் ${firstName}... இன்னைக்கு ஒர்க்அவுட்டை சுத்தமா விட்டுட்டீங்க! நாள் முழுக்க இருபத்து நான்கு மணி நேரம் இருந்துச்சு, உடம்பை பார்த்துக்க ஒரு முக்கால் மணி நேரம் ஒதுக்க முடியலையா? சாக்குபோக்கு சொன்னா உடம்பு ஏறாது ப்ரோ!`);
+    scoldTa.push(`இப்ப விஷயத்துக்கு வருவோம் ${firstName}... இன்னைக்கு ஒர்க்அவுட்டுக்கு போகாம எஸ்கேப் ஆயிட்டீங்க! நாள் முழுக்க என்ன பண்ணீங்க? உடம்பை பாத்துக்க ஒரு அரை மணி நேரம் கூட ஒதுக்க முடியலையா? சாக்குபோக்கு சொன்னா உடம்பு ஏறாது, இது சுத்த சோம்பேறித்தனம் ப்ரோ!`);
     scoldTanglish.push(
       { lang: 'en-IN', text: `Now for the hard truth, ${firstName}. You skipped your workout today!` },
-      { lang: 'ta-IN', text: `நாள் முழுக்க டைம் இருந்துச்சு, ஆனா உடற்பயிற்சி பண்ண ஒரு நாற்பது நிமிஷம் ஒதுக்க முடியலையா? சாக்குபோக்கு சொன்னா உடம்பு ஏறாது!` }
+      { lang: 'ta-IN', text: `நாள் முழுக்க டைம் இருந்துச்சு, ஆனா ஒர்க்அவுட் பண்ண ஒரு அரை மணி நேரம் ஒதுக்க முடியலையா? சாக்குபோக்கு சொன்னா உடம்பு ஏறாது!` }
     );
   }
 
   if (summary.waterPercent < 60) {
     escapedScold = false;
     scoldEn.push(`And what happened to your water intake? Barely ${summary.waterMl} ml logged! How do you expect your muscles to recover when you're dehydrating your body?`);
-    scoldTa.push(`அப்புறம் இந்த தண்ணீர் விஷயம்... வெறும் ${summary.waterMl} மில்லி தான் குடிச்சிருக்கீங்க! தாகம் எடுக்கும் போது மட்டும் தண்ணி குடிக்கிறது தப்பு, உடம்புல நீர்ச்சத்து இல்லாம மசில் எப்படி வளரும்?`);
+    scoldTa.push(`அப்புறம் இந்த தண்ணி குடிக்கிற விஷயம்... வெறும் ${summary.waterMl} மில்லி தான் குடிச்சிருக்கீங்க! உடம்புல தண்ணி இல்லாம மசில் எப்படி வளரும்? நாளைக்கு ஒழுங்கா தண்ணி குடிக்கணும், சரியா?`);
     scoldTanglish.push(
       { lang: 'en-IN', text: `And what's with your water intake? Barely ${summary.waterMl} ml logged!` },
-      { lang: 'ta-IN', text: `கொஞ்சம் கூட தண்ணி குடிக்கல, உடம்புல நீர்ச்சத்து இல்லாம தசை எப்படி தேறும்? நாளைக்கு இப்படி விடக்கூடாது, சரியா?` }
+      { lang: 'ta-IN', text: `கொஞ்சம் கூட தண்ணி குடிக்கல, உடம்புல தண்ணி இல்லாம தசை எப்படி தேறும்? நாளைக்கு இப்படி விடக்கூடாது, சரியா?` }
     );
   }
 
   if (summary.steps < 4000 && summary.steps > 0) {
     escapedScold = false;
     scoldEn.push(`Only ${summary.steps.toLocaleString()} steps today? You basically lived in your chair. Sedentary habits destroy metabolic momentum.`);
-    scoldTa.push(`இன்னைக்கு வெறும் ${summary.steps.toLocaleString()} அடிகள் தானா? நாற்காலியிலேயே உட்கார்ந்து நாளை கழிச்சுட்டீங்களா? கொஞ்சம் எந்திரிச்சு நடங்க ப்ரோ!`);
+    scoldTa.push(`இன்னைக்கு வெறும் ${summary.steps.toLocaleString()} ஸ்டெப்ஸ் தானா? சேர்லயே உட்கார்ந்து நாளை கழிச்சுட்டீங்களா? வாக்கிங் போகாம சோம்பேறியா இருந்தா எப்படி? கொஞ்சம் எந்திரிச்சு நடங்க ப்ரோ!`);
     scoldTanglish.push(
       { lang: 'en-IN', text: `Only ${summary.steps.toLocaleString()} steps today? You were glued to your chair all day bro!` },
       { lang: 'ta-IN', text: `வாக்கிங்கும் சுத்தமா போகல, கொஞ்சம் எந்திரிச்சு நடந்து ஆக்டிவா இருங்க!` }
@@ -173,7 +173,7 @@ export function buildConversationalOfflinePillars(
 
   if (escapedScold) {
     scoldEn.push(`Honestly ${firstName}... you hit all your major targets today! You escaped a scolding tonight. Keep this exact fire burning tomorrow!`);
-    scoldTa.push(`உண்மையாவே சொல்லணும்னா ${firstName}... இன்னைக்கு எல்லா டார்கெட்டையும் பக்காவா முடிச்சிட்டீங்க! இன்னைக்கு என் கிட்ட திட்டு வாங்காம தப்பிச்சிட்டீங்க. இதே உத்வேகத்தோட நாளைக்கும் தொடரணும், சரியா?`);
+    scoldTa.push(`உண்மையை சொல்லனும்னா ${firstName}... இன்னைக்கு எல்லா டார்கெட்டையும் பக்காவா முடிச்சுட்டீங்க! இன்னைக்கு என்கிட்ட திட்டு வாங்காம எஸ்கேப் ஆயிட்டீங்க. இதே வேகத்தோட நாளைக்கும் கலக்கணும், சரியா?`);
     scoldTanglish.push(
       { lang: 'en-IN', text: `Honestly ${firstName}, you hit all your main targets today!` },
       { lang: 'ta-IN', text: `இன்னைக்கு என் கிட்ட திட்டு வாங்காம தப்பிச்சிட்டீங்க! இதே வேகத்தோட நாளைக்கும் கலக்கணும்.` }
@@ -182,7 +182,7 @@ export function buildConversationalOfflinePillars(
 
   // 3. TOMORROW RESET (MOTIVATION)
   const motEn = `Tomorrow is a brand new page, ${firstName}. When that alarm goes off at 6:00 AM, hit the ground running with zero excuses. Hydrate early, lock into your nutrition, and let's dominate the day!`;
-  const motTa = `நாளைக்கு ஒரு புத்தம் புதிய நாள் ${firstName}. காலைல ஆறு மணிக்கு அலாரம் அடிக்கும் போது, ஒரு நொடி கூட யோசிக்காம எந்திரிங்க. முதல்ல தண்ணி குடிங்க, ஒர்க்அவுட்டை ஒழுங்கா பண்ணுங்க... நாளைக்கு நம்ம நாள்!`;
+  const motTa = `சரி ${firstName}, இன்னைக்கு நடந்தது முடிஞ்சு போச்சு! நாளைக்கு ஒரு புது நாளு... காலைல ஆறு மணிக்கு அலாரம் அடிச்சதும் சோம்பேறித்தனம் பாக்காம சட்டுனு எந்திரிங்க! எந்திரிச்சு ஒரு கிளாஸ் தண்ணி குடிச்சிட்டு, வெறித்தனமா களத்துல இறங்குங்க... நாளைக்கு நம்ம டே!`;
   const motTanglish: SpokenChunk[] = [
     { lang: 'en-IN', text: `Tomorrow is a brand new clean slate, ${firstName}.` },
     { lang: 'ta-IN', text: `காலைல அலாரம் அடிச்சதும் சோம்பேறித்தனம் படாம எந்திரிங்க, நாளைக்கு முழு எனர்ஜியோட கலக்கலாம்!` },
@@ -191,7 +191,7 @@ export function buildConversationalOfflinePillars(
 
   // 4. SCREEN-OFF WIND-DOWN
   const windEn = `Alright, debrief complete. It is time for sleep blackout protocol. Put your phone away, dim the lights, and let your body recover with deep restorative sleep. Goodnight!`;
-  const windTa = `சரி, இன்னைய ரிவ்யூ முடிஞ்சுது. இனி தூங்குற நேரம்... போனை ஒரு ஓரமா வச்சிட்டு, மனசை அமைதியாக்கி நிம்மதியா தூங்குங்க. உடம்பு நல்லா ரெஸ்ட் எடுத்தா தான் நாளைக்கு பவர்ஃபுல்லா இருக்க முடியும். குட் நைட்!`;
+  const windTa = `மணி ஆச்சு ப்ரோ... முதல்ல போனை ஓரமா வையிங்க! இந்த ரீல்ஸ் பாக்குற வேலையெல்லாம் அப்புறம் பாத்துக்கலாம். ஸ்க்ரீன் இப்பவே ஆஃப் ஆகுது. கண்ணை மூடி நிம்மதியா தூங்குங்க... நல்லா தூங்கினா தான் உடம்பு தேறும். குட் நைட் ${firstName}, நாளைக்கு பாப்போம்!`;
   const windTanglish: SpokenChunk[] = [
     { lang: 'en-IN', text: `Alright, review is done. Time for screen-off sleep blackout.` },
     { lang: 'ta-IN', text: `போனை ஓரமா வச்சிட்டு நிம்மதியா தூங்குங்க. உடம்பு நல்லா ரெஸ்ட் எடுத்தா தான் நாளைக்கு பவர்ஃபுல்லா இருக்க முடியும்.` },
@@ -201,7 +201,7 @@ export function buildConversationalOfflinePillars(
   return {
     achievements: {
       en: `Good evening ${firstName}! Let's review what you accomplished today. ${achEn.join(' ')}`,
-      ta: `வணக்கம் ${firstName}! இன்னைக்கு நீங்க என்னெல்லாம் சாதிச்சிருக்கீங்கனு பார்ப்போம். ${achTa.join(' ')}`,
+      ta: `ஹலோ ${firstName} ப்ரோ! இன்னைக்கு நீங்க என்னெல்லாம் கலக்கிருக்கீங்கனு பாக்கலாமா? ${achTa.join(' ')}`,
       tanglish: achTanglish,
     },
     scold: {
@@ -376,111 +376,110 @@ export function getConversationalRoutinePhrase(
       return { lang: 'en', text: `Hey ${firstName}, it is time for your morning walk! Step outside, breathe in the fresh air, and let's get those steps in.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `ஹாய் ${firstName}, காலை நடைப்பயிற்சி போக வேண்டிய நேரம் வந்துடுச்சு! வெளிய போய் நல்ல காத்து வாங்கிட்டு, நடை இலக்கை முடிச்சிடலாம் வாங்க!` };
+      return { lang: 'ta', text: `ஹலோ ${firstName} ப்ரோ! வாக்கிங் போலாம் வாங்க... வெளிய போய் நல்ல காத்து வாங்கிட்டு, சுறுசுறுப்பா கொஞ்சம் நடந்துட்டு வரலாம்!` };
     }
     // Tanglish: Spoken colloquial Tamil with modern fitness loan words
     return {
       lang: 'ta',
-      text: `ஹாய் ${firstName}! மார்னிங் வாக்கிங் போக வேண்டிய டைம் வந்துடுச்சு! வெளிய போய் நல்ல காத்து வாங்கிட்டு, ஸ்டெப்ஸ் டார்கெட்டை முடிச்சிடலாம் வாங்க!`,
+      text: `ஹலோ ${firstName} ப்ரோ! வாக்கிங் போலாம் வாங்க... வெளிய போய் நல்ல காத்து வாங்கிட்டு, ஸ்டெப்ஸை முடிச்சிடலாம்!`,
     };
   }
 
   // 2. WORKOUT / STRENGTH / EXERCISE
   if (typeLower.includes('workout') || typeLower.includes('exercise') || typeLower.includes('gym') || typeLower.includes('strength')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `${firstName}, it is workout time! Let's hit your sets with good form and stay consistent with your goals.` };
+      return { lang: 'en', text: `${firstName}, it is workout time! Put your gear on, hit your sets with good form, and stay consistent.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `${firstName}, உடற்பயிற்சி நேரம் ஆரம்பிச்சிடுச்சு! சோம்பேறித்தனம் படாம போய் உடற்பயிற்சியை முடிங்க, அப்பதான் உடம்பு நல்லா பிட்டா இருக்கும்!` };
+      return { lang: 'ta', text: `${firstName} ப்ரோ, ஒர்க்அவுட் பண்ண கிளம்புங்க! சோம்பேறித்தனம் பாக்காம போய் செட்ஸை வெறித்தனமா முடிங்க!` };
     }
     // Tanglish
     return {
       lang: 'ta',
-      text: `${firstName} ப்ரோ, ஒர்க்அவுட் டைம் ஆரம்பிச்சிடுச்சு! சோம்பேறித்தனம் படாம போய் செட்ஸை முடிங்க, அப்பதான் உடம்பு நல்லா பிட்டா இருக்கும்!`,
+      text: `${firstName} ப்ரோ, ஒர்க்அவுட் டைம் ஆச்சு! சோம்பேறித்தனம் பாக்காம போய் செட்ஸை வெறித்தனமா முடிங்க!`,
     };
   }
 
   // 3. HYDRATION / WATER
   if (typeLower.includes('hydration') || typeLower.includes('water') || typeLower.includes('தண்ணீர்')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `${firstName}, quick hydration check! Drink a fresh glass of water right now to stay fresh and energized.` };
+      return { lang: 'en', text: `${firstName}, quick water break! Drink a fresh glass of water right now to stay fresh and energized.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `${firstName}, உடனே ஒரு டம்ளர் தண்ணி குடிங்க! உடம்புல நீர்ச்சத்து குறையாம பார்த்துக்கோங்க, அப்பதான் புத்துணர்ச்சியா இருக்கும்!` };
+      return { lang: 'ta', text: `ஹலோ ${firstName} ப்ரோ! உடனே ஒரு கிளாஸ் தண்ணி குடிங்க... அப்பதான் உடம்பு நல்லா ஃப்ரெஷ்ஷா எனர்ஜியா இருக்கும்!` };
     }
     // Tanglish
     return {
       lang: 'ta',
-      text: `${firstName}, குயிக் ஹைட்ரேஷன் பிரேக்! உடனே ஒரு கிளாஸ் தண்ணி குடிங்க, பாடி நல்லா பிரெஷ்ஷா எனர்ஜியா இருக்கும்!`,
+      text: `${firstName} ப்ரோ, குயிக் வாட்டர் பிரேக்! உடனே ஒரு கிளாஸ் தண்ணி குடிங்க, பாடி நல்லா ஃப்ரெஷ்ஷா இருக்கும்!`,
     };
   }
 
   // 4. BEDTIME / SLEEP / NIGHT
   if (typeLower.includes('bed') || typeLower.includes('sleep') || typeLower.includes('night') || typeLower.includes('தூக்கம்')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `Good evening ${firstName}. Time for your bedtime routine. Put your phone away, dim the lights, and enjoy deep restorative sleep.` };
+      return { lang: 'en', text: `Good evening ${firstName}. Time to wrap up and sleep. Put your phone away, dim the lights, and get some deep restorative rest.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `இரவு வணக்கம் ${firstName}. தூங்க வேண்டிய நேரம் வந்துடுச்சு. போனை ஒரு ஓரமா வச்சிட்டு, மனசை அமைதியாக்கி நிம்மதியா தூங்குங்க.` };
+      return { lang: 'ta', text: `மணி ஆச்சு ${firstName} ப்ரோ! போனை ஓரமா வச்சிட்டு நிம்மதியா தூங்குங்க... நல்லா தூங்கினா தான் உடம்பு தேறும். குட் நைட்!` };
     }
     // Tanglish
     return {
       lang: 'ta',
-      text: `குட் ஈவினிங் ${firstName}! தூங்க வேண்டிய டைம் வந்துடுச்சு. போனை ஓரமா வச்சிட்டு, நிம்மதியா தூங்கி பாடியை ரீசார்ஜ் பண்ணுங்க!`,
+      text: `மணி ஆச்சு ${firstName} ப்ரோ! போனை ஓரமா வச்சிட்டு தூங்குங்க... நல்லா தூங்கினா தான் நாளைக்கு எனர்ஜியா இருக்க முடியும். குட் நைட்!`,
     };
   }
 
   // 5. MEDITATION / MINDFULNESS
   if (typeLower.includes('meditation') || typeLower.includes('mindful') || typeLower.includes('தியானம்')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `${firstName}, time for your evening meditation session! Take deep breaths, calm your mind, and let go of stress.` };
+      return { lang: 'en', text: `${firstName}, time for a few minutes of meditation. Take a few deep breaths, calm your mind, and let go of stress.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `${firstName}, தியானம் செய்ய வேண்டிய நேரம் வந்துடுச்சு! ஆழமா மூச்சு விட்டு மனசை அமைதிப்படுத்துங்க.` };
+      return { lang: 'ta', text: `${firstName}, கொஞ்ச நேரம் அமைதியா உக்காந்து மெடிடேஷன் பண்ணுங்க... ஆழமா மூச்சு விட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க.` };
     }
     // Tanglish
     return {
       lang: 'ta',
-      text: `${firstName}, மெடிடேஷன் டைம் வந்துடுச்சு! நல்லா டீப் பிரீத் எடுத்து மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க!`,
-    };
+      text: `${firstName}, கொஞ்ச நேரம் அமைதியா உக்காந்து மெடிடேஷன் பண்ணுங்க... மைண்ட் நல்லா ரிலாக்ஸ் ஆகும்.` };
   }
 
   // 6. NUTRITION / PROTEIN MEAL
   if (typeLower.includes('protein') || typeLower.includes('nutrition') || typeLower.includes('meal') || typeLower.includes('salad') || typeLower.includes('டயட்')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `${firstName}, remember to drink your post-workout protein shake or have a nutritious high-protein meal.` };
+      return { lang: 'en', text: `${firstName}, remember to drink your protein shake or have your high-protein meal to rebuild muscle.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `${firstName}, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது சத்தான புரோட்டீன் உணவை சாப்பிட மறந்துடாதீங்க!` };
+      return { lang: 'ta', text: `${firstName}, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது நல்ல சத்தான உணவை சாப்பிட மறந்துடாதீங்க ப்ரோ!` };
     }
     // Tanglish
     return {
       lang: 'ta',
-      text: `${firstName}, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது ஹை-புரோட்டீன் மீல் சாப்பிட மறந்துடாதீங்க!`,
+      text: `${firstName}, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது ஹை-புரோட்டீன் மீல் சாப்பிட மறந்துடாதீங்க ப்ரோ!`,
     };
   }
 
   // 7. READING / JOURNAL
   if (typeLower.includes('read') || typeLower.includes('journal') || typeLower.includes('book') || typeLower.includes('வாசிப்பு')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `Good evening ${firstName}. Time for your evening reading and gratitude journaling before bed.` };
+      return { lang: 'en', text: `Good evening ${firstName}. Take a few peaceful minutes for reading and gratitude before sleeping.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `இரவு வணக்கம் ${firstName}. தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் புத்தகம் படிச்சிட்டு அமைதியா தூங்குங்க.` };
+      return { lang: 'ta', text: `தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் அமைதியா புக் படிச்சிட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க ${firstName}.` };
     }
     // Tanglish
     return {
       lang: 'ta',
-      text: `குட் ஈவினிங் ${firstName}! தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் புக் படிச்சிட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க.`,
+      text: `தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் புக் படிச்சிட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க ${firstName}.`,
     };
   }
 
   // 8. WAKE-UP (Default)
   if (mode === 'en') {
-    return { lang: 'en', text: `Good morning ${firstName}! Time to wake up, drink a tall glass of water, and start your day energized. Have a great day!` };
+    return { lang: 'en', text: `Good morning ${firstName}! Time to wake up, drink a tall glass of water, and dominate the day!` };
   }
   if (mode === 'ta') {
-    return { lang: 'ta', text: `காலை வணக்கம் ${firstName}! சீக்கிரம் எந்திரிங்க, முதல்ல ஒரு டம்ளர் தண்ணி குடிச்சிட்டு இன்னைக்கு நாளை புத்துணர்ச்சியோட ஸ்டார்ட் பண்ணலாம்!` };
+    return { lang: 'ta', text: `டேய் ${firstName}! மணி ஆச்சு ப்ரோ, சீக்கிரம் எந்திரிங்க... முதல்ல ஒரு கிளாஸ் தண்ணி குடிச்சிட்டு இன்னைக்கு நாளை வெறித்தனமா ஸ்டார்ட் பண்ணலாம்!` };
   }
   // Tanglish
   return {

@@ -152,33 +152,56 @@ export function buildSpokenPhrase(
 
   const prompt = routine.voicePrompt?.trim() || '';
   const category = routine.category || routine.name;
+  const hasTamilGlyphs = /[\u0B80-\u0BFF]/.test(prompt);
 
-  // If user selected Tamil or Tanglish, but prompt is empty or default English placeholder,
-  // return the rich colloquial Tamil / Tanglish phrase!
-  const isDefaultEnglishPrompt =
-    !prompt ||
-    /time for your morning walk/i.test(prompt) ||
-    /time for your scheduled/i.test(prompt) ||
-    /hydration break/i.test(prompt) ||
-    /drink a glass of water/i.test(prompt) ||
-    /protein shake/i.test(prompt) ||
-    /evening meditation/i.test(prompt) ||
-    /bedtime routine/i.test(prompt) ||
-    /scheduled routine/i.test(prompt);
+  // If user selected Tamil or Tanglish, but prompt has no Tamil glyphs (e.g. English custom prompt),
+  // return the authentic colloquial Pechu Tamil / Tanglish phrase!
+  if ((mode === 'ta' || mode === 'tanglish') && !hasTamilGlyphs) {
+    const catLower = `${category} ${routine.name || ''}`.toLowerCase();
+    const isKnown =
+      catLower.includes('walk') || catLower.includes('cardio') || catLower.includes('steps') ||
+      catLower.includes('workout') || catLower.includes('exercise') || catLower.includes('gym') ||
+      catLower.includes('hydration') || catLower.includes('water') || catLower.includes('தண்ணீர்') ||
+      catLower.includes('bed') || catLower.includes('sleep') || catLower.includes('night') ||
+      catLower.includes('meditation') || catLower.includes('mindful') ||
+      catLower.includes('protein') || catLower.includes('nutrition') || catLower.includes('meal') ||
+      catLower.includes('read') || catLower.includes('journal') || catLower.includes('book');
 
-  if ((mode === 'ta' || mode === 'tanglish') && isDefaultEnglishPrompt) {
-    return getConversationalRoutinePhrase(category, cleanedName, mode).text;
-  }
-
-  if (mode === 'en' && isDefaultEnglishPrompt) {
-    return getConversationalRoutinePhrase(category, cleanedName, 'en').text;
-  }
-
-  if (prompt) {
-    if (/{name}/i.test(prompt)) {
-      return prompt.replace(/{name}/gi, cleanedName);
+    if (isKnown) {
+      return getConversationalRoutinePhrase(category, cleanedName, mode).text;
     }
-    return `${cleanedName}, ${prompt}`;
+
+    const title = routine.name || 'ரொட்டீன்';
+    if (mode === 'ta') {
+      return `${cleanedName} ப்ரோ, உங்க ${title} நேரம் வந்துடுச்சு... ஆரம்பிக்கலாம் வாங்க!`;
+    }
+    return `${cleanedName} ப்ரோ, உங்க ${title} டைம் வந்துடுச்சு... லெட்ஸ் டூ இட்!`;
+  }
+
+  // If user selected English mode
+  if (mode === 'en') {
+    if (!prompt || hasTamilGlyphs) {
+      const catLower = `${category} ${routine.name || ''}`.toLowerCase();
+      const isKnown =
+        catLower.includes('walk') || catLower.includes('cardio') || catLower.includes('steps') ||
+        catLower.includes('workout') || catLower.includes('exercise') || catLower.includes('gym') ||
+        catLower.includes('hydration') || catLower.includes('water') ||
+        catLower.includes('bed') || catLower.includes('sleep') || catLower.includes('night') ||
+        catLower.includes('meditation') || catLower.includes('mindful') ||
+        catLower.includes('protein') || catLower.includes('nutrition') || catLower.includes('meal') ||
+        catLower.includes('read') || catLower.includes('journal') || catLower.includes('book');
+
+      if (isKnown) {
+        return getConversationalRoutinePhrase(category, cleanedName, 'en').text;
+      }
+      return `${cleanedName}, it is time for your scheduled ${routine.name || 'routine'}!`;
+    }
+    return prompt.replace(/{name}/gi, cleanedName);
+  }
+
+  // User provided custom Tamil prompt
+  if (prompt) {
+    return prompt.replace(/{name}/gi, cleanedName);
   }
 
   return getConversationalRoutinePhrase(category, cleanedName, mode).text;

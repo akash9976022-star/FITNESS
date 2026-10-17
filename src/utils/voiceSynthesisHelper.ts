@@ -92,28 +92,28 @@ export function getBestNaturalVoice(
   if (!voices || voices.length === 0) return null;
 
   if (lang === 'ta') {
-    // 1. Natural / Neural Online Tamil: Google தமிழ், Microsoft Pallavi Online, Microsoft Valluvar Online
+    // 1. Natural / Neural Online Tamil: Google தமிழ், Microsoft Pallavi Online (Natural), Microsoft Valluvar Online (Natural)
     const topTamil = voices.find((v) => {
       const n = v.name.toLowerCase();
       const l = v.lang.toLowerCase().replace('_', '-');
       const isTa = l.startsWith('ta') || n.includes('tamil') || n.includes('தமிழ்');
-      return (
-        isTa &&
-        (n.includes('google') ||
-         n.includes('pallavi') ||
-         n.includes('valluvar') ||
-         n.includes('natural') ||
-         n.includes('neural') ||
-         n.includes('online'))
-      );
+      const isNaturalOnline =
+        n.includes('google') ||
+        n.includes('pallavi') ||
+        n.includes('natural') ||
+        n.includes('neural') ||
+        n.includes('online');
+      const isRoboticDesktop = n.includes('desktop') || n.includes('sapi');
+      return isTa && isNaturalOnline && !isRoboticDesktop;
     });
     if (topTamil) return topTamil;
 
-    // 2. Exact ta-IN / ta-LK or any Tamil voice
+    // 2. Exact ta-IN / ta-LK or any Tamil voice (strictly excluding robotic SAPI 5 / Desktop voices)
     const anyTa = voices.find((v) => {
       const l = v.lang.toLowerCase().replace('_', '-');
       const n = v.name.toLowerCase();
-      return (l.startsWith('ta') || n.includes('tamil') || n.includes('தமிழ்')) && !n.includes('english');
+      const isRoboticDesktop = n.includes('desktop') || n.includes('sapi') || n.includes('valluvar desktop');
+      return (l.startsWith('ta') || n.includes('tamil') || n.includes('தமிழ்')) && !n.includes('english') && !isRoboticDesktop;
     });
     if (anyTa) return anyTa;
 
@@ -202,10 +202,10 @@ export function splitIntoSentences(text: string): string[] {
 }
 
 /**
- * Safely splits any text into natural conversational chunks of <= 65 characters.
- * Ensures Google Neural TTS never hits HTTP 400 Bad Request query length limits.
+ * Safely splits any text into natural conversational chunks of <= 80 characters.
+ * Ensures Google Neural TTS maintains fluent cadence without mid-clause fragmentation.
  */
-export function splitIntoSafeTTSChunks(text: string, maxChars: number = 65): string[] {
+export function splitIntoSafeTTSChunks(text: string, maxChars: number = 80): string[] {
   if (!text) return [];
   const trimmed = text.trim();
   if (trimmed.length <= maxChars) return [trimmed];
@@ -273,10 +273,20 @@ function playSingleGoogleNeuralTTS(
     }
 
     const ttsLang = lang === 'ta' ? 'ta' : 'en-IN';
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(trimmed)}&tl=${ttsLang}&client=tw-ob`;
+    // Use client=gtx for direct, high-fidelity audio stream with zero HTTP 404/403 blocks
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(trimmed)}&tl=${ttsLang}&client=gtx`;
 
-    const audio = new Audio();
+    const audio = typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
+    // Suppress referer header to comply with Google TTS origin policy
+    try {
+      (audio as any).referrerPolicy = 'no-referrer';
+      if ('setAttribute' in audio) {
+        audio.setAttribute('referrerpolicy', 'no-referrer');
+      }
+    } catch {}
     audio.preload = 'auto';
+    // Human conversational playback speed: 1.08x for fluid Tamil cadence, 1.04x for natural English
+    audio.playbackRate = lang === 'ta' ? 1.08 : 1.04;
     activeAudio = audio;
 
     let timeout: any = null;
@@ -292,14 +302,14 @@ function playSingleGoogleNeuralTTS(
       }
     };
 
-    // Watchdog timeout (6s per short chunk)
+    // Watchdog timeout (4.5s per short chunk)
     timeout = setTimeout(() => {
       if (!hasEnded) {
         hasEnded = true;
         cleanup();
         resolve(false);
       }
-    }, 6000);
+    }, 4500);
 
     audio.onplaying = () => {
       if (timeout) {
@@ -327,6 +337,8 @@ function playSingleGoogleNeuralTTS(
     };
 
     audio.src = url;
+    // Re-apply playback rate upon setting source
+    audio.playbackRate = lang === 'ta' ? 1.08 : 1.04;
     audio.play().catch((err) => {
       if (!hasEnded) {
         hasEnded = true;
@@ -352,7 +364,7 @@ export async function playGoogleNeuralTTS(
   const trimmed = (text || '').trim();
   if (!trimmed) return true;
 
-  const chunks = splitIntoSafeTTSChunks(trimmed, 65);
+  const chunks = splitIntoSafeTTSChunks(trimmed, 80);
   if (chunks.length === 0) return true;
 
   if (chunks.length === 1) {
