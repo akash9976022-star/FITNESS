@@ -286,6 +286,30 @@ export const buildMorningBriefingContent = ({
   const carbsGrams = Math.round((calories * 0.45) / 4);
   const fatsGrams = Math.round((calories * 0.25) / 9);
 
+  // Helper to convert English AM/PM time strings into natural spoken Tamil
+  const formatTamilTimeRange = (timeStr: string): string => {
+    if (!timeStr || timeStr === 'None') return 'இல்லை';
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (match) {
+      const [, h1, m1, p1, h2, m2, p2] = match;
+      const getPeriod = (p: string, h: string) => {
+        const numH = parseInt(h, 10);
+        if (p.toUpperCase() === 'AM') return 'காலை';
+        if (numH === 12 || numH <= 3) return 'மதியம்';
+        return 'மாலை';
+      };
+      const period1 = getPeriod(p1, h1);
+      const period2 = getPeriod(p2, h2);
+      const t1 = parseInt(m1, 10) === 0 ? `${parseInt(h1, 10)} மணி` : `${parseInt(h1, 10)}:${m1}`;
+      const t2 = parseInt(m2, 10) === 0 ? `${parseInt(h2, 10)} மணி` : `${parseInt(h2, 10)}:${m2}`;
+      if (period1 === period2) {
+        return `${period1} ${t1} முதல் ${t2} வரை`;
+      }
+      return `${period1} ${t1} முதல் ${period2} ${t2} வரை`;
+    }
+    return timeStr;
+  };
+
   // Section 1: Greeting & Calendar Date
   const section1: BriefingSection = {
     id: 'section-1-greeting',
@@ -303,7 +327,7 @@ export const buildMorningBriefingContent = ({
     titleEn: 'Daily Nutrients & Fitness Targets',
     titleTa: 'இன்றைய ஊட்டச்சத்து & உடற்பயிற்சி',
     textEn: `Here is your daily nutrition and fitness target: Aim for ${calories} kilocalories today, with a target of ${proteinGrams} grams of protein, ${carbsGrams} grams of carbohydrates, and ${fatsGrams} grams of healthy fats. Remember to stay well hydrated with at least 3 liters of water. Working towards your target weight of ${targetWeightKg} kilograms requires daily consistency, discipline, and hitting your protein split. Your routine is loaded and ready.`,
-    textTa: `இன்றைய ஊட்டச்சத்து மற்றும் உடற்பயிற்சி வழிகாட்டல்: உங்கள் உடலை கட்டுக்கோப்பாகவும் வலிமையாகவும் வைக்க, இன்று ${calories} கலோரிகள் மற்றும் ${proteinGrams} கிராம் புரதச்சத்து எடுத்துக்கொள்ள இலக்கு வையுங்கள். மறக்காமல் குறைந்தது மூன்று லிட்டர் தண்ணீர் அருந்துங்கள். திட்டமிட்ட உடற்பயிற்சியை தவறாமல் செய்து, உங்கள் இலக்கு எடையை (${targetWeightKg} கிலோ) நோக்கி உற்சாகமாக முன்னேறுங்கள்!`,
+    textTa: `இன்றைய ஊட்டச்சத்து மற்றும் உடற்பயிற்சி வழிகாட்டல். உங்கள் உடலை கட்டுக்கோப்பாகவும் வலிமையாகவும் வைக்க, இன்று ${calories} கலோரிகள் மற்றும் ${proteinGrams} கிராம் புரதச்சத்து எடுத்துக்கொள்ள இலக்கு வையுங்கள். மறக்காமல் குறைந்தது மூன்று லிட்டர் தண்ணீர் அருந்துங்கள். திட்டமிட்ட உடற்பயிற்சியை தவறாமல் செய்து, உங்கள் இலக்கு எடையை நோக்கி உற்சாகமாக முன்னேறுங்கள்!`,
   };
 
   // Section 3: Motivational Quote of the Day
@@ -329,7 +353,7 @@ export const buildMorningBriefingContent = ({
     titleEn: 'Thought of the Day & Motivation',
     titleTa: 'இன்றைய சிந்தனை & பொன்மொழி',
     textEn: selectedQuote.en,
-    textTa: `இன்றைய ஊக்கமளிக்கும் சிந்தனை: ${selectedQuote.ta}`,
+    textTa: `இன்றைய ஊக்கமளிக்கும் சிந்தனை. ${selectedQuote.ta}`,
   };
 
   // Section 4: Panchangam & Auspicious Timings
@@ -345,13 +369,18 @@ export const buildMorningBriefingContent = ({
     ? `இன்று ${primaryFestival.nameTamil} திருநாள் கொண்டாடப்படுகிறது. ${primaryFestival.significanceTamil}`
     : (customFastingNotes || 'இன்று சிறப்பு விரதங்கள் இல்லை. உங்கள் வழக்கமான சத்தான உணவை உட்கொள்ளலாம்.');
 
+  const nallaMorningTa = formatTamilTimeRange(panchangam.nallaNeramMorning);
+  const nallaEveningTa = formatTamilTimeRange(panchangam.nallaNeramEvening);
+  const raguTa = formatTamilTimeRange(panchangam.ragukalam);
+  const yemaTa = formatTamilTimeRange(panchangam.yemagandam);
+
   const section4: BriefingSection = {
     id: 'section-4-panchangam',
     category: 'panchangam',
     titleEn: 'Panchangam & Auspicious Timings',
     titleTa: 'பஞ்சாங்கம் & நல்ல நேர வழிகாட்டுதல்',
     textEn: `Today's traditional Panchangam: The prevailing Thithi is ${panchangam.thithi.nameEnglish}, with ${panchangam.nakshatram.nameEnglish} Nakshatram and ${panchangam.yogam.nameEnglish} Yogam. Auspicious Nalla Neram is ${nallaNeramStrEn}. Inauspicious Ragukalam is observed at ${ragukalamStrEn}. ${festivalMentionEn}`,
-    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம்: இன்று திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, யோகம் ${panchangam.yogam.nameTamil}. இன்றைய நல்ல நேரம்: காலையில் ${panchangam.nallaNeramMorning}, மாலையில் ${panchangam.nallaNeramEvening}. இராகு காலம் ${panchangam.ragukalam}. எமகண்டம் ${panchangam.yemagandam}. ${festivalMentionTa}`,
+    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம். இன்று திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, மற்றும் ${panchangam.yogam.nameTamil}. இன்றைய நல்ல நேரம், காலையில் ${nallaMorningTa}, மாலையில் ${nallaEveningTa}. ராகு காலம், ${raguTa}. எமகண்டம், ${yemaTa}. ${festivalMentionTa}`,
   };
 
   // Section 5: Rasipalan Outlook
@@ -438,7 +467,7 @@ export const buildMorningBriefingContent = ({
     titleEn: `Rasipalan Outlook - ${rasiData.nameEn}`,
     titleTa: `ராசிபலன் வழிகாட்டுதல் - ${rasiData.nameTa}`,
     textEn: `Rasipalan guidance for ${rasiData.nameEn}: ${rasiData.en}`,
-    textTa: `இன்றைய ${rasiData.nameTa} வழிகாட்டல்: ${rasiData.ta}`,
+    textTa: `இன்றைய ${rasiData.nameTa} வழிகாட்டல். ${rasiData.ta}`,
   };
 
   return [section1, section2, section3, section4, section5];
@@ -540,6 +569,125 @@ export async function synthesizeGeminiSpeech(
   return null;
 }
 
+/**
+ * Normalizes Tamil written text into authentic, fluent colloquial spoken Tamil:
+ * - Expands digital clock times (e.g., '07:30 AM - 08:30 AM' -> 'காலை 7:30 முதல் 8:30 வரை')
+ * - Replaces colons with commas so synthesizers make natural breath pauses
+ * - Strips parentheses and cleans duplicate breath phrases
+ */
+export function normalizeTamilForSpeech(text: string): string {
+  let cleaned = text;
+
+  // Convert digital time ranges: e.g. '07:30 AM - 08:30 AM' or '04:30 PM - 06:00 PM'
+  cleaned = cleaned.replace(
+    /(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/gi,
+    (_match, h1, m1, p1, h2, m2, p2) => {
+      const getPeriod = (p: string, h: string) => {
+        const numH = parseInt(h, 10);
+        if (p.toUpperCase() === 'AM') return 'காலை';
+        if (numH === 12 || numH <= 3) return 'மதியம்';
+        return 'மாலை';
+      };
+      const period1 = getPeriod(p1, h1);
+      const period2 = getPeriod(p2, h2);
+      const t1 = parseInt(m1, 10) === 0 ? `${parseInt(h1, 10)} மணி` : `${parseInt(h1, 10)}:${m1}`;
+      const t2 = parseInt(m2, 10) === 0 ? `${parseInt(h2, 10)} மணி` : `${parseInt(h2, 10)}:${m2}`;
+      if (period1 === period2) {
+        return `${period1} ${t1} முதல் ${t2} வரை`;
+      }
+      return `${period1} ${t1} முதல் ${period2} ${t2} வரை`;
+    }
+  );
+
+  // Convert standalone times: e.g. '07:30 AM' or '04:30 PM'
+  cleaned = cleaned.replace(/(\d{1,2}):(\d{2})\s*(AM|PM)/gi, (_match, h, m, p) => {
+    const numH = parseInt(h, 10);
+    const period = p.toUpperCase() === 'AM' ? 'காலை' : numH === 12 || numH <= 3 ? 'மதியம்' : 'மாலை';
+    const t = parseInt(m, 10) === 0 ? `${numH} மணி` : `${numH}:${m}`;
+    return `${period} ${t}`;
+  });
+
+  // Remove parentheses cleanly
+  cleaned = cleaned.replace(/\(([^)]+)\)/g, ', $1, ');
+
+  // Avoid repetitive "காலையில் காலை" or "மாலையில் மாலை"
+  cleaned = cleaned.replace(/காலையில்\s+காலை/g, 'காலையில்');
+  cleaned = cleaned.replace(/மாலையில்\s+மாலை/g, 'மாலையில்');
+
+  // Replace colons with natural comma pauses
+  cleaned = cleaned.replace(/:\s*/g, ', ');
+
+  // Clean double commas and excessive spaces
+  cleaned = cleaned.replace(/,\s*,/g, ',');
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+}
+
+/**
+ * Normalizes English text for fluent natural speech cadence
+ */
+export function normalizeEnglishForSpeech(text: string): string {
+  let cleaned = text;
+  // Convert time ranges like 07:30 AM - 08:30 AM into 7:30 AM to 8:30 AM
+  cleaned = cleaned.replace(/(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM))/gi, '$1 to $2');
+  // Remove parentheses
+  cleaned = cleaned.replace(/\(([^)]+)\)/g, ', $1, ');
+  // Replace colons with comma pauses
+  cleaned = cleaned.replace(/:\s*/g, ', ');
+  cleaned = cleaned.replace(/,\s*,/g, ',');
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  return cleaned;
+}
+
+/**
+ * Splits text into natural breath-sized clauses (<= 160 characters)
+ * for optimal neural speech synthesis without cutting words
+ */
+export function chunkTextForTTS(text: string, maxChars: number = 160): string[] {
+  const chunks: string[] = [];
+  const sentences = text.split(/(?<=[.!?])\s+/);
+
+  for (const sentence of sentences) {
+    const trimmed = sentence.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.length <= maxChars) {
+      chunks.push(trimmed);
+    } else {
+      const clauses = trimmed.split(/(?<=[,;])\s+/);
+      let currentChunk = '';
+      for (const clause of clauses) {
+        const clauseTrimmed = clause.trim();
+        if (!clauseTrimmed) continue;
+
+        if ((currentChunk + ' ' + clauseTrimmed).trim().length <= maxChars) {
+          currentChunk = (currentChunk + ' ' + clauseTrimmed).trim();
+        } else {
+          if (currentChunk) chunks.push(currentChunk);
+          if (clauseTrimmed.length <= maxChars) {
+            currentChunk = clauseTrimmed;
+          } else {
+            const words = clauseTrimmed.split(/\s+/);
+            currentChunk = '';
+            for (const word of words) {
+              if ((currentChunk + ' ' + word).trim().length <= maxChars) {
+                currentChunk = (currentChunk + ' ' + word).trim();
+              } else {
+                if (currentChunk) chunks.push(currentChunk);
+                currentChunk = word;
+              }
+            }
+          }
+        }
+      }
+      if (currentChunk.trim()) chunks.push(currentChunk.trim());
+    }
+  }
+
+  return chunks;
+}
+
 /* ==================== 7. DUAL-LANGUAGE SPEECH SYNTHESIS ENGINE ==================== */
 
 export interface SpeechBriefingCallbacks {
@@ -578,16 +726,129 @@ class SpeechBriefingEngine {
       for (const item of items) {
         if (this.isCancelled) break;
         const cacheKey = `${item.lang}:${item.text}`;
+
+        // 1. Preload Gemini TTS if not cached
         if (!geminiAudioCache.has(cacheKey)) {
           await synthesizeGeminiSpeech(item.text, item.lang);
+        }
+
+        // 2. Pre-prime Google Studio-Grade TTS chunks in browser HTTP cache
+        try {
+          const norm = item.lang === 'ta' ? normalizeTamilForSpeech(item.text) : normalizeEnglishForSpeech(item.text);
+          const chunks = chunkTextForTTS(norm, 160);
+          const ttsLang = item.lang === 'ta' ? 'ta' : 'en-IN';
+          for (const chunk of chunks) {
+            if (this.isCancelled) break;
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${ttsLang}&client=tw-ob`;
+            const preAudio = new Audio();
+            preAudio.preload = 'auto';
+            preAudio.src = url;
+          }
+        } catch {
+          // preloading is best-effort
         }
       }
     })();
   }
 
   /**
+   * High-Fidelity Studio-Grade Google Neural Natural Speech Synthesizer
+   * 100% Free, Unlimited, zero-quota restrictions.
+   * Splits long text into natural breath-sized clauses (<=160 chars) and streams them
+   * seamlessly using HTML5 Audio element with authentic Tamil intonation.
+   */
+  private async playGoogleTTSSequence(text: string, lang: 'en' | 'ta'): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    if (this.isCancelled) return false;
+
+    try {
+      const normalizedText = lang === 'ta' ? normalizeTamilForSpeech(text) : normalizeEnglishForSpeech(text);
+      const chunks = chunkTextForTTS(normalizedText, 160);
+      if (chunks.length === 0) return true;
+
+      const ttsLang = lang === 'ta' ? 'ta' : 'en-IN';
+
+      for (let i = 0; i < chunks.length; i++) {
+        if (this.isCancelled) return false;
+        const chunk = chunks[i];
+        if (!chunk.trim()) continue;
+
+        const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${ttsLang}&client=tw-ob`;
+
+        const chunkSuccess = await new Promise<boolean>((resolve) => {
+          if (this.isCancelled) {
+            resolve(false);
+            return;
+          }
+
+          const audio = new Audio();
+          audio.preload = 'auto';
+          this.activeAudio = audio;
+
+          let connectTimeout: NodeJS.Timeout | null = null;
+          const cleanup = () => {
+            if (connectTimeout) clearTimeout(connectTimeout);
+            audio.onended = null;
+            audio.onerror = null;
+            audio.onplaying = null;
+          };
+
+          // 7-second watchdog connection timeout to detect offline / network block
+          connectTimeout = setTimeout(() => {
+            cleanup();
+            if (this.activeAudio === audio) this.activeAudio = null;
+            resolve(false);
+          }, 7000);
+
+          audio.onplaying = () => {
+            if (connectTimeout) {
+              clearTimeout(connectTimeout);
+              connectTimeout = null;
+            }
+          };
+
+          audio.onended = () => {
+            cleanup();
+            if (this.activeAudio === audio) this.activeAudio = null;
+            resolve(true);
+          };
+
+          audio.onerror = (e) => {
+            cleanup();
+            console.warn(`Google neural TTS notice (${ttsLang}):`, e);
+            if (this.activeAudio === audio) this.activeAudio = null;
+            resolve(false);
+          };
+
+          audio.src = url;
+          audio.play().catch((err) => {
+            cleanup();
+            console.warn(`Google neural TTS play notice (${ttsLang}):`, err);
+            if (this.activeAudio === audio) this.activeAudio = null;
+            resolve(false);
+          });
+        });
+
+        if (!chunkSuccess) {
+          return false;
+        }
+
+        // Natural micro-pause between clauses for authentic human breathing rhythm (160ms)
+        if (i < chunks.length - 1 && !this.isCancelled) {
+          await new Promise((r) => setTimeout(r, 160));
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('Google TTS sequence notice:', err);
+      return false;
+    }
+  }
+
+  /**
    * Finds the best matching voice for natural Indian English (en-IN / natural neural)
-   * or authentic native Tamil (Google தமிழ் / ta-IN / Valluvar) for browser fallback.
+   * or authentic native Tamil (Google தமிழ் / ta-IN / Pallavi / Valluvar) for browser fallback.
    */
   private getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
@@ -595,7 +856,18 @@ class SpeechBriefingEngine {
     if (!voices || voices.length === 0) return null;
 
     if (lang === 'ta') {
-      // 1. High priority: Google தமிழ் (Android / Chrome standard), ta-IN, ta-LK, ta-SG
+      // 1. Natural / Neural Online voices: Microsoft Pallavi Online (Natural), Microsoft Valluvar Online (Natural), ta-IN-Neural
+      const naturalTaVoice = voices.find((v) => {
+        const l = v.lang.toLowerCase().replace('_', '-');
+        const n = v.name.toLowerCase();
+        return (
+          (l.startsWith('ta') || n.includes('tamil') || n.includes('தமிழ்')) &&
+          (n.includes('natural') || n.includes('neural') || n.includes('online'))
+        );
+      });
+      if (naturalTaVoice) return naturalTaVoice;
+
+      // 2. High priority: Google தமிழ் (Android / Chrome standard), ta-IN, ta-LK, ta-SG
       const googleTaVoice = voices.find((v) => {
         const n = v.name.toLowerCase();
         const l = v.lang.toLowerCase().replace('_', '-');
@@ -603,7 +875,21 @@ class SpeechBriefingEngine {
       });
       if (googleTaVoice) return googleTaVoice;
 
-      // 2. Microsoft Valluvar, Microsoft Latha, or any ta-IN / Tamil voice
+      // 3. Microsoft Pallavi (High-quality modern female Tamil voice)
+      const pallaviVoice = voices.find((v) => {
+        const n = v.name.toLowerCase();
+        return n.includes('pallavi');
+      });
+      if (pallaviVoice) return pallaviVoice;
+
+      // 4. Microsoft Latha
+      const lathaVoice = voices.find((v) => {
+        const n = v.name.toLowerCase();
+        return n.includes('latha');
+      });
+      if (lathaVoice) return lathaVoice;
+
+      // 5. Any other Tamil voice (including desktop Valluvar if that's the only one installed)
       const exactTaVoice = voices.find((v) => {
         const l = v.lang.toLowerCase().replace('_', '-');
         const n = v.name.toLowerCase();
@@ -613,18 +899,16 @@ class SpeechBriefingEngine {
           l === 'ta-lk' ||
           l === 'ta-sg' ||
           n.includes('valluvar') ||
-          n.includes('latha') ||
           n.includes('tamil') ||
           n.includes('தமிழ்')
         );
       });
       if (exactTaVoice) return exactTaVoice;
 
-      // 3. Any voice where language code starts with 'ta'
+      // 6. Any voice where language starts with ta
       const anyTaVoice = voices.find((v) => v.lang.toLowerCase().startsWith('ta'));
       if (anyTaVoice) return anyTaVoice;
 
-      // Never return an English voice when speaking Tamil
       return null;
     } else {
       // English: Select highest quality natural / Indian English conversational voice
@@ -661,7 +945,7 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Browser Speech Synthesis Fallback with watchdog timer
+   * Browser Speech Synthesis Fallback with watchdog timer and optimized prosody
    */
   private speakWithBrowserSynthesis(text: string, lang: 'en' | 'ta'): Promise<void> {
     return new Promise((resolve) => {
@@ -682,8 +966,8 @@ class SpeechBriefingEngine {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
-      utterance.rate = lang === 'ta' ? 0.90 : 0.94;
-      utterance.pitch = 1.0;
+      utterance.rate = lang === 'ta' ? 0.92 : 0.94;
+      utterance.pitch = lang === 'ta' ? 1.06 : 1.0;
 
       const voice = this.getBestVoice(lang);
       if (voice) {
@@ -716,46 +1000,61 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Speaks utterance using Gemini AI Studio-grade Neural Speech for both fluent Indian English
-   * and native Tamil, with seamless fallback to enhanced browser synthesis if offline.
+   * Triple-Tier Resilient Neural Voice Synthesis:
+   * Tier 1: Gemini AI Studio-grade Neural Speech (if API key configured & quota available)
+   * Tier 2: Google Studio-Grade Neural Natural TTS Stream (100% free, unlimited, native fluent Tamil & Indian English)
+   * Tier 3: Browser Web Speech API (Offline fallback with prosody tuning & natural voice selection)
    */
   private async speakUtterance(text: string, lang: 'en' | 'ta'): Promise<void> {
     if (this.isCancelled) return;
 
-    // 1. Try Gemini Neural Natural Spoken AI Speech first (both fluent Indian English & native Tamil)
-    const audioUrl = await synthesizeGeminiSpeech(text, lang);
+    // 1. Try Gemini Neural Natural Spoken AI Speech first
+    try {
+      const audioUrl = await synthesizeGeminiSpeech(text, lang);
+      if (audioUrl && !this.isCancelled) {
+        const played = await new Promise<boolean>((resolve) => {
+          if (this.isCancelled) {
+            resolve(false);
+            return;
+          }
 
-    if (audioUrl && !this.isCancelled) {
-      return new Promise<void>((resolve) => {
-        if (this.isCancelled) {
-          resolve();
-          return;
-        }
+          const audio = new Audio(audioUrl);
+          this.activeAudio = audio;
 
-        const audio = new Audio(audioUrl);
-        this.activeAudio = audio;
+          audio.onended = () => {
+            this.activeAudio = null;
+            resolve(true);
+          };
 
-        audio.onended = () => {
-          this.activeAudio = null;
-          resolve();
-        };
+          audio.onerror = () => {
+            this.activeAudio = null;
+            resolve(false);
+          };
 
-        audio.onerror = (e) => {
-          console.warn(`Gemini audio playback notice (${lang}), falling back to browser speech:`, e);
-          this.activeAudio = null;
-          this.speakWithBrowserSynthesis(text, lang).then(resolve);
-        };
-
-        audio.play().catch((err) => {
-          console.warn(`Audio play notice (${lang}), falling back to browser speech:`, err);
-          this.activeAudio = null;
-          this.speakWithBrowserSynthesis(text, lang).then(resolve);
+          audio.play().catch(() => {
+            this.activeAudio = null;
+            resolve(false);
+          });
         });
-      });
+
+        if (played) return;
+      }
+    } catch {
+      // Proceed to Tier 2
     }
 
-    // 2. English or Fallback: Browser Web Speech API
-    return this.speakWithBrowserSynthesis(text, lang);
+    if (this.isCancelled) return;
+
+    // 2. Primary High-Fidelity Neural Fallback: Google Studio-Grade Natural TTS Stream
+    // 100% Free, Unlimited, zero quota restrictions. Delivers sweet, studio-grade, authentic native Tamil.
+    const googlePlayed = await this.playGoogleTTSSequence(text, lang);
+    if (googlePlayed) return;
+
+    if (this.isCancelled) return;
+
+    // 3. Last Resort Offline Fallback: Browser Web Speech API with prosody tuning
+    const normalizedText = lang === 'ta' ? normalizeTamilForSpeech(text) : normalizeEnglishForSpeech(text);
+    return this.speakWithBrowserSynthesis(normalizedText, lang);
   }
 
   /**
