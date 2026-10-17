@@ -61,11 +61,17 @@ const blobUrlCache = new Map<string, string>();
 export function getCleanVideoMimeType(fileName: string, rawMime?: string): string {
   const ext = (fileName || '').split('.').pop()?.toLowerCase();
   switch (ext) {
+    case 'hvc':
+    case 'hevc':
+    case 'h265':
+    case '265':
+      // HEVC (High Efficiency Video Coding, H.265). Mapped to video/mp4 for maximum hardware decoder compatibility
+      return rawMime && rawMime.startsWith('video/') ? rawMime : 'video/mp4';
     case 'mp4':
     case 'm4v':
       return 'video/mp4';
     case 'mov':
-      // Quicktime/MOV is usually H.264/AAC and decoded best in HTML5 video elements as video/mp4
+      // Quicktime/MOV is usually H.264/HEVC/AAC and decoded best in HTML5 video elements as video/mp4
       return 'video/mp4';
     case 'webm':
       return 'video/webm';

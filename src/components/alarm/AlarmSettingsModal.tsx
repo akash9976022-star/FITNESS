@@ -110,13 +110,13 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate that the file is a recognized video format (supporting .mp4, .MP4, .mov, .MOV, .webm, .mkv, etc.)
+    // Validate that the file is a recognized video format (supporting .mp4, .hvc, .hevc, .mov, .webm, .mkv, etc.)
     const isVideo =
       file.type.startsWith('video/') ||
-      /\.(mp4|mov|webm|mkv|m4v|3gp|avi|ts|wmv|flv|ogv)$/i.test(file.name);
+      /\.(mp4|mov|webm|mkv|m4v|hvc|hevc|h265|265|3gp|avi|ts|wmv|flv|ogv)$/i.test(file.name);
 
     if (!isVideo) {
-      alert('Please select a valid video file (e.g. .mp4, .MP4, .mov, .webm, .mkv).');
+      alert('Please select a valid video file (e.g. .mp4, .hvc, .hevc, .mov, .webm, .mkv).');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -417,17 +417,17 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                   <span>Wake-Up Video Song Library (100% User-Uploaded)</span>
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Upload your video songs (.mp4, .mov, .webm, .mkv, etc.) to play full-screen when tomorrow morning's alarm triggers.
+                  Upload your video songs (.mp4, .hvc, .hevc, .mov, .webm, .mkv, etc.) to play full-screen when tomorrow morning's alarm triggers.
                 </p>
               </div>
 
               {/* Action Buttons: File Upload & Link Form */}
               <div className="flex items-center gap-2">
-                {/* Hidden File Input for All Video Formats (.mp4, .MP4, .mov, .webm, .mkv, etc.) */}
+                {/* Hidden File Input for All Video Formats (.mp4, .hvc, .hevc, .mov, .webm, .mkv, etc.) */}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="video/*,.mp4,.MP4,.mov,.MOV,.webm,.WEBM,.mkv,.MKV,.m4v,.M4V,.3gp,.3GP,.avi,.AVI,.ts,.TS"
+                  accept="video/*,.mp4,.MP4,.hvc,.HVC,.hevc,.HEVC,.h265,.H265,.mov,.MOV,.webm,.WEBM,.mkv,.MKV,.m4v,.M4V,.3gp,.3GP,.avi,.AVI,.ts,.TS"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
@@ -550,7 +550,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                     No Wake-Up Video Songs Uploaded Yet
                   </h5>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-                    Upload your video songs (.mp4, .mov, .webm, .mkv, etc.) to play full-screen during the 6:00 AM alarm. If left empty, the peaceful Tibetan singing bowl awakening tone will play.
+                    Upload your video songs (.mp4, .hvc, .hevc, .mov, .webm, .mkv, etc.) to play full-screen during the 6:00 AM alarm. If left empty, the peaceful Tibetan singing bowl awakening tone will play.
                   </p>
                 </div>
                 <button
@@ -559,7 +559,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                   className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Upload Video Song (MP4, MOV, WebM, MKV)</span>
+                  <span>Upload Video Song (MP4, HVC, HEVC, MOV, WebM, MKV)</span>
                 </button>
               </div>
             ) : (
