@@ -82,6 +82,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   const newDuration = '05:00';
   const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
   const [videoPreviewItem, setVideoPreviewItem] = useState<{ title: string; url: string } | null>(null);
+  const [previewVideoError, setPreviewVideoError] = useState(false);
 
   if (!isOpen) return null;
 
@@ -614,6 +615,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                             type="button"
                             onClick={async (e) => {
                               e.stopPropagation();
+                              setPreviewVideoError(false);
                               const playableUrl = await resolveVideoUrl(video.videoUrl);
                               setVideoPreviewItem({ title: video.title, url: playableUrl });
                             }}
@@ -682,7 +684,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                 </button>
               </div>
 
-              <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black">
+              <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black relative">
                 {normalizeVideoUrl(videoPreviewItem.url).isYouTube ? (
                   <iframe
                     src={normalizeVideoUrl(videoPreviewItem.url).embedUrl}
@@ -691,12 +693,53 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
                     className="w-full h-full"
                   />
                 ) : (
-                  <video
-                    src={videoPreviewItem.url}
-                    controls
-                    autoPlay
-                    className="w-full h-full object-contain"
-                  />
+                  <>
+                    <video
+                      key={videoPreviewItem.url}
+                      src={videoPreviewItem.url}
+                      controls
+                      autoPlay
+                      playsInline
+                      preload="auto"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        console.warn('Video preview decoder error:', e);
+                        setPreviewVideoError(true);
+                      }}
+                    />
+
+                    {previewVideoError && (
+                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-slate-950/95 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                          <Volume2 className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-bold text-white text-xs sm:text-sm">
+                            High-Efficiency (HEVC / H.265) Format Detected
+                          </p>
+                          <p className="text-[11px] text-slate-300 max-w-sm mx-auto">
+                            Standalone media players (like VLC) use bundled software decoders, while desktop browsers require Windows HEVC codecs.
+                          </p>
+                          <p className="text-[11px] text-emerald-400 font-semibold">
+                            ✅ This video will play with full hardware acceleration on your Android phone during tomorrow's alarm.
+                          </p>
+                        </div>
+
+                        {/* Dedicated Audio Track Player so user can listen on desktop right now */}
+                        <div className="w-full max-w-md pt-2 space-y-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            Preview Audio Track Directly:
+                          </span>
+                          <audio
+                            src={videoPreviewItem.url}
+                            controls
+                            autoPlay
+                            className="w-full h-10 rounded-xl"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

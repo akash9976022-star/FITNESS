@@ -113,10 +113,20 @@ export async function storeVideoBlob(
   blob: Blob,
   fileName: string = 'alarm_song.mp4'
 ): Promise<void> {
+  // Clear any existing cached blob URL for this key
+  if (blobUrlCache.has(id)) {
+    try {
+      URL.revokeObjectURL(blobUrlCache.get(id)!);
+    } catch {
+      // ignore
+    }
+    blobUrlCache.delete(id);
+  }
+
   const db = await getDB();
   const mimeType = getCleanVideoMimeType(fileName, blob.type);
-  // Always normalize the blob MIME type so browser media decoders accept it
-  const cleanBlob = new Blob([blob], { type: mimeType });
+  // Zero-copy slice to preserve atom seeking and range requests without nesting
+  const cleanBlob = blob.type === mimeType ? blob : (blob.slice ? blob.slice(0, blob.size, mimeType) : blob);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -236,7 +246,9 @@ export async function resolveVideoUrl(videoUrl: string): Promise<string> {
     const record = await getVideoRecord(key);
     if (record && record.blob) {
       const safeMime = record.mimeType || getCleanVideoMimeType(record.fileName || '', record.blob.type);
-      const cleanBlob = new Blob([record.blob], { type: safeMime });
+      const cleanBlob = record.blob.type === safeMime
+        ? record.blob
+        : (record.blob.slice ? record.blob.slice(0, record.blob.size, safeMime) : record.blob);
       const url = URL.createObjectURL(cleanBlob);
       blobUrlCache.set(key, url);
       return url;
@@ -244,7 +256,9 @@ export async function resolveVideoUrl(videoUrl: string): Promise<string> {
     const blob = await getVideoBlob(key);
     if (blob) {
       const mime = blob.type && blob.type.startsWith('audio/') ? blob.type : 'video/mp4';
-      const cleanBlob = new Blob([blob], { type: mime });
+      const cleanBlob = blob.type === mime
+        ? blob
+        : (blob.slice ? blob.slice(0, blob.size, mime) : blob);
       const url = URL.createObjectURL(cleanBlob);
       blobUrlCache.set(key, url);
       return url;

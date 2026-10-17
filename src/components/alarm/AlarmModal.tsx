@@ -39,6 +39,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
   const [videoError, setVideoError] = useState(false);
   const [isMutedAutoplay, setIsMutedAutoplay] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioFallbackRef = useRef<HTMLAudioElement | null>(null);
 
   // Digital clock update
   useEffect(() => {
@@ -192,6 +193,9 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
     if (videoRef.current) {
       videoRef.current.pause();
     }
+    if (audioFallbackRef.current) {
+      audioFallbackRef.current.pause();
+    }
     onDismissAndStartBriefing();
   };
 
@@ -228,8 +232,21 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({
             />
           )
         ) : (
-          // Vibrant Sunrise Glow Background when purely Tibetan Bowl Synth is active
-          <div className="w-full h-full bg-gradient-to-b from-amber-600/30 via-slate-950 to-emerald-950 animate-pulse duration-1000" />
+          // Vibrant Sunrise Glow Background when purely Tibetan Bowl Synth or Audio Song is active
+          <>
+            <div className="w-full h-full bg-gradient-to-b from-amber-600/30 via-slate-950 to-emerald-950 animate-pulse duration-1000" />
+            {playableUrl && (
+              <audio
+                ref={audioFallbackRef}
+                src={playableUrl}
+                autoPlay
+                loop
+                onError={() => {
+                  tibetanBowlSynth.startAlarm(1.0);
+                }}
+              />
+            )}
+          </>
         )}
 
         {/* Cinematic Vignette Overlay */}
