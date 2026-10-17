@@ -261,7 +261,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                         {activeSegment === 'english' && (
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         )}
-                        Phase 1: English (Greeting, Nutrients & Quote)
+                        Phase 1: Indian English (Greeting, Nutrients & Quote)
                       </span>
 
                       <span
@@ -280,7 +280,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
 
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       {activeLanguage === 'en'
-                        ? 'Natural English (Conversational)'
+                        ? 'Gemini AI Fluent Voice (Indian English)'
                         : 'Gemini AI Fluent Voice (இயற்கையான தாய்மொழி தமிழ்)'}
                     </span>
                   </div>

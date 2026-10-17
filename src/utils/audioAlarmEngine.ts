@@ -278,7 +278,7 @@ export const buildMorningBriefingContent = ({
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
   const dateStrEn = `${dayOfWeekEn}, ${monthNamesEn[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-  const dateStrTa = `${tamilYearName} வருடம், ${tamilMonthName} மாதம் ${tamilDate} ஆம் நாள், ${dayOfWeekTa}`;
+  const dateStrEnTamilCal = `${tamilDateInfo.tamilMonthEnglish || tamilMonthName} ${tamilDate}, ${tamilDateInfo.tamilYearEnglish || tamilYearName} year`;
 
   // Calculated Nutrition Macros
   const calories = Math.round(maintenanceCalories || 2200);
@@ -287,13 +287,12 @@ export const buildMorningBriefingContent = ({
   const fatsGrams = Math.round((calories * 0.25) / 9);
 
   // Section 1: Greeting & Calendar Date
-  // Section 1: Greeting & Calendar Date
   const section1: BriefingSection = {
     id: 'section-1-greeting',
     category: 'greeting',
     titleEn: 'Morning Greeting & Calendar',
     titleTa: 'காலை வணக்கம் & தமிழ் நாட்காட்டி',
-    textEn: `Good morning, ${userName}! Today is ${dateStrEn}. In the traditional Tamil solar calendar, today is ${dateStrTa}. May your day begin with clear focus, peace, and boundless vitality.`,
+    textEn: `Good morning, ${userName}! Today is ${dateStrEn}. In the traditional Tamil calendar, today is ${dateStrEnTamilCal}. May your day begin with clear focus, peace, and boundless vitality.`,
     textTa: `இனிய காலை வணக்கம் ${userName}! உங்கள் காலைப் பொழுது மகிழ்ச்சியாகவும் அமைதியாகவும் அமையட்டும். இன்று ${dayOfWeekTa}, ${tamilMonthName} மாதம் ${tamilDate}-ஆம் நாள். புதிய உற்சாகத்தோடும், அசாத்திய ஆற்றலோடும் இந்த இனிய நாளை தொடங்குங்கள்!`,
   };
 
@@ -468,63 +467,77 @@ const getGeminiApiKey = (): string => {
 const geminiAudioCache = new Map<string, string>();
 
 /**
- * Synthesizes studio-grade, natural, fluent native Tamil speech via Gemini 3.8 Flash-Lite TTS.
+ * Synthesizes studio-grade, natural AI speech via Gemini TTS:
+ * - English: Natural, warm, articulate, friendly Indian English speaker with clear conversational cadence
+ * - Tamil: Natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence
  * Converts raw WAV audio into an HTML5 Blob URL for seamless browser playback.
  */
 export async function synthesizeGeminiSpeech(
   text: string,
-  style: string = 'natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence'
+  lang: 'en' | 'ta' = 'en'
 ): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
-  if (geminiAudioCache.has(text)) {
-    return geminiAudioCache.get(text)!;
+  const cacheKey = `${lang}:${text}`;
+  if (geminiAudioCache.has(cacheKey)) {
+    return geminiAudioCache.get(cacheKey)!;
   }
 
   const apiKey = getGeminiApiKey();
   if (!apiKey) return null;
 
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash-lite-tts',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text,
-              speechMetadata: { style },
-            },
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: { voice: 'Aoede' }, // 'Aoede' produces warm, fluent, clear human diction
-        },
-      },
-    });
+  const style =
+    lang === 'en'
+      ? 'natural, warm, articulate, friendly Indian English speaker with clear conversational cadence, authentic Indian pronunciation, and cheerful morning energy'
+      : 'natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence';
 
-    const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Data) return null;
+  // Resilient multi-model fallback: try gemini-3.8-flash-tts and gemini-3.8-flash-lite-tts
+  const models = ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'];
 
-    // Convert Base64 into Blob URL
-    const binaryString = window.atob(base64Data);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+  for (const model of models) {
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text,
+                speechMetadata: { style },
+              },
+            ],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: { voice: 'Aoede' }, // 'Aoede' delivers warm, fluent, human diction
+          },
+        },
+      });
+
+      const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Data) continue;
+
+      // Convert Base64 into Blob URL
+      const binaryString = window.atob(base64Data);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'audio/wav' });
+      const audioUrl = URL.createObjectURL(blob);
+      geminiAudioCache.set(cacheKey, audioUrl);
+      return audioUrl;
+    } catch (err) {
+      console.warn(`Gemini natural TTS notice (${model}, ${lang}):`, err);
     }
-    const blob = new Blob([bytes], { type: 'audio/wav' });
-    const audioUrl = URL.createObjectURL(blob);
-    geminiAudioCache.set(text, audioUrl);
-    return audioUrl;
-  } catch (err) {
-    console.warn('Gemini natural TTS notice, falling back to browser synthesis:', err);
-    return null;
   }
+
+  return null;
 }
 
 /* ==================== 7. DUAL-LANGUAGE SPEECH SYNTHESIS ENGINE ==================== */
@@ -557,22 +570,23 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Pre-fetches all Tamil audio clips asynchronously in background during Phase 1 (English)
-   * so by the time English finishes, every Tamil segment is already in memory with 0 lag.
+   * Pre-fetches all briefing audio clips (Indian English & Tamil) asynchronously in background
+   * so every subsequent segment is already in memory with 0 lag.
    */
-  public prefetchTamilAudio(texts: string[]) {
+  public prefetchBriefingAudio(items: { text: string; lang: 'en' | 'ta' }[]) {
     (async () => {
-      for (const text of texts) {
+      for (const item of items) {
         if (this.isCancelled) break;
-        if (!geminiAudioCache.has(text)) {
-          await synthesizeGeminiSpeech(text);
+        const cacheKey = `${item.lang}:${item.text}`;
+        if (!geminiAudioCache.has(cacheKey)) {
+          await synthesizeGeminiSpeech(item.text, item.lang);
         }
       }
     })();
   }
 
   /**
-   * Finds the best matching voice for natural English (en-IN / en-US / natural neural)
+   * Finds the best matching voice for natural Indian English (en-IN / natural neural)
    * or authentic native Tamil (Google தமிழ் / ta-IN / Valluvar) for browser fallback.
    */
   private getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
@@ -613,25 +627,22 @@ class SpeechBriefingEngine {
       // Never return an English voice when speaking Tamil
       return null;
     } else {
-      // English: Select highest quality natural / conversational voice
-      const naturalEnVoice =
+      // English: Select highest quality natural / Indian English conversational voice
+      const indianEnVoice =
         voices.find((v) => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
-          return (
-            (l === 'en-in' || l === 'en-us' || l === 'en-gb') &&
-            (n.includes('natural') || n.includes('neural') || n.includes('online'))
-          );
+          return l === 'en-in' && (n.includes('natural') || n.includes('neural') || n.includes('online'));
         }) ||
         voices.find((v) => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
-          return l === 'en-in' || n.includes('india') || n.includes('ravi') || n.includes('heera');
+          return l === 'en-in' || n.includes('india') || n.includes('ravi') || n.includes('heera') || n.includes('neerja');
         }) ||
         voices.find((v) => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
-          return l.startsWith('en') && n.includes('google');
+          return l.startsWith('en') && (n.includes('google') || n.includes('natural'));
         }) ||
         voices.find((v) => {
           const n = v.name.toLowerCase();
@@ -645,7 +656,7 @@ class SpeechBriefingEngine {
         }) ||
         voices.find((v) => v.lang.toLowerCase().startsWith('en'));
 
-      return naturalEnVoice || voices[0] || null;
+      return indianEnVoice || voices[0] || null;
     }
   }
 
@@ -705,47 +716,42 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Speaks utterance using Gemini AI Studio-grade Neural Speech for fluent Tamil,
-   * with seamless fallback to enhanced browser synthesis if offline.
+   * Speaks utterance using Gemini AI Studio-grade Neural Speech for both fluent Indian English
+   * and native Tamil, with seamless fallback to enhanced browser synthesis if offline.
    */
   private async speakUtterance(text: string, lang: 'en' | 'ta'): Promise<void> {
     if (this.isCancelled) return;
 
-    if (lang === 'ta') {
-      // 1. Try Gemini Neural Natural Spoken Tamil First (fluent, natural human voice)
-      const audioUrl = await synthesizeGeminiSpeech(
-        text,
-        'natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence'
-      );
+    // 1. Try Gemini Neural Natural Spoken AI Speech first (both fluent Indian English & native Tamil)
+    const audioUrl = await synthesizeGeminiSpeech(text, lang);
 
-      if (audioUrl && !this.isCancelled) {
-        return new Promise<void>((resolve) => {
-          if (this.isCancelled) {
-            resolve();
-            return;
-          }
+    if (audioUrl && !this.isCancelled) {
+      return new Promise<void>((resolve) => {
+        if (this.isCancelled) {
+          resolve();
+          return;
+        }
 
-          const audio = new Audio(audioUrl);
-          this.activeAudio = audio;
+        const audio = new Audio(audioUrl);
+        this.activeAudio = audio;
 
-          audio.onended = () => {
-            this.activeAudio = null;
-            resolve();
-          };
+        audio.onended = () => {
+          this.activeAudio = null;
+          resolve();
+        };
 
-          audio.onerror = (e) => {
-            console.warn('Gemini audio playback notice, falling back to browser speech:', e);
-            this.activeAudio = null;
-            this.speakWithBrowserSynthesis(text, lang).then(resolve);
-          };
+        audio.onerror = (e) => {
+          console.warn(`Gemini audio playback notice (${lang}), falling back to browser speech:`, e);
+          this.activeAudio = null;
+          this.speakWithBrowserSynthesis(text, lang).then(resolve);
+        };
 
-          audio.play().catch((err) => {
-            console.warn('Audio play notice, falling back to browser speech:', err);
-            this.activeAudio = null;
-            this.speakWithBrowserSynthesis(text, lang).then(resolve);
-          });
+        audio.play().catch((err) => {
+          console.warn(`Audio play notice (${lang}), falling back to browser speech:`, err);
+          this.activeAudio = null;
+          this.speakWithBrowserSynthesis(text, lang).then(resolve);
         });
-      }
+      });
     }
 
     // 2. English or Fallback: Browser Web Speech API
@@ -893,9 +899,10 @@ class SpeechBriefingEngine {
         }
       });
 
-      // Start background prefetching for all Tamil audio so it's ready in memory when English finishes
-      const tamilTexts = steps.filter((s) => s.lang === 'ta').map((s) => s.text);
-      this.prefetchTamilAudio(tamilTexts);
+      // Start background prefetching for all remaining audio steps (Indian English & Tamil)
+      // while the first step is playing, ensuring 0-delay playback for all subsequent sections
+      const upcomingSteps = steps.slice(1).map((s) => ({ text: s.text, lang: s.lang }));
+      this.prefetchBriefingAudio(upcomingSteps);
 
       for (let i = 0; i < steps.length; i++) {
         if (this.isCancelled) break;
