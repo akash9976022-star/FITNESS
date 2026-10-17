@@ -937,7 +937,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
             {/* 1. Time Selector & Blackout Setting */}
             <div className="p-4 rounded-xl bg-slate-900/60 border border-indigo-500/20 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-indigo-400" />
                     Debrief Scheduled Time
@@ -984,7 +984,7 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
             {/* 2. Spoken Language & Test Button */}
             <div className="p-4 rounded-xl bg-slate-900/60 border border-indigo-500/20 flex flex-col justify-between space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
                   <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
                   Spoken Voice Language
                 </label>
