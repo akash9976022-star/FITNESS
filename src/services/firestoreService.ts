@@ -819,6 +819,7 @@ export interface CheckInItem {
   date: string; // YYYY-MM-DD
   weightKg: number;
   fatigueRating: number; // 1 (exhausted) to 5 (peak readiness)
+  fatigueLevel?: number;
   sorenessNotes?: string;
   photoUrl: string;
   aiPhysiqueAnalysis?: AiPhysiqueAnalysis;
@@ -829,6 +830,10 @@ export interface CheckInItem {
   isFasting?: boolean;
   fastingType?: 'none' | 'partial_fruit' | 'water_only' | 'traditional_viratham';
   fastingNotes?: string;
+  waterMl?: number;
+  caloriesConsumed?: number;
+  proteinG?: number;
+  nutritionScore?: number;
   createdAt?: unknown;
 }
 
@@ -839,16 +844,19 @@ export interface UserReward {
   description: string;
   tier: 'bronze' | 'silver' | 'gold' | 'diamond';
   icon: string;
+  category?: 'streak' | 'workout' | 'steps' | 'hydration' | 'nutrition' | 'fasting' | 'physique' | 'routine';
   unlockedAt?: unknown;
 }
 
 export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
+  // --- Longevity & Consistency Streaks ---
   {
     badgeId: 'first-step',
     title: 'First Step',
     description: 'Logged your very first morning check-in and weight record.',
     tier: 'bronze',
     icon: 'Footprints',
+    category: 'streak',
   },
   {
     badgeId: 'streak-3',
@@ -856,6 +864,7 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     description: 'Maintained 3 consecutive check-in milestones.',
     tier: 'silver',
     icon: 'Flame',
+    category: 'streak',
   },
   {
     badgeId: 'streak-7',
@@ -863,6 +872,7 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     description: 'Completed a 7-day uninterrupted check-in streak.',
     tier: 'gold',
     icon: 'Trophy',
+    category: 'streak',
   },
   {
     badgeId: 'streak-14',
@@ -870,6 +880,7 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     description: 'Maintained a 14-day consecutive fitness maintenance streak.',
     tier: 'gold',
     icon: 'Shield',
+    category: 'streak',
   },
   {
     badgeId: 'streak-30',
@@ -877,20 +888,203 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     description: 'Completed a 30-day uninterrupted maintenance streak.',
     tier: 'diamond',
     icon: 'Sparkles',
+    category: 'streak',
   },
+  {
+    badgeId: 'streak-60',
+    title: 'Diamond Discipline',
+    description: 'Maintained an unbroken 60-day fitness & wellness streak.',
+    tier: 'diamond',
+    icon: 'Crown',
+    category: 'streak',
+  },
+  {
+    badgeId: 'streak-100',
+    title: 'Centurion Athlete',
+    description: 'Reached the pinnacle 100-day uninterrupted fitness streak.',
+    tier: 'diamond',
+    icon: 'Award',
+    category: 'streak',
+  },
+
+  // --- Strength, Workouts & Volume ---
+  {
+    badgeId: 'first-workout',
+    title: 'Iron Initiate',
+    description: 'Logged and completed your first workout session in the training tracker.',
+    tier: 'bronze',
+    icon: 'Dumbbell',
+    category: 'workout',
+  },
+  {
+    badgeId: 'workout-5',
+    title: 'High-Frequency Grinder',
+    description: 'Completed 5 logged workouts with tracked exercises and sets.',
+    tier: 'silver',
+    icon: 'Dumbbell',
+    category: 'workout',
+  },
+  {
+    badgeId: 'workout-20',
+    title: 'Century Set Master',
+    description: 'Crushed 20 full workout sessions with progressive overload.',
+    tier: 'gold',
+    icon: 'Zap',
+    category: 'workout',
+  },
+  {
+    badgeId: 'volume-10k',
+    title: '10 Ton Lifter',
+    description: 'Moved over 10,000 kg in cumulative training volume across tracked workouts.',
+    tier: 'silver',
+    icon: 'Dumbbell',
+    category: 'workout',
+  },
+  {
+    badgeId: 'volume-50k',
+    title: 'Heavy Metal Hero',
+    description: 'Surpassed 50,000 kg in total training volume across all completed lifts.',
+    tier: 'gold',
+    icon: 'Zap',
+    category: 'workout',
+  },
+  {
+    badgeId: 'volume-100k',
+    title: 'Titan of Iron',
+    description: 'Moved over 100,000 kg in cumulative lifted volume in the gym.',
+    tier: 'diamond',
+    icon: 'Crown',
+    category: 'workout',
+  },
+
+  // --- Cardio, Steps & Energy ---
+  {
+    badgeId: 'steps-10k',
+    title: '10K Step Stride',
+    description: 'Hit 10,000 steps in a single day for optimal daily energy expenditure.',
+    tier: 'bronze',
+    icon: 'Footprints',
+    category: 'steps',
+  },
+  {
+    badgeId: 'steps-50k',
+    title: 'Endurance Explorer',
+    description: 'Accumulated 50,000 steps across your tracked daily walks.',
+    tier: 'silver',
+    icon: 'Footprints',
+    category: 'steps',
+  },
+  {
+    badgeId: 'steps-100k',
+    title: 'Centurion Walker',
+    description: 'Surpassed 100,000 cumulative steps on your walking & cardio journey.',
+    tier: 'gold',
+    icon: 'Footprints',
+    category: 'steps',
+  },
+  {
+    badgeId: 'dawn-patrol',
+    title: 'Dawn Patrol',
+    description: 'Completed an early morning cardio or check-in session before 8:00 AM.',
+    tier: 'bronze',
+    icon: 'Sun',
+    category: 'steps',
+  },
+
+  // --- Hydration & Cellular Health ---
+  {
+    badgeId: 'hydro-beast',
+    title: 'Hydration Vanguard',
+    description: 'Drank 3,000ml+ water in a single day for peak cellular hydration.',
+    tier: 'bronze',
+    icon: 'Droplets',
+    category: 'hydration',
+  },
+  {
+    badgeId: 'hydro-streak-5',
+    title: 'Pure Flow Streak',
+    description: 'Hit your daily water intake target for 5 consecutive check-in days.',
+    tier: 'silver',
+    icon: 'Droplets',
+    category: 'hydration',
+  },
+  {
+    badgeId: 'hydration-master',
+    title: 'Hydro Equilibrium',
+    description: 'Logged 10 days of hitting full hydration target during training & fasting.',
+    tier: 'gold',
+    icon: 'Droplets',
+    category: 'hydration',
+  },
+
+  // --- Nutrition & Macros ---
+  {
+    badgeId: 'smart-fueler',
+    title: 'Smart Fueler',
+    description: 'Logged your first meal with AI camera macro and calorie recognition.',
+    tier: 'bronze',
+    icon: 'Utensils',
+    category: 'nutrition',
+  },
+  {
+    badgeId: 'protein-architect',
+    title: 'Protein Architect',
+    description: 'Hit your daily optimal protein goal for muscle repair and satiety.',
+    tier: 'silver',
+    icon: 'Target',
+    category: 'nutrition',
+  },
+  {
+    badgeId: 'macro-sniper',
+    title: 'Macro Sniper',
+    description: 'Maintained calories and macros within ±5% of your maintenance target.',
+    tier: 'gold',
+    icon: 'Target',
+    category: 'nutrition',
+  },
+  {
+    badgeId: 'nutrient-diversity',
+    title: 'Culinary Alchemist',
+    description: 'Logged 5 or more diverse whole-food Indian meals & nutrient staples.',
+    tier: 'silver',
+    icon: 'Apple',
+    category: 'nutrition',
+  },
+
+  // --- Fasting & Recovery ---
   {
     badgeId: 'fasting-harmony',
     title: 'Fasting Harmony',
     description: 'Observed a scheduled fasting day and aligned training & hydration.',
     tier: 'silver',
     icon: 'Flame',
+    category: 'fasting',
   },
+  {
+    badgeId: 'fasting-warrior',
+    title: 'Metabolic Sage',
+    description: 'Completed 3 scheduled intermittent or traditional viratham fasting days.',
+    tier: 'gold',
+    icon: 'Moon',
+    category: 'fasting',
+  },
+  {
+    badgeId: 'zen-recovery',
+    title: 'Deep Recovery',
+    description: 'Logged 8+ hours of quality sleep with low resting physical fatigue.',
+    tier: 'bronze',
+    icon: 'HeartPulse',
+    category: 'fasting',
+  },
+
+  // --- Physique & Readiness ---
   {
     badgeId: 'maintenance-anchor',
     title: 'Maintenance Anchor',
     description: 'Maintained body weight within ±0.75kg target variance over 5 check-ins.',
     tier: 'gold',
     icon: 'Anchor',
+    category: 'physique',
   },
   {
     badgeId: 'physique-pioneer',
@@ -898,6 +1092,7 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     description: 'Unlocked your first Gemini AI vision body type & symmetry analysis.',
     tier: 'silver',
     icon: 'Camera',
+    category: 'physique',
   },
   {
     badgeId: 'iron-will',
@@ -905,6 +1100,25 @@ export const BADGE_DEFINITIONS: Omit<UserReward, 'id' | 'unlockedAt'>[] = [
     description: 'Completed 10 full readiness and recovery fatigue evaluations.',
     tier: 'diamond',
     icon: 'Shield',
+    category: 'physique',
+  },
+
+  // --- Routine & Discipline ---
+  {
+    badgeId: 'routine-architect',
+    title: 'Master of Routine',
+    description: 'Configured personalized daily routine timings & natural voice reminders.',
+    tier: 'bronze',
+    icon: 'Clock',
+    category: 'routine',
+  },
+  {
+    badgeId: 'alarm-pioneer',
+    title: 'Cinema Awakening',
+    description: 'Personalized your wake-up alarm with a custom video song or motivating media.',
+    tier: 'bronze',
+    icon: 'Sparkles',
+    category: 'routine',
   },
 ];
 
@@ -1029,7 +1243,16 @@ export const evaluateAndUnlockBadges = async (
   checkIns: CheckInItem[],
   currentRewards: UserReward[],
   targetWeightKg?: number,
-  currentStreak = 0
+  currentStreak = 0,
+  extraContext?: {
+    totalWorkouts?: number;
+    totalVolumeKg?: number;
+    totalSteps?: number;
+    waterMlToday?: number;
+    nutritionLogsCount?: number;
+    customRoutinesCount?: number;
+    hasAlarmVideo?: boolean;
+  }
 ): Promise<UserReward[]> => {
   if (!userId || checkIns.length === 0) return [];
 
@@ -1048,49 +1271,195 @@ export const evaluateAndUnlockBadges = async (
     }
   };
 
-  // 1. First Step (1 checkin)
+  // Resolve cached workout stats and effective streak if not provided
+  let statsWorkouts = extraContext?.totalWorkouts ?? 0;
+  let statsVolume = extraContext?.totalVolumeKg ?? 0;
+  const cachedStatsStr = localStorage.getItem(`fit_user_stats_${userId}`);
+  if (cachedStatsStr) {
+    try {
+      const parsed = JSON.parse(cachedStatsStr);
+      if (parsed.totalWorkoutsCompleted) {
+        statsWorkouts = Math.max(statsWorkouts, Number(parsed.totalWorkoutsCompleted) || 0);
+      }
+      if (parsed.totalVolumeLiftedKg) {
+        statsVolume = Math.max(statsVolume, Number(parsed.totalVolumeLiftedKg) || 0);
+      }
+    } catch {
+      // Ignored
+    }
+  }
+
+  let effStreak = currentStreak;
+  if (!effStreak) {
+    const cachedStreakStr = localStorage.getItem(`fit_user_streak_${userId}`);
+    if (cachedStreakStr) {
+      try {
+        const parsed = JSON.parse(cachedStreakStr);
+        effStreak = Number(parsed.currentStreak) || 0;
+      } catch {
+        // Ignored
+      }
+    }
+  }
+
+  // --- 1. Streak & Longevity Badges ---
+  // First Step (1 checkin)
   if (checkIns.length >= 1) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'first-step');
     if (b) await checkAndUnlock(b);
   }
 
-  // 2. Consistency Ignition (3 checkins or 3-day streak)
-  if (checkIns.length >= 3 || currentStreak >= 3) {
+  // Consistency Ignition (3 checkins or 3-day streak)
+  if (checkIns.length >= 3 || effStreak >= 3) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-3');
     if (b) await checkAndUnlock(b);
   }
 
-  // 3. Streak Master (7 checkins or 7-day streak)
-  if (checkIns.length >= 7 || currentStreak >= 7) {
+  // Streak Master (7 checkins or 7-day streak)
+  if (checkIns.length >= 7 || effStreak >= 7) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-7');
     if (b) await checkAndUnlock(b);
   }
 
-  // 4. Two-Week Titan (14-day streak or 14 checkins)
-  if (currentStreak >= 14 || checkIns.length >= 14) {
+  // Two-Week Titan (14-day streak or 14 checkins)
+  if (effStreak >= 14 || checkIns.length >= 14) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-14');
     if (b) await checkAndUnlock(b);
   }
 
-  // 5. Maintenance Legend (30-day streak or 30 checkins)
-  if (currentStreak >= 30 || checkIns.length >= 30) {
+  // Maintenance Legend (30-day streak or 30 checkins)
+  if (effStreak >= 30 || checkIns.length >= 30) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-30');
     if (b) await checkAndUnlock(b);
   }
 
-  // 6. Fasting Harmony (has logged at least 1 fasting checkin or observance)
+  // Diamond Discipline (60-day streak or 60 checkins)
+  if (effStreak >= 60 || checkIns.length >= 60) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-60');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // Centurion Athlete (100-day streak or 100 checkins)
+  if (effStreak >= 100 || checkIns.length >= 100) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-100');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // --- 2. Workouts & Lifted Volume Badges ---
+  if (statsWorkouts >= 1) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'first-workout');
+    if (b) await checkAndUnlock(b);
+  }
+  if (statsWorkouts >= 5) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'workout-5');
+    if (b) await checkAndUnlock(b);
+  }
+  if (statsWorkouts >= 20) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'workout-20');
+    if (b) await checkAndUnlock(b);
+  }
+  if (statsVolume >= 10000) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'volume-10k');
+    if (b) await checkAndUnlock(b);
+  }
+  if (statsVolume >= 50000) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'volume-50k');
+    if (b) await checkAndUnlock(b);
+  }
+  if (statsVolume >= 100000) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'volume-100k');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // --- 3. Steps & Cardio Badges ---
+  const cumulativeSteps = checkIns.reduce((sum, c) => sum + (c.steps || 0), 0);
+  if (checkIns.some((c) => (c.steps || 0) >= 10000) || (extraContext?.totalSteps || 0) >= 10000) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'steps-10k');
+    if (b) await checkAndUnlock(b);
+  }
+  if (cumulativeSteps >= 50000 || checkIns.some((c) => (c.steps || 0) >= 15000)) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'steps-50k');
+    if (b) await checkAndUnlock(b);
+  }
+  if (cumulativeSteps >= 100000) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'steps-100k');
+    if (b) await checkAndUnlock(b);
+  }
+  // Dawn Patrol: early morning cardio or checkin
+  if (
+    checkIns.some((c) => {
+      const s = c.sorenessNotes?.toLowerCase() || '';
+      return s.includes('dawn') || s.includes('morning walk') || s.includes('cardio');
+    }) ||
+    checkIns.length >= 2
+  ) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'dawn-patrol');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // --- 4. Hydration & Cellular Health Badges ---
+  if (checkIns.some((c) => (c.waterMl || 0) >= 3000) || (extraContext?.waterMlToday || 0) >= 3000) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'hydro-beast');
+    if (b) await checkAndUnlock(b);
+  }
+  const goodHydrationDays = checkIns.filter((c) => (c.waterMl || 0) >= 2000).length;
+  if (goodHydrationDays >= 5) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'hydro-streak-5');
+    if (b) await checkAndUnlock(b);
+  }
+  if (goodHydrationDays >= 10) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'hydration-master');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // --- 5. Nutrition & Macro Badges ---
+  if (
+    checkIns.some((c) => (c.caloriesConsumed || 0) > 0) ||
+    (extraContext?.nutritionLogsCount || 0) >= 1
+  ) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'smart-fueler');
+    if (b) await checkAndUnlock(b);
+  }
+  if (checkIns.some((c) => (c.proteinG || 0) >= 90)) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'protein-architect');
+    if (b) await checkAndUnlock(b);
+  }
+  if (checkIns.some((c) => (c.nutritionScore || 0) >= 80 || (c.caloriesConsumed || 0) >= 1400)) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'macro-sniper');
+    if (b) await checkAndUnlock(b);
+  }
+  if (checkIns.length >= 5) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'nutrient-diversity');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // --- 6. Fasting & Recovery Badges ---
   if (checkIns.some((c) => Boolean(c.isFasting) || (c.fastingType && c.fastingType !== 'none'))) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'fasting-harmony');
     if (b) await checkAndUnlock(b);
   }
+  const fastingDays = checkIns.filter(
+    (c) => Boolean(c.isFasting) || (c.fastingType && c.fastingType !== 'none')
+  ).length;
+  if (fastingDays >= 3) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'fasting-warrior');
+    if (b) await checkAndUnlock(b);
+  }
+  if (
+    checkIns.some(
+      (c) => (c.sleepHours || 0) >= 8 && ((c.fatigueRating || 0) >= 4 || (c.fatigueLevel || 0) <= 2)
+    )
+  ) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'zen-recovery');
+    if (b) await checkAndUnlock(b);
+  }
 
-  // 7. Physique Pioneer (has at least 1 checkin with aiPhysiqueAnalysis)
+  // --- 7. Physique & Readiness Badges ---
   if (checkIns.some((c) => Boolean(c.aiPhysiqueAnalysis))) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'physique-pioneer');
     if (b) await checkAndUnlock(b);
   }
 
-  // 8. Maintenance Anchor (within ±0.75kg target for at least 3 checkins)
   if (targetWeightKg && checkIns.length >= 3) {
     const withinMaintenance = checkIns.filter(
       (c) => Math.abs(c.weightKg - targetWeightKg) <= 0.75
@@ -1103,6 +1472,23 @@ export const evaluateAndUnlockBadges = async (
 
   if (checkIns.length >= 10) {
     const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'iron-will');
+    if (b) await checkAndUnlock(b);
+  }
+
+  // --- 8. Routine & Discipline Badges ---
+  if (
+    (extraContext?.customRoutinesCount || 0) >= 1 ||
+    localStorage.getItem(`fit_user_routine_settings_${userId}`) !== null ||
+    localStorage.getItem(`fit_routine_settings_${userId}`) !== null
+  ) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'routine-architect');
+    if (b) await checkAndUnlock(b);
+  }
+  if (
+    extraContext?.hasAlarmVideo === true ||
+    localStorage.getItem(`fit_alarm_videos_${userId}`) !== null
+  ) {
+    const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'alarm-pioneer');
     if (b) await checkAndUnlock(b);
   }
 
@@ -1211,6 +1597,16 @@ export const logWaterIntake = async (
     },
     { merge: true }
   );
+
+  if (newAmount >= 3000) {
+    try {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'hydro-beast');
+      if (b) await unlockReward(userId, b);
+    } catch {
+      // Non-blocking
+    }
+  }
+
   return newAmount;
 };
 
@@ -2637,6 +3033,14 @@ export const recordStreakActivity = async (
 
   // Check milestones and unlock badges
   try {
+    if (newCurrent >= 100) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-100');
+      if (b) await unlockReward(userId, b);
+    }
+    if (newCurrent >= 60) {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-60');
+      if (b) await unlockReward(userId, b);
+    }
     if (newCurrent >= 30) {
       const b = BADGE_DEFINITIONS.find((x) => x.badgeId === 'streak-30');
       if (b) await unlockReward(userId, b);
@@ -3784,6 +4188,22 @@ export const incrementUserWorkoutStats = async (
       lastWorkoutDate: getTodayDateString(),
     })
   );
+
+  // Evaluate and unlock workout & volume badges
+  try {
+    const checkWorkoutBadge = async (bId: string) => {
+      const b = BADGE_DEFINITIONS.find((x) => x.badgeId === bId);
+      if (b) await unlockReward(userId, b);
+    };
+    if (updatedTotal >= 1) await checkWorkoutBadge('first-workout');
+    if (updatedTotal >= 5) await checkWorkoutBadge('workout-5');
+    if (updatedTotal >= 20) await checkWorkoutBadge('workout-20');
+    if (newVol >= 10000) await checkWorkoutBadge('volume-10k');
+    if (newVol >= 50000) await checkWorkoutBadge('volume-50k');
+    if (newVol >= 100000) await checkWorkoutBadge('volume-100k');
+  } catch {
+    // Non-blocking
+  }
 
   return updatedTotal;
 };

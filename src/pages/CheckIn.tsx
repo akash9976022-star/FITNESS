@@ -23,6 +23,14 @@ import {
   Sun,
   Apple,
   Upload,
+  Crown,
+  Award,
+  Dumbbell,
+  Zap,
+  Utensils,
+  Target,
+  HeartPulse,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -124,6 +132,9 @@ export const CheckIn: React.FC = () => {
   const [sliderPosition, setSliderPosition] = useState<number>(50); // percentage 0 - 100
   const [selectedCheckInForModal, setSelectedCheckInForModal] = useState<CheckInItem | null>(null);
 
+  // Gamified Rewards Filter State
+  const [selectedBadgeCategory, setSelectedBadgeCategory] = useState<string>('all');
+
   // Subscribe to real-time data
   useEffect(() => {
     if (!currentUser?.uid) {
@@ -189,6 +200,24 @@ export const CheckIn: React.FC = () => {
       unsubActivity();
     };
   }, [currentUser?.uid]);
+
+  // Proactively evaluate & unlock eligible rewards when check-ins or streaks are updated
+  useEffect(() => {
+    if (!currentUser?.uid || checkIns.length === 0) return;
+    evaluateAndUnlockBadges(
+      currentUser.uid,
+      checkIns,
+      rewards,
+      userProfile?.targetWeightKg,
+      userStreak?.currentStreak || 0
+    )
+      .then((unlocked) => {
+        if (unlocked.length > 0) {
+          setNewlyUnlockedBadges(unlocked);
+        }
+      })
+      .catch((err) => console.warn('Badge auto-evaluation notice:', err));
+  }, [currentUser?.uid, checkIns.length, rewards.length, userStreak?.currentStreak, userProfile?.targetWeightKg]);
 
   // Process and analyze photo immediately upon capture/upload
   const processAndAnalyzePhoto = async (fileOrBlob: File | Blob) => {
@@ -341,7 +370,8 @@ export const CheckIn: React.FC = () => {
         currentUser.uid,
         updatedCheckIns,
         rewards,
-        userProfile?.targetWeightKg
+        userProfile?.targetWeightKg,
+        userStreak?.currentStreak || 0
       )
         .then((unlocked) => {
           if (unlocked.length > 0) {
@@ -382,7 +412,8 @@ export const CheckIn: React.FC = () => {
         currentUser.uid,
         checkIns,
         rewards,
-        userProfile?.targetWeightKg
+        userProfile?.targetWeightKg,
+        updatedStreak?.currentStreak || userStreak?.currentStreak || 0
       );
       if (unlocked.length > 0) {
         setNewlyUnlockedBadges(unlocked);
@@ -449,11 +480,80 @@ export const CheckIn: React.FC = () => {
         return <Camera className="w-5 h-5 text-indigo-500" />;
       case 'Shield':
         return <Shield className="w-5 h-5 text-purple-500" />;
+      case 'Crown':
+        return <Crown className="w-5 h-5 text-yellow-500" />;
+      case 'Award':
+        return <Award className="w-5 h-5 text-amber-500" />;
+      case 'Dumbbell':
+        return <Dumbbell className="w-5 h-5 text-rose-500" />;
+      case 'Zap':
+        return <Zap className="w-5 h-5 text-yellow-500" />;
+      case 'Droplets':
+        return <Droplets className="w-5 h-5 text-cyan-500" />;
+      case 'Utensils':
+        return <Utensils className="w-5 h-5 text-orange-500" />;
+      case 'Target':
+        return <Target className="w-5 h-5 text-red-500" />;
+      case 'Apple':
+        return <Apple className="w-5 h-5 text-emerald-500" />;
+      case 'Moon':
+        return <Moon className="w-5 h-5 text-indigo-400" />;
+      case 'HeartPulse':
+        return <HeartPulse className="w-5 h-5 text-pink-500" />;
+      case 'Clock':
+        return <Clock className="w-5 h-5 text-blue-500" />;
+      case 'Sun':
+        return <Sun className="w-5 h-5 text-amber-500" />;
+      case 'Sparkles':
+        return <Sparkles className="w-5 h-5 text-purple-400" />;
       case 'Trophy':
       default:
         return <Trophy className="w-5 h-5 text-amber-500" />;
     }
   };
+
+  // Gamified Rewards Categories & Computed Stats
+  const unlockedBadgeIds = useMemo(() => new Set(rewards.map((r) => r.badgeId)), [rewards]);
+  const unlockedRewardsCount = BADGE_DEFINITIONS.filter((b) => unlockedBadgeIds.has(b.badgeId)).length;
+  const totalBadgesCount = BADGE_DEFINITIONS.length;
+  const rewardsCompletionPct = Math.round((unlockedRewardsCount / Math.max(1, totalBadgesCount)) * 100);
+
+  const rewardTierStats = useMemo(() => {
+    const counts = {
+      bronze: { unlocked: 0, total: 0 },
+      silver: { unlocked: 0, total: 0 },
+      gold: { unlocked: 0, total: 0 },
+      diamond: { unlocked: 0, total: 0 },
+    };
+    BADGE_DEFINITIONS.forEach((b) => {
+      const tierKey = b.tier as 'bronze' | 'silver' | 'gold' | 'diamond';
+      if (counts[tierKey]) {
+        counts[tierKey].total++;
+        if (unlockedBadgeIds.has(b.badgeId)) counts[tierKey].unlocked++;
+      }
+    });
+    return counts;
+  }, [unlockedBadgeIds]);
+
+  const filteredBadges = useMemo(() => {
+    if (selectedBadgeCategory === 'all') return BADGE_DEFINITIONS;
+    return BADGE_DEFINITIONS.filter((b) => b.category === selectedBadgeCategory);
+  }, [selectedBadgeCategory]);
+
+  const rewardCategories = useMemo(
+    () => [
+      { id: 'all', label: 'All Badges', icon: 'Trophy', count: BADGE_DEFINITIONS.length },
+      { id: 'streak', label: 'Streaks', icon: 'Flame', count: BADGE_DEFINITIONS.filter((b) => b.category === 'streak').length },
+      { id: 'workout', label: 'Workouts', icon: 'Dumbbell', count: BADGE_DEFINITIONS.filter((b) => b.category === 'workout').length },
+      { id: 'steps', label: 'Steps & Cardio', icon: 'Footprints', count: BADGE_DEFINITIONS.filter((b) => b.category === 'steps').length },
+      { id: 'hydration', label: 'Hydration', icon: 'Droplets', count: BADGE_DEFINITIONS.filter((b) => b.category === 'hydration').length },
+      { id: 'nutrition', label: 'Nutrition', icon: 'Utensils', count: BADGE_DEFINITIONS.filter((b) => b.category === 'nutrition').length },
+      { id: 'fasting', label: 'Fasting & Recovery', icon: 'Moon', count: BADGE_DEFINITIONS.filter((b) => b.category === 'fasting').length },
+      { id: 'physique', label: 'Physique', icon: 'Camera', count: BADGE_DEFINITIONS.filter((b) => b.category === 'physique').length },
+      { id: 'routine', label: 'Routines', icon: 'Clock', count: BADGE_DEFINITIONS.filter((b) => b.category === 'routine').length },
+    ],
+    []
+  );
 
   // Computed live maintenance targets for End-of-Day review
   const dailyTargetCalories = useMemo(() => {
@@ -1347,76 +1447,217 @@ export const CheckIn: React.FC = () => {
 
       {/* ==================== TAB 3: GAMIFIED REWARDS & BADGES ==================== */}
       {activeTab === 'rewards' && (
-        <div className="space-y-6">
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-500" />
-                  <span>Consistency & Maintenance Badge Engine</span>
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Hero Banner with Level Progress & Tier Counters */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white p-5 sm:p-7 border border-slate-800 shadow-xl space-y-6">
+            <div className="absolute -top-16 -right-16 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-60 h-60 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-xl">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Gamified Achievement Engine</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                  <span>Fitness & Maintenance Milestone Badges</span>
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Earned automatically as you maintain check-in streaks, achieve metabolic equilibrium, and submit AI physique scans.
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Unlock tier-based rewards automatically as you log training volume, observe fasting days, hit 10K steps, optimize hydration, and preserve your daily streaks.
                 </p>
               </div>
 
-              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
-                {rewards.length} / {BADGE_DEFINITIONS.length} Badges Unlocked
+              {/* Overall Progress Gauge */}
+              <div className="flex-shrink-0 bg-slate-800/80 backdrop-blur-md rounded-2xl p-4 border border-slate-700/60 min-w-[200px] text-center space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                  Overall Completion
+                </span>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-3xl font-black text-amber-400">
+                    {unlockedRewardsCount}
+                  </span>
+                  <span className="text-slate-400 text-sm font-bold">
+                    / {totalBadgesCount}
+                  </span>
+                  <span className="text-emerald-400 text-xs font-bold ml-1">
+                    ({rewardsCompletionPct}%)
+                  </span>
+                </div>
+
+                <div className="w-full bg-slate-700/70 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${rewardsCompletionPct}%` }}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {BADGE_DEFINITIONS.map((badgeDef) => {
-                const isUnlocked = rewards.some((r) => r.badgeId === badgeDef.badgeId);
+            {/* 4 Tier Metric Counters */}
+            <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+              {/* Bronze */}
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-700/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
+                    Bronze Tier
+                  </span>
+                  <span className="text-base font-black text-white">
+                    {rewardTierStats.bronze.unlocked} / {rewardTierStats.bronze.total}
+                  </span>
+                </div>
+                <div className="w-7 h-7 rounded-xl bg-amber-700/30 text-amber-300 flex items-center justify-center text-xs font-bold">
+                  🥉
+                </div>
+              </div>
 
-                return (
-                  <div
-                    key={badgeDef.badgeId}
-                    className={`p-4 rounded-2xl border transition-all duration-200 space-y-3 relative overflow-hidden ${
-                      isUnlocked
-                        ? 'bg-slate-50 dark:bg-slate-950 border-emerald-500/40 shadow-sm'
-                        : 'bg-slate-100/40 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/60 opacity-60'
+              {/* Silver */}
+              <div className="p-3 rounded-2xl bg-slate-800/40 border border-slate-600/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Silver Tier
+                  </span>
+                  <span className="text-base font-black text-white">
+                    {rewardTierStats.silver.unlocked} / {rewardTierStats.silver.total}
+                  </span>
+                </div>
+                <div className="w-7 h-7 rounded-xl bg-slate-600/30 text-slate-200 flex items-center justify-center text-xs font-bold">
+                  🥈
+                </div>
+              </div>
+
+              {/* Gold */}
+              <div className="p-3 rounded-2xl bg-amber-900/30 border border-amber-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                    Gold Tier
+                  </span>
+                  <span className="text-base font-black text-white">
+                    {rewardTierStats.gold.unlocked} / {rewardTierStats.gold.total}
+                  </span>
+                </div>
+                <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold">
+                  🥇
+                </div>
+              </div>
+
+              {/* Diamond */}
+              <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">
+                    Diamond Tier
+                  </span>
+                  <span className="text-base font-black text-white">
+                    {rewardTierStats.diamond.unlocked} / {rewardTierStats.diamond.total}
+                  </span>
+                </div>
+                <div className="w-7 h-7 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center text-xs font-bold">
+                  💎
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Category Filter Pills (Horizontal Scrollable) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {rewardCategories.map((cat) => {
+              const isSelected = selectedBadgeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedBadgeCategory(cat.id)}
+                  className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                    isSelected
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 border-slate-900 dark:border-white shadow-sm'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      isSelected
+                        ? 'bg-white/20 dark:bg-slate-950/20 text-white dark:text-slate-950'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                     }`}
                   >
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Badges Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {filteredBadges.map((badgeDef) => {
+              const isUnlocked = unlockedBadgeIds.has(badgeDef.badgeId);
+
+              return (
+                <div
+                  key={badgeDef.badgeId}
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 space-y-3.5 relative overflow-hidden flex flex-col justify-between ${
+                    isUnlocked
+                      ? 'bg-white dark:bg-slate-900 border-emerald-500/40 shadow-sm hover:shadow-md'
+                      : 'bg-slate-100/50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/80 opacity-60 hover:opacity-75'
+                  }`}
+                >
+                  {/* Ambient Glow for unlocked */}
+                  {isUnlocked && (
+                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                  )}
+
+                  <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0 ${
                           isUnlocked
-                            ? 'bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 text-emerald-500 border border-emerald-500/30'
-                            : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                            ? 'bg-gradient-to-tr from-emerald-500/15 to-teal-500/20 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
                         }`}
                       >
                         {getBadgeIcon(badgeDef.icon)}
                       </div>
 
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
-                          isUnlocked
-                            ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30'
-                            : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'
-                        }`}
-                      >
-                        {isUnlocked ? 'Unlocked' : 'Locked'}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                            isUnlocked
+                              ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30'
+                              : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'
+                          }`}
+                        >
+                          {isUnlocked ? '✓ Unlocked' : 'Locked'}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                          {badgeDef.tier} Tier
+                        </span>
+                      </div>
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                          {badgeDef.title}
-                        </h4>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">
-                          • {badgeDef.tier}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>{badgeDef.title}</span>
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
                         {badgeDef.description}
                       </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Card Footer: Category tag & Unlocked date */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                    <span className="capitalize font-semibold text-slate-500 dark:text-slate-400">
+                      {badgeDef.category || 'General'}
+                    </span>
+                    {isUnlocked && (
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        Earned & Active
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

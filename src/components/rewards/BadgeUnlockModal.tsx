@@ -8,6 +8,18 @@ import {
   Shield,
   Sparkles,
   CheckCircle,
+  Crown,
+  Award,
+  Dumbbell,
+  Zap,
+  Droplets,
+  Utensils,
+  Target,
+  Apple,
+  Moon,
+  HeartPulse,
+  Clock,
+  Sun,
 } from 'lucide-react';
 import { type UserReward } from '../../services/firestoreService';
 
@@ -36,6 +48,32 @@ export const BadgeUnlockModal: React.FC<BadgeUnlockModalProps> = ({
         return <Camera className="w-10 h-10 text-indigo-400" />;
       case 'Shield':
         return <Shield className="w-10 h-10 text-purple-400" />;
+      case 'Crown':
+        return <Crown className="w-10 h-10 text-yellow-300" />;
+      case 'Award':
+        return <Award className="w-10 h-10 text-amber-300" />;
+      case 'Dumbbell':
+        return <Dumbbell className="w-10 h-10 text-rose-400" />;
+      case 'Zap':
+        return <Zap className="w-10 h-10 text-yellow-400" />;
+      case 'Droplets':
+        return <Droplets className="w-10 h-10 text-cyan-400" />;
+      case 'Utensils':
+        return <Utensils className="w-10 h-10 text-orange-400" />;
+      case 'Target':
+        return <Target className="w-10 h-10 text-red-400" />;
+      case 'Apple':
+        return <Apple className="w-10 h-10 text-emerald-400" />;
+      case 'Moon':
+        return <Moon className="w-10 h-10 text-indigo-300" />;
+      case 'HeartPulse':
+        return <HeartPulse className="w-10 h-10 text-pink-400" />;
+      case 'Clock':
+        return <Clock className="w-10 h-10 text-blue-400" />;
+      case 'Sun':
+        return <Sun className="w-10 h-10 text-amber-300" />;
+      case 'Sparkles':
+        return <Sparkles className="w-10 h-10 text-purple-300" />;
       case 'Trophy':
       default:
         return <Trophy className="w-10 h-10 text-amber-400" />;

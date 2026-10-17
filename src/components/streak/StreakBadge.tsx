@@ -42,6 +42,8 @@ export const StreakBadge: React.FC<StreakBadgeProps> = ({
     { target: 7, label: '7-Day Streak Master', tier: 'Gold', icon: 'Trophy' },
     { target: 14, label: '14-Day Two-Week Titan', tier: 'Gold', icon: 'Shield' },
     { target: 30, label: '30-Day Maintenance Legend', tier: 'Diamond', icon: 'Sparkles' },
+    { target: 60, label: '60-Day Diamond Discipline', tier: 'Diamond', icon: 'Crown' },
+    { target: 100, label: '100-Day Centurion Athlete', tier: 'Diamond', icon: 'Award' },
   ];
 
   const nextMilestone =
@@ -50,7 +52,7 @@ export const StreakBadge: React.FC<StreakBadgeProps> = ({
     milestones.filter((m) => m.target <= currentCount).slice(-1)[0]?.target || 0;
 
   const milestoneProgressPct =
-    currentCount >= 30
+    currentCount >= 100
       ? 100
       : Math.min(
           100,
@@ -144,7 +146,7 @@ export const StreakBadge: React.FC<StreakBadgeProps> = ({
                 Next Milestone
               </span>
               <span className="text-xs font-black text-slate-800 dark:text-slate-200">
-                {currentCount >= 30 ? '30-Day Legend 🔥' : `${nextMilestone.target} Days (${nextMilestone.tier})`}
+                {currentCount >= 100 ? '100-Day Centurion 🔥' : `${nextMilestone.target} Days (${nextMilestone.tier})`}
               </span>
               <div className="w-20 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
                 <div
