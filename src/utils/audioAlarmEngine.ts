@@ -11,6 +11,7 @@
 
 import type { TamilDateInfo } from './tamilCalendar';
 import { GoogleGenAI } from '@google/genai';
+import { getBestNaturalVoice, loadVoices, speakChunk } from './voiceSynthesisHelper';
 
 export interface BriefingSection {
   id: string;
@@ -850,152 +851,18 @@ class SpeechBriefingEngine {
    * Finds the best matching voice for natural Indian English (en-IN / natural neural)
    * or authentic native Tamil (Google தமிழ் / ta-IN / Pallavi / Valluvar) for browser fallback.
    */
-  private getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    if (lang === 'ta') {
-      // 1. Natural / Neural Online voices: Microsoft Pallavi Online (Natural), Microsoft Valluvar Online (Natural), ta-IN-Neural
-      const naturalTaVoice = voices.find((v) => {
-        const l = v.lang.toLowerCase().replace('_', '-');
-        const n = v.name.toLowerCase();
-        return (
-          (l.startsWith('ta') || n.includes('tamil') || n.includes('தமிழ்')) &&
-          (n.includes('natural') || n.includes('neural') || n.includes('online'))
-        );
-      });
-      if (naturalTaVoice) return naturalTaVoice;
-
-      // 2. High priority: Google தமிழ் (Android / Chrome standard), ta-IN, ta-LK, ta-SG
-      const googleTaVoice = voices.find((v) => {
-        const n = v.name.toLowerCase();
-        const l = v.lang.toLowerCase().replace('_', '-');
-        return (l === 'ta-in' || l === 'ta_in' || l.startsWith('ta')) && (n.includes('google') || n.includes('தமிழ்'));
-      });
-      if (googleTaVoice) return googleTaVoice;
-
-      // 3. Microsoft Pallavi (High-quality modern female Tamil voice)
-      const pallaviVoice = voices.find((v) => {
-        const n = v.name.toLowerCase();
-        return n.includes('pallavi');
-      });
-      if (pallaviVoice) return pallaviVoice;
-
-      // 4. Microsoft Latha
-      const lathaVoice = voices.find((v) => {
-        const n = v.name.toLowerCase();
-        return n.includes('latha');
-      });
-      if (lathaVoice) return lathaVoice;
-
-      // 5. Any other Tamil voice (including desktop Valluvar if that's the only one installed)
-      const exactTaVoice = voices.find((v) => {
-        const l = v.lang.toLowerCase().replace('_', '-');
-        const n = v.name.toLowerCase();
-        return (
-          l === 'ta-in' ||
-          l === 'ta_in' ||
-          l === 'ta-lk' ||
-          l === 'ta-sg' ||
-          n.includes('valluvar') ||
-          n.includes('tamil') ||
-          n.includes('தமிழ்')
-        );
-      });
-      if (exactTaVoice) return exactTaVoice;
-
-      // 6. Any voice where language starts with ta
-      const anyTaVoice = voices.find((v) => v.lang.toLowerCase().startsWith('ta'));
-      if (anyTaVoice) return anyTaVoice;
-
-      return null;
-    } else {
-      // English: Select highest quality natural / Indian English conversational voice
-      const indianEnVoice =
-        voices.find((v) => {
-          const l = v.lang.toLowerCase().replace('_', '-');
-          const n = v.name.toLowerCase();
-          return l === 'en-in' && (n.includes('natural') || n.includes('neural') || n.includes('online'));
-        }) ||
-        voices.find((v) => {
-          const l = v.lang.toLowerCase().replace('_', '-');
-          const n = v.name.toLowerCase();
-          return l === 'en-in' || n.includes('india') || n.includes('ravi') || n.includes('heera') || n.includes('neerja');
-        }) ||
-        voices.find((v) => {
-          const l = v.lang.toLowerCase().replace('_', '-');
-          const n = v.name.toLowerCase();
-          return l.startsWith('en') && (n.includes('google') || n.includes('natural'));
-        }) ||
-        voices.find((v) => {
-          const n = v.name.toLowerCase();
-          return (
-            n.includes('samantha') ||
-            n.includes('ava') ||
-            n.includes('jenny') ||
-            n.includes('oliver') ||
-            n.includes('karen')
-          );
-        }) ||
-        voices.find((v) => v.lang.toLowerCase().startsWith('en'));
-
-      return indianEnVoice || voices[0] || null;
-    }
+  public getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
+    return getBestNaturalVoice(lang);
   }
 
   /**
-   * Browser Speech Synthesis Fallback with watchdog timer and optimized prosody
+   * Browser Speech Synthesis Fallback with watchdog timer, voice matching and optimized prosody
    */
   private speakWithBrowserSynthesis(text: string, lang: 'en' | 'ta'): Promise<void> {
-    return new Promise((resolve) => {
-      if (typeof window === 'undefined' || !window.speechSynthesis) {
-        resolve();
-        return;
-      }
-
-      if (this.isCancelled) {
-        resolve();
-        return;
-      }
-
-      // Wake up speech synthesis if paused
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
-      utterance.rate = lang === 'ta' ? 0.92 : 0.94;
-      utterance.pitch = lang === 'ta' ? 1.06 : 1.0;
-
-      const voice = this.getBestVoice(lang);
-      if (voice) {
-        utterance.voice = voice;
-      }
-
-      let timer: NodeJS.Timeout | null = null;
-      const cleanup = () => {
-        if (timer) clearTimeout(timer);
-      };
-
-      const timeoutMs = Math.max(8000, text.length * 120 + 3000);
-      timer = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, timeoutMs);
-
-      utterance.onend = () => {
-        cleanup();
-        resolve();
-      };
-      utterance.onerror = (e) => {
-        cleanup();
-        console.warn('Browser speech synthesis notice:', e);
-        resolve();
-      };
-
-      window.speechSynthesis.speak(utterance);
+    if (this.isCancelled) return Promise.resolve();
+    return speakChunk(text, lang, {
+      rate: lang === 'ta' ? 0.94 : 0.96,
+      pitch: lang === 'ta' ? 1.02 : 1.0,
     });
   }
 
@@ -1072,7 +939,8 @@ class SpeechBriefingEngine {
    */
   public async startBriefing(
     sections: BriefingSection[],
-    callbacks?: SpeechBriefingCallbacks
+    callbacks?: SpeechBriefingCallbacks,
+    languageMode: 'en' | 'ta' | 'both' = 'both'
   ): Promise<void> {
     if (typeof window === 'undefined') {
       if (callbacks?.onAllComplete) callbacks.onAllComplete();
@@ -1082,6 +950,9 @@ class SpeechBriefingEngine {
     this.stop();
     this.isSpeaking = true;
     this.isCancelled = false;
+
+    // Load available neural voices asynchronously before queuing
+    await loadVoices();
 
     try {
       interface SpeechStep {
@@ -1094,100 +965,22 @@ class SpeechBriefingEngine {
 
       const steps: SpeechStep[] = [];
 
-      // =========================================================================
-      // PHASE 1: ENGLISH (Greeting -> Today's Nutrients -> Quote of the Day)
-      // =========================================================================
-      const greetingIdx = sections.findIndex((s) => s.category === 'greeting');
-      if (greetingIdx !== -1) {
-        steps.push({
-          sectionIndex: greetingIdx,
-          category: 'greeting',
-          lang: 'en',
-          text: sections[greetingIdx].textEn,
-          segment: 'english',
-        });
-      }
-
-      const fitnessIdx = sections.findIndex((s) => s.category === 'fitness');
-      if (fitnessIdx !== -1) {
-        steps.push({
-          sectionIndex: fitnessIdx,
-          category: 'fitness',
-          lang: 'en',
-          text: sections[fitnessIdx].textEn,
-          segment: 'english',
-        });
-      }
-
-      const quoteIdx = sections.findIndex((s) => s.category === 'quote');
-      if (quoteIdx !== -1) {
-        steps.push({
-          sectionIndex: quoteIdx,
-          category: 'quote',
-          lang: 'en',
-          text: sections[quoteIdx].textEn,
-          segment: 'english',
-        });
-      }
-
-      // =========================================================================
-      // PHASE 2: TAMIL (Greeting -> Nutrients -> Quote -> Panchangam -> Rasipalan)
-      // =========================================================================
-      if (greetingIdx !== -1) {
-        steps.push({
-          sectionIndex: greetingIdx,
-          category: 'greeting',
-          lang: 'ta',
-          text: sections[greetingIdx].textTa,
-          segment: 'tamil',
-        });
-      }
-
-      if (fitnessIdx !== -1) {
-        steps.push({
-          sectionIndex: fitnessIdx,
-          category: 'fitness',
-          lang: 'ta',
-          text: sections[fitnessIdx].textTa,
-          segment: 'tamil',
-        });
-      }
-
-      if (quoteIdx !== -1) {
-        steps.push({
-          sectionIndex: quoteIdx,
-          category: 'quote',
-          lang: 'ta',
-          text: sections[quoteIdx].textTa,
-          segment: 'tamil',
-        });
-      }
-
-      const panchangamIdx = sections.findIndex((s) => s.category === 'panchangam');
-      if (panchangamIdx !== -1) {
-        steps.push({
-          sectionIndex: panchangamIdx,
-          category: 'panchangam',
-          lang: 'ta',
-          text: sections[panchangamIdx].textTa,
-          segment: 'tamil',
-        });
-      }
-
-      const rasiIdx = sections.findIndex((s) => s.category === 'rasipalan');
-      if (rasiIdx !== -1) {
-        steps.push({
-          sectionIndex: rasiIdx,
-          category: 'rasipalan',
-          lang: 'ta',
-          text: sections[rasiIdx].textTa,
-          segment: 'tamil',
-        });
-      }
-
-      // Fallback: any other unhandled sections spoken in Tamil
-      sections.forEach((sec, idx) => {
-        if (!['greeting', 'quote', 'panchangam', 'rasipalan', 'fitness'].includes(sec.category)) {
+      if (languageMode === 'en') {
+        // Mode 1: English Only - 100% natural English from start to finish
+        for (let idx = 0; idx < sections.length; idx++) {
+          const sec = sections[idx];
+          steps.push({
+            sectionIndex: idx,
+            category: sec.category,
+            lang: 'en',
+            text: sec.textEn,
+            segment: 'english',
+          });
+        }
+      } else if (languageMode === 'ta') {
+        // Mode 2: Tamil Only - 100% authentic spoken Tamil (Peccu Tamil)
+        for (let idx = 0; idx < sections.length; idx++) {
+          const sec = sections[idx];
           steps.push({
             sectionIndex: idx,
             category: sec.category,
@@ -1196,7 +989,81 @@ class SpeechBriefingEngine {
             segment: 'tamil',
           });
         }
-      });
+      } else {
+        // Mode 3: Tanglish / Bilingual (Single Unified Flow, Zero Duplication)
+        // 1. Morning Greeting in English
+        const greetingIdx = sections.findIndex((s) => s.category === 'greeting');
+        if (greetingIdx !== -1) {
+          steps.push({
+            sectionIndex: greetingIdx,
+            category: 'greeting',
+            lang: 'en',
+            text: sections[greetingIdx].textEn,
+            segment: 'english',
+          });
+        }
+
+        // 2. Nutrients & Fitness Targets in English
+        const fitnessIdx = sections.findIndex((s) => s.category === 'fitness');
+        if (fitnessIdx !== -1) {
+          steps.push({
+            sectionIndex: fitnessIdx,
+            category: 'fitness',
+            lang: 'en',
+            text: sections[fitnessIdx].textEn,
+            segment: 'english',
+          });
+        }
+
+        // 3. Thought of the Day in Tamil
+        const quoteIdx = sections.findIndex((s) => s.category === 'quote');
+        if (quoteIdx !== -1) {
+          steps.push({
+            sectionIndex: quoteIdx,
+            category: 'quote',
+            lang: 'ta',
+            text: sections[quoteIdx].textTa,
+            segment: 'tamil',
+          });
+        }
+
+        // 4. Panchangam & Auspicious Timings in Tamil
+        const panchangamIdx = sections.findIndex((s) => s.category === 'panchangam');
+        if (panchangamIdx !== -1) {
+          steps.push({
+            sectionIndex: panchangamIdx,
+            category: 'panchangam',
+            lang: 'ta',
+            text: sections[panchangamIdx].textTa,
+            segment: 'tamil',
+          });
+        }
+
+        // 5. Daily Rasipalan Guidance in Tamil
+        const rasiIdx = sections.findIndex((s) => s.category === 'rasipalan');
+        if (rasiIdx !== -1) {
+          steps.push({
+            sectionIndex: rasiIdx,
+            category: 'rasipalan',
+            lang: 'ta',
+            text: sections[rasiIdx].textTa,
+            segment: 'tamil',
+          });
+        }
+
+        // Unhandled custom sections in Tamil
+        sections.forEach((sec, idx) => {
+          if (!['greeting', 'quote', 'panchangam', 'rasipalan', 'fitness'].includes(sec.category)) {
+            steps.push({
+              sectionIndex: idx,
+              category: sec.category,
+              lang: 'ta',
+              text: sec.textTa,
+              segment: 'tamil',
+            });
+          }
+        });
+      }
 
       // Start background prefetching for all remaining audio steps (Indian English & Tamil)
       // while the first step is playing, ensuring 0-delay playback for all subsequent sections

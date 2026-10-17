@@ -61,6 +61,7 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
 
   // Double-tap touch tracker for mobile wake
   const lastTouchTimeRef = useRef<number>(0);
+  const hasStartedRef = useRef<boolean>(false);
 
   // Fullscreen helper
   const enterFullscreen = useCallback(() => {
@@ -102,6 +103,9 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
     }, 400);
   }, [blackoutEnabled, enterFullscreen, onClose, onDebriefCompleted]);
 
+  const triggerSleepBlackoutRef = useRef(triggerSleepBlackout);
+  triggerSleepBlackoutRef.current = triggerSleepBlackout;
+
   // Clean exit from Sleep Blackout Mode
   const wakeFromSleepBlackout = useCallback(() => {
     exitFullscreen();
@@ -123,9 +127,15 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
     lastTouchTimeRef.current = now;
   }, [wakeFromSleepBlackout]);
 
-  // Start Speech Synthesis when modal opens
+  // Start Speech Synthesis strictly ONCE when modal opens
   useEffect(() => {
-    if (!isOpen || isBlackoutActive) return;
+    if (!isOpen) {
+      hasStartedRef.current = false;
+      return;
+    }
+
+    if (hasStartedRef.current || isBlackoutActive) return;
+    hasStartedRef.current = true;
 
     setIsSpeaking(true);
     setCurrentSegment(script.segments[0]);
@@ -143,7 +153,7 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
         setIsTamilSpeaking(isTa);
       },
       onComplete: () => {
-        triggerSleepBlackout();
+        triggerSleepBlackoutRef.current();
       },
       onError: (err) => {
         console.warn('Night debrief voice notice:', err);
@@ -153,7 +163,7 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
     return () => {
       stopNightDebriefSpeech();
     };
-  }, [isOpen, script, language, triggerSleepBlackout, isBlackoutActive]);
+  }, [isOpen, script, language]);
 
   // Keyboard Escape listener
   useEffect(() => {
@@ -265,7 +275,13 @@ export const NightDebriefModal: React.FC<NightDebriefModalProps> = ({
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
             <span>Progress ({segmentIndex + 1} of {script.segments.length})</span>
             <span className="flex items-center gap-1.5 text-emerald-400 font-mono">
-              {isTamilSpeaking ? 'தமிழ் ஆடியோ' : 'English Audio'}
+              {language === 'both'
+                ? isTamilSpeaking
+                  ? 'Tanglish: தமிழ்'
+                  : 'Tanglish: English'
+                : isTamilSpeaking
+                ? 'தமிழ் ஆடியோ'
+                : 'English Audio'}
             </span>
           </div>
 

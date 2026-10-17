@@ -167,29 +167,17 @@ export function isRoutineActiveToday(
   return true;
 }
 
+import {
+  loadVoices,
+  getBestNaturalVoice as getBestVoiceHelper,
+  speakChunk,
+} from './voiceSynthesisHelper';
+
 /**
- * Discovers and selects the most natural, relaxed human-sounding English voice available
+ * Discovers and selects the most natural, relaxed human-sounding voice available
  */
-export function getBestNaturalVoice(): SpeechSynthesisVoice | null {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices || voices.length === 0) return null;
-
-  // 1. Natural Google / Edge / Apple neural voices
-  const naturalMatch = voices.find(
-    (v) =>
-      v.lang.startsWith('en') &&
-      /natural|google|samantha|karen|ava|serena|oliver|victoria|daniel/i.test(v.name)
-  );
-  if (naturalMatch) return naturalMatch;
-
-  // 2. Any English voice
-  const englishMatch = voices.find((v) => v.lang.startsWith('en'));
-  if (englishMatch) return englishMatch;
-
-  // 3. System default
-  return voices[0] || null;
+export function getBestNaturalVoice(lang: 'en' | 'ta' = 'en'): SpeechSynthesisVoice | null {
+  return getBestVoiceHelper(lang);
 }
 
 /**
@@ -220,31 +208,23 @@ export async function speakRoutineVoiceReminder(
   }
 
   const textToSpeak = buildSpokenPhrase(routine, userName);
+  const isTamil = /[\u0B80-\u0BFF]/.test(textToSpeak);
+  const lang: 'en' | 'ta' = isTamil ? 'ta' : 'en';
 
-  const utterance = new SpeechSynthesisUtterance(textToSpeak);
-  utterance.rate = options.rate ?? 0.95; // Relaxed natural cadence
-  utterance.pitch = options.pitch ?? 1.0;
-  utterance.volume = 1.0;
+  options.onStart?.();
 
-  const naturalVoice = getBestNaturalVoice();
-  if (naturalVoice) {
-    utterance.voice = naturalVoice;
+  try {
+    await loadVoices();
+    await speakChunk(textToSpeak, lang, {
+      rate: options.rate ?? 0.95, // Relaxed natural cadence
+      pitch: options.pitch ?? 1.0,
+      volume: 1.0,
+    });
+  } catch (err) {
+    console.warn('Routine voice reminder error:', err);
+  } finally {
+    options.onEnd?.();
   }
-
-  utterance.onstart = () => {
-    options.onStart?.();
-  };
-
-  utterance.onend = () => {
-    options.onEnd?.();
-  };
-
-  utterance.onerror = (e) => {
-    console.warn('SpeechSynthesis error:', e);
-    options.onEnd?.();
-  };
-
-  window.speechSynthesis.speak(utterance);
 }
 
 /**

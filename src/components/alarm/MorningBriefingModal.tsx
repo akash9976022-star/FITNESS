@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Sparkles,
   Volume2,
@@ -52,6 +52,8 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
+  const [briefingLanguage, setBriefingLanguage] = useState<'both' | 'en' | 'ta'>('both');
+  const hasStartedRef = useRef(false);
 
   // Initialize and register devotional callbacks
   useEffect(() => {
@@ -63,45 +65,55 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
     });
   }, []);
 
-  // Trigger speech briefing when modal opens
+  // Trigger speech briefing strictly ONCE when modal opens
   useEffect(() => {
-    if (!isOpen || sections.length === 0) return;
+    if (!isOpen || sections.length === 0) {
+      hasStartedRef.current = false;
+      return;
+    }
+
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
 
     setActiveSectionIndex(0);
-    setActiveLanguage('en');
-    setActiveSegment('english');
+    setActiveLanguage(briefingLanguage === 'ta' ? 'ta' : 'en');
+    setActiveSegment(briefingLanguage === 'ta' ? 'tamil' : 'english');
     setSpeechCompleted(false);
     setIsSpeechSpeaking(true);
     setIsSpeechPaused(false);
     setActiveTab('briefing');
 
-    speechBriefingEngine.startBriefing(sections, {
-      onSectionStart: (idx, lang, segment) => {
-        setActiveSectionIndex(idx);
-        setActiveLanguage(lang);
-        if (segment) setActiveSegment(segment);
+    speechBriefingEngine.startBriefing(
+      sections,
+      {
+        onSectionStart: (idx, lang, segment) => {
+          setActiveSectionIndex(idx);
+          setActiveLanguage(lang);
+          if (segment) setActiveSegment(segment);
+        },
+        onSectionComplete: () => {
+          // Progressively highlight completion
+        },
+        onAllComplete: () => {
+          setIsSpeechSpeaking(false);
+          setSpeechCompleted(true);
+          if (autoStartDevotionals) {
+            // Auto handoff to continuous devotional playback
+            setActiveTab('devotionals');
+            devotionalPlayer.playTrack(0, volume);
+          }
+        },
+        onError: () => {
+          setIsSpeechSpeaking(false);
+        },
       },
-      onSectionComplete: () => {
-        // Progressively highlight completion
-      },
-      onAllComplete: () => {
-        setIsSpeechSpeaking(false);
-        setSpeechCompleted(true);
-        if (autoStartDevotionals) {
-          // Auto handoff to continuous devotional playback
-          setActiveTab('devotionals');
-          devotionalPlayer.playTrack(0, volume);
-        }
-      },
-      onError: () => {
-        setIsSpeechSpeaking(false);
-      },
-    });
+      briefingLanguage
+    );
 
     return () => {
       speechBriefingEngine.stop();
     };
-  }, [isOpen, sections, autoStartDevotionals, volume]);
+  }, [isOpen, sections, autoStartDevotionals, volume, briefingLanguage]);
 
   if (!isOpen) return null;
 
@@ -161,14 +173,64 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition flex-shrink-0"
-            title="Close briefing"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden xs:flex sm:flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  speechBriefingEngine.stop();
+                  hasStartedRef.current = false;
+                  setBriefingLanguage('en');
+                }}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                  briefingLanguage === 'en'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                English
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  speechBriefingEngine.stop();
+                  hasStartedRef.current = false;
+                  setBriefingLanguage('ta');
+                }}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                  briefingLanguage === 'ta'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                தமிழ்
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  speechBriefingEngine.stop();
+                  hasStartedRef.current = false;
+                  setBriefingLanguage('both');
+                }}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition ${
+                  briefingLanguage === 'both'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Tanglish
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition flex-shrink-0"
+              title="Close briefing"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* ================= TAB NAVIGATION ================= */}

@@ -2926,6 +2926,7 @@ export interface UserAlarmSettings {
   playDevotionals: boolean;
   backgroundMusicVolume: number; // 0.0 - 1.0
   lastDismissedDate?: string; // YYYY-MM-DD
+  briefingLanguage?: 'en' | 'ta' | 'both';
 }
 
 export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
@@ -2936,6 +2937,7 @@ export const DEFAULT_ALARM_SETTINGS: UserAlarmSettings = {
   selectedRasi: 'mesham',
   playDevotionals: true,
   backgroundMusicVolume: 0.15,
+  briefingLanguage: 'both',
 };
 
 /**

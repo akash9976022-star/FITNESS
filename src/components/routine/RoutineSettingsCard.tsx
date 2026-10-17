@@ -902,17 +902,17 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    Bilingual
+                    Tanglish
                   </button>
                 </div>
 
                 <p className="text-[11px] text-slate-400 mt-1.5">
                   {(settings.nightDebrief?.language || 'both') === 'en' &&
-                    'Speaks in natural, fluent Indian / International English.'}
+                    'Mode 1: Speaks 100% in natural, fluent English from start to finish.'}
                   {(settings.nightDebrief?.language || 'both') === 'ta' &&
-                    'Speaks in authentic, fluent colloquial Tamil (native accent).'}
+                    'Mode 2: Speaks 100% in authentic, conversational spoken Tamil (Peccu Tamil).'}
                   {(settings.nightDebrief?.language || 'both') === 'both' &&
-                    'Speaks in English first, followed seamlessly by Tamil.'}
+                    'Mode 3: Speaks in a single unified Tanglish flow (English & Tamil code-switching with natural neural accents).'}
                 </p>
               </div>
 
