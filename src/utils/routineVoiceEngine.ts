@@ -73,7 +73,8 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
- * Plays a soft, resonant two-tone harmonic notification chime (528 Hz & 660 Hz)
+ * Plays a soft, resonant two-tone harmonic notification chime (528 Hz & 660 Hz).
+ * Resolves with a 200ms silent breath buffer before speech starts to eliminate audio collision.
  */
 export function playHarmonicChime(): Promise<void> {
   return new Promise((resolve) => {
@@ -90,26 +91,27 @@ export function playHarmonicChime(): Promise<void> {
       const gainNode = ctx.createGain();
 
       primaryOsc.type = 'sine';
-      primaryOsc.frequency.setValueAtTime(528, now); // Solfeggio frequency
+      primaryOsc.frequency.setValueAtTime(528, now); // Solfeggio 528 Hz tone
 
       secondaryOsc.type = 'sine';
-      secondaryOsc.frequency.setValueAtTime(660, now + 0.12); // Harmonic fifth
+      secondaryOsc.frequency.setValueAtTime(660, now + 0.10); // Harmonic fifth 660 Hz
 
       gainNode.gain.setValueAtTime(0.001, now);
-      gainNode.gain.exponentialRampToValueAtTime(0.35, now + 0.05);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+      gainNode.gain.exponentialRampToValueAtTime(0.25, now + 0.04);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.60);
 
       primaryOsc.connect(gainNode);
       secondaryOsc.connect(gainNode);
       gainNode.connect(ctx.destination);
 
       primaryOsc.start(now);
-      secondaryOsc.start(now + 0.12);
+      secondaryOsc.start(now + 0.10);
 
-      primaryOsc.stop(now + 0.9);
-      secondaryOsc.stop(now + 0.9);
+      primaryOsc.stop(now + 0.65);
+      secondaryOsc.stop(now + 0.65);
 
-      setTimeout(resolve, 600);
+      // Resolves at 800ms allowing a 200ms silent breath before speech begins
+      setTimeout(resolve, 800);
     } catch {
       resolve();
     }
@@ -128,7 +130,7 @@ import {
   loadVoices,
   getBestNaturalVoice as getBestVoiceHelper,
   speakChunk,
-  speakVoiceSequence,
+  splitIntoSentences,
   stopAllVoiceSpeech,
 } from './voiceSynthesisHelper';
 import { getConversationalRoutinePhrase } from '../services/conversationalAiVoiceService';
@@ -187,7 +189,7 @@ export function getBestNaturalVoice(lang: 'en' | 'ta' = 'en'): SpeechSynthesisVo
 
 /**
  * Speaks a natural, personalized voice reminder for the specified routine type or custom routine
- * supporting the 4 distinct language selections (en, ta, tanglish, both)
+ * supporting the 4 distinct language selections (en, ta, tanglish, both) with zero audio cut-offs.
  */
 export async function speakRoutineVoiceReminder(
   routine: RoutineType | RoutineVoiceTarget,
@@ -216,6 +218,7 @@ export async function speakRoutineVoiceReminder(
   const mode = options.language || 'tanglish';
   const cleanedName = (userName || 'Athlete').trim().split(' ')[0];
   const routineKey = typeof routine === 'string' ? routine : routine.category || routine.name;
+  const hasCustomPrompt = typeof routine !== 'string' && routine.voicePrompt && routine.voicePrompt.trim().length > 0;
   const phraseInfo = getConversationalRoutinePhrase(routineKey, cleanedName, mode);
 
   options.onStart?.();
@@ -223,24 +226,55 @@ export async function speakRoutineVoiceReminder(
   try {
     await loadVoices();
 
-    if ((mode === 'tanglish' || mode === 'both') && phraseInfo.tanglishChunks && phraseInfo.tanglishChunks.length > 0) {
-      await speakVoiceSequence(phraseInfo.tanglishChunks, {
-        rate: options.rate ?? 0.95,
-        pitch: options.pitch ?? 1.0,
-      });
+    if (mode === 'both') {
+      // Bilingual Mode: Full natural English first, followed cleanly by full Spoken Tamil
+      const enText = hasCustomPrompt
+        ? buildSpokenPhrase(routine, userName, 'en')
+        : getConversationalRoutinePhrase(routineKey, cleanedName, 'en').text;
+
+      const taText = getConversationalRoutinePhrase(routineKey, cleanedName, 'ta').text;
+
+      // Phase 1: Natural English
+      const enSentences = splitIntoSentences(enText);
+      for (const s of enSentences) {
+        await speakChunk(s, 'en', {
+          rate: options.rate ?? 0.95,
+          pitch: options.pitch ?? 1.0,
+        });
+      }
+
+      // Natural pause between languages
+      await new Promise((r) => setTimeout(r, 350));
+
+      // Phase 2: Authentic Spoken Tamil
+      const taSentences = splitIntoSentences(taText);
+      for (const s of taSentences) {
+        await speakChunk(s, 'ta', {
+          rate: options.rate ?? 0.94,
+          pitch: options.pitch ?? 1.0,
+        });
+      }
     } else {
-      const textToSpeak = typeof routine !== 'string' && routine.voicePrompt && routine.voicePrompt.trim().length > 0
+      // Single Language Mode: 'en', 'ta', or 'tanglish'
+      const textToSpeak = hasCustomPrompt
         ? buildSpokenPhrase(routine, userName, mode)
         : phraseInfo.text;
 
-      const isTamil = phraseInfo.lang === 'ta' || /[\u0B80-\u0BFF]/.test(textToSpeak);
-      const lang: 'en' | 'ta' = isTamil ? 'ta' : 'en';
+      const isTamil = mode === 'ta' || mode === 'tanglish' || /[\u0B80-\u0BFF]/.test(textToSpeak);
+      const targetLang: 'en' | 'ta' = isTamil ? 'ta' : 'en';
 
-      await speakChunk(textToSpeak, lang, {
-        rate: options.rate ?? 0.95,
-        pitch: options.pitch ?? 1.0,
-        volume: 1.0,
-      });
+      const sentences = splitIntoSentences(textToSpeak);
+      for (let i = 0; i < sentences.length; i++) {
+        await speakChunk(sentences[i], targetLang, {
+          rate: options.rate ?? (targetLang === 'ta' ? 0.94 : 0.95),
+          pitch: options.pitch ?? 1.0,
+          volume: 1.0,
+        });
+
+        if (i < sentences.length - 1) {
+          await new Promise((r) => setTimeout(r, 160));
+        }
+      }
     }
   } catch (err) {
     console.warn('Routine voice reminder error:', err);

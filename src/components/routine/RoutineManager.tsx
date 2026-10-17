@@ -151,6 +151,7 @@ export const RoutineManager: React.FC = () => {
 
       if (settingsRef.current.voiceRemindersEnabled) {
         speakRoutineVoiceReminder(targetRoutine, userName, {
+          language: settingsRef.current.routineLanguage || 'tanglish',
           rate: settingsRef.current.voiceRate,
           playChimeFirst: true,
         });
@@ -241,6 +242,7 @@ export const RoutineManager: React.FC = () => {
             // Speak natural human-like voice reminder
             if (currentSettings.voiceRemindersEnabled) {
               speakRoutineVoiceReminder(item, userName, {
+                language: currentSettings.routineLanguage || 'tanglish',
                 rate: currentSettings.voiceRate,
                 playChimeFirst: true,
               });

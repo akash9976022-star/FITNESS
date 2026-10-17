@@ -268,7 +268,7 @@ Return strictly valid JSON with this structure:
   "windDown": { "en": "...", "ta": "...", "tanglish": [ ... ] }
 }`;
 
-    const candidateModels = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+    const candidateModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
 
     for (const model of candidateModels) {
       try {
@@ -360,152 +360,132 @@ Return strictly valid JSON with this structure:
 
 /**
  * Returns conversational routine reminder spoken phrases in the 4 language modes
+ * with natural human cadence, zero raw symbols/digits, and colloquial Peccu Tamil / Tanglish flow.
  */
 export function getConversationalRoutinePhrase(
   routineType: string,
   userName = 'Akash',
   mode: VoiceLanguageMode = 'tanglish'
-): { text: string; lang: 'en' | 'ta'; tanglishChunks?: SpokenChunk[] } {
+): { text: string; lang: 'en' | 'ta' } {
   const firstName = (userName || 'Akash').trim().split(' ')[0];
   const typeLower = (routineType || '').toLowerCase();
 
-  if (typeLower.includes('walk') || typeLower.includes('cardio')) {
+  // 1. WALKING / CARDIO
+  if (typeLower.includes('walk') || typeLower.includes('cardio') || typeLower.includes('steps')) {
     if (mode === 'en') {
       return { lang: 'en', text: `Hey ${firstName}, it is time for your morning walk! Step outside, breathe in the fresh air, and let's get those steps in.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `ஹாய் ${firstName}, வாக்கிங் போக வேண்டிய நேரம் வந்துடுச்சு! வெளிய போய் நல்ல காத்து வாங்கிட்டு, ஸ்டெப்ஸ் டார்கெட்டை முடிச்சிடலாம் வாங்க!` };
+      return { lang: 'ta', text: `ஹாய் ${firstName}, காலை நடைப்பயிற்சி போக வேண்டிய நேரம் வந்துடுச்சு! வெளிய போய் நல்ல காத்து வாங்கிட்டு, நடை இலக்கை முடிச்சிடலாம் வாங்க!` };
     }
-    if (mode === 'tanglish') {
-      return {
-        lang: 'en',
-        text: `Hey ${firstName}, time for your walking session! வாங்க, let's step outside and crush those steps!`,
-        tanglishChunks: [
-          { lang: 'en-IN', text: `Hey ${firstName}, time for your morning walking session!` },
-          { lang: 'ta-IN', text: `வாங்க ப்ரோ, வெளிய போய் நல்ல காத்து வாங்கிட்டு ஸ்டெப்ஸ் டார்கெட்டை முடிச்சிடலாம்!` },
-        ],
-      };
-    }
-    // Both
+    // Tanglish: Spoken colloquial Tamil with modern fitness loan words
     return {
-      lang: 'en',
-      text: `Hey ${firstName}, time for your morning walk! வாங்க, வெளிய போய் ஸ்டெப்ஸ் டார்கெட்டை முடிச்சிடலாம்!`,
-      tanglishChunks: [
-        { lang: 'en-IN', text: `Hey ${firstName}, it is time for your morning walking session! Step outside and let's get those steps in.` },
-        { lang: 'ta-IN', text: `ஹாய் ${firstName}, வாக்கிங் போக வேண்டிய நேரம் வந்துடுச்சு! வெளிய போய் நல்ல காத்து வாங்கிட்டு ஸ்டெப்ஸ் டார்கெட்டை முடிச்சிடலாம் வாங்க!` },
-      ],
+      lang: 'ta',
+      text: `ஹாய் ${firstName}! மார்னிங் வாக்கிங் போக வேண்டிய டைம் வந்துடுச்சு! வெளிய போய் நல்ல காத்து வாங்கிட்டு, ஸ்டெப்ஸ் டார்கெட்டை முடிச்சிடலாம் வாங்க!`,
     };
   }
 
-  if (typeLower.includes('workout') || typeLower.includes('exercise')) {
+  // 2. WORKOUT / STRENGTH / EXERCISE
+  if (typeLower.includes('workout') || typeLower.includes('exercise') || typeLower.includes('gym') || typeLower.includes('strength')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `${firstName}, it's workout time! Let's hit your sets with good form and stay consistent with your goals.` };
+      return { lang: 'en', text: `${firstName}, it is workout time! Let's hit your sets with good form and stay consistent with your goals.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `${firstName}, உடற்பயிற்சி நேரம் ஆரம்பிச்சிடுச்சு! சோம்பேறித்தனம் படாம போய் ஒர்க்அவுட்டை முடிங்க, உடம்பு நல்லா பிட்டா இருக்கணும்ல!` };
+      return { lang: 'ta', text: `${firstName}, உடற்பயிற்சி நேரம் ஆரம்பிச்சிடுச்சு! சோம்பேறித்தனம் படாம போய் உடற்பயிற்சியை முடிங்க, அப்பதான் உடம்பு நல்லா பிட்டா இருக்கும்!` };
     }
-    if (mode === 'tanglish') {
-      return {
-        lang: 'en',
-        text: `${firstName} bro, workout time வந்துடுச்சு! Time to hit your sets and crush today's session!`,
-        tanglishChunks: [
-          { lang: 'en-IN', text: `${firstName} bro, workout time is here!` },
-          { lang: 'ta-IN', text: `சோம்பேறித்தனம் படாம போய் ஒர்க்அவுட்டை முடிங்க, அப்பதான் உடம்பு பிட்டா இருக்கும்!` },
-        ],
-      };
-    }
-    // Both
+    // Tanglish
     return {
-      lang: 'en',
-      text: `${firstName}, it is time for your workout session! உடற்பயிற்சி நேரம் ஆரம்பிச்சிடுச்சு, வாங்க!`,
-      tanglishChunks: [
-        { lang: 'en-IN', text: `${firstName}, it is time for your scheduled exercise and strength training! Let's get moving and hit your sets.` },
-        { lang: 'ta-IN', text: `${firstName}, உடற்பயிற்சி நேரம் ஆரம்பிச்சிடுச்சு! சோம்பேறித்தனம் படாம போய் ஒர்க்அவுட்டை முடிங்க, உடம்பு நல்லா பிட்டா இருக்கணும்ல!` },
-      ],
+      lang: 'ta',
+      text: `${firstName} ப்ரோ, ஒர்க்அவுட் டைம் ஆரம்பிச்சிடுச்சு! சோம்பேறித்தனம் படாம போய் செட்ஸை முடிங்க, அப்பதான் உடம்பு நல்லா பிட்டா இருக்கும்!`,
     };
   }
 
-  if (typeLower.includes('hydration') || typeLower.includes('water')) {
+  // 3. HYDRATION / WATER
+  if (typeLower.includes('hydration') || typeLower.includes('water') || typeLower.includes('தண்ணீர்')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `${firstName}, quick hydration check! Drink a glass of water right now to stay fresh and energized.` };
+      return { lang: 'en', text: `${firstName}, quick hydration check! Drink a fresh glass of water right now to stay fresh and energized.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `${firstName}, உடனே ஒரு கிளாஸ் தண்ணி குடிங்க! உடம்புல நீர்ச்சத்து குறையாம பார்த்துக்கோங்க, அப்பதான் பிரெஷ்ஷா இருக்கும்!` };
+      return { lang: 'ta', text: `${firstName}, உடனே ஒரு டம்ளர் தண்ணி குடிங்க! உடம்புல நீர்ச்சத்து குறையாம பார்த்துக்கோங்க, அப்பதான் புத்துணர்ச்சியா இருக்கும்!` };
     }
-    if (mode === 'tanglish') {
-      return {
-        lang: 'en',
-        text: `${firstName}, quick hydration check! ஒரு கிளாஸ் தண்ணி குடிங்க to keep your body fresh and energized.`,
-        tanglishChunks: [
-          { lang: 'en-IN', text: `${firstName}, quick hydration break!` },
-          { lang: 'ta-IN', text: `உடனே ஒரு கிளாஸ் தண்ணி குடிங்க, உடம்புல நீர்ச்சத்து குறையாம இருக்கணும்!` },
-        ],
-      };
-    }
-    // Both
+    // Tanglish
     return {
-      lang: 'en',
-      text: `${firstName}, time for a hydration break! ஒரு கிளாஸ் தண்ணி குடிங்க.`,
-      tanglishChunks: [
-        { lang: 'en-IN', text: `${firstName}, time for a hydration break! Drink a fresh glass of water right now.` },
-        { lang: 'ta-IN', text: `${firstName}, உடனே ஒரு கிளாஸ் தண்ணி குடிங்க! உடம்புல நீர்ச்சத்து குறையாம பார்த்துக்கோங்க!` },
-      ],
+      lang: 'ta',
+      text: `${firstName}, குயிக் ஹைட்ரேஷன் பிரேக்! உடனே ஒரு கிளாஸ் தண்ணி குடிங்க, பாடி நல்லா பிரெஷ்ஷா எனர்ஜியா இருக்கும்!`,
     };
   }
 
-  if (typeLower.includes('bed') || typeLower.includes('sleep')) {
+  // 4. BEDTIME / SLEEP / NIGHT
+  if (typeLower.includes('bed') || typeLower.includes('sleep') || typeLower.includes('night') || typeLower.includes('தூக்கம்')) {
     if (mode === 'en') {
-      return { lang: 'en', text: `Good evening ${firstName}. Time to wind down. Put your phone away, dim the lights, and enjoy deep restorative sleep.` };
+      return { lang: 'en', text: `Good evening ${firstName}. Time for your bedtime routine. Put your phone away, dim the lights, and enjoy deep restorative sleep.` };
     }
     if (mode === 'ta') {
-      return { lang: 'ta', text: `இரவு வணக்கம் ${firstName}. தூங்க வேண்டிய நேரம் வந்துடுச்சு. போனை ஒரு ஓரமா வச்சிட்டு, நிம்மதியா தூங்கி ரெஸ்ட் எடுங்க.` };
+      return { lang: 'ta', text: `இரவு வணக்கம் ${firstName}. தூங்க வேண்டிய நேரம் வந்துடுச்சு. போனை ஒரு ஓரமா வச்சிட்டு, மனசை அமைதியாக்கி நிம்மதியா தூங்குங்க.` };
     }
-    if (mode === 'tanglish') {
-      return {
-        lang: 'en',
-        text: `Good evening ${firstName}! Time to wind down... போனை ஓரமா வச்சிட்டு get some deep restorative sleep.`,
-        tanglishChunks: [
-          { lang: 'en-IN', text: `Good evening ${firstName}! Time to wind down for the night.` },
-          { lang: 'ta-IN', text: `போனை ஓரமா வச்சிட்டு நிம்மதியா தூங்குங்க, நாளைக்கு எனர்ஜியா எந்திரிக்கலாம்!` },
-        ],
-      };
-    }
-    // Both
+    // Tanglish
     return {
-      lang: 'en',
-      text: `Good evening ${firstName}. Time for your bedtime routine. போனை ஓரமா வச்சிட்டு நிம்மதியா தூங்குங்க.`,
-      tanglishChunks: [
-        { lang: 'en-IN', text: `Good evening ${firstName}. It is time for your bedtime routine. Dim the lights and get deep restorative sleep.` },
-        { lang: 'ta-IN', text: `இரவு வணக்கம் ${firstName}. தூங்க வேண்டிய நேரம் வந்துடுச்சு. போனை ஒரு ஓரமா வச்சிட்டு, நிம்மதியா தூங்கி ரெஸ்ட் எடுங்க.` },
-      ],
+      lang: 'ta',
+      text: `குட் ஈவினிங் ${firstName}! தூங்க வேண்டிய டைம் வந்துடுச்சு. போனை ஓரமா வச்சிட்டு, நிம்மதியா தூங்கி பாடியை ரீசார்ஜ் பண்ணுங்க!`,
     };
   }
 
-  // Wake up (default)
+  // 5. MEDITATION / MINDFULNESS
+  if (typeLower.includes('meditation') || typeLower.includes('mindful') || typeLower.includes('தியானம்')) {
+    if (mode === 'en') {
+      return { lang: 'en', text: `${firstName}, time for your evening meditation session! Take deep breaths, calm your mind, and let go of stress.` };
+    }
+    if (mode === 'ta') {
+      return { lang: 'ta', text: `${firstName}, தியானம் செய்ய வேண்டிய நேரம் வந்துடுச்சு! ஆழமா மூச்சு விட்டு மனசை அமைதிப்படுத்துங்க.` };
+    }
+    // Tanglish
+    return {
+      lang: 'ta',
+      text: `${firstName}, மெடிடேஷன் டைம் வந்துடுச்சு! நல்லா டீப் பிரீத் எடுத்து மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க!`,
+    };
+  }
+
+  // 6. NUTRITION / PROTEIN MEAL
+  if (typeLower.includes('protein') || typeLower.includes('nutrition') || typeLower.includes('meal') || typeLower.includes('salad') || typeLower.includes('டயட்')) {
+    if (mode === 'en') {
+      return { lang: 'en', text: `${firstName}, remember to drink your post-workout protein shake or have a nutritious high-protein meal.` };
+    }
+    if (mode === 'ta') {
+      return { lang: 'ta', text: `${firstName}, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது சத்தான புரோட்டீன் உணவை சாப்பிட மறந்துடாதீங்க!` };
+    }
+    // Tanglish
+    return {
+      lang: 'ta',
+      text: `${firstName}, ஒர்க்அவுட் முடிஞ்சதும் புரோட்டீன் ஷேக் அல்லது ஹை-புரோட்டீன் மீல் சாப்பிட மறந்துடாதீங்க!`,
+    };
+  }
+
+  // 7. READING / JOURNAL
+  if (typeLower.includes('read') || typeLower.includes('journal') || typeLower.includes('book') || typeLower.includes('வாசிப்பு')) {
+    if (mode === 'en') {
+      return { lang: 'en', text: `Good evening ${firstName}. Time for your evening reading and gratitude journaling before bed.` };
+    }
+    if (mode === 'ta') {
+      return { lang: 'ta', text: `இரவு வணக்கம் ${firstName}. தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் புத்தகம் படிச்சிட்டு அமைதியா தூங்குங்க.` };
+    }
+    // Tanglish
+    return {
+      lang: 'ta',
+      text: `குட் ஈவினிங் ${firstName}! தூங்குறதுக்கு முன்னாடி கொஞ்ச நேரம் புக் படிச்சிட்டு மைண்ட்டை ரிலாக்ஸ் பண்ணுங்க.`,
+    };
+  }
+
+  // 8. WAKE-UP (Default)
   if (mode === 'en') {
     return { lang: 'en', text: `Good morning ${firstName}! Time to wake up, drink a tall glass of water, and start your day energized. Have a great day!` };
   }
   if (mode === 'ta') {
-    return { lang: 'ta', text: `காலை வணக்கம் ${firstName}! சீக்கிரம் எந்திரிங்க, முதல்ல ஒரு கிளாஸ் தண்ணி குடிச்சிட்டு இன்னைக்கு நாளை எனர்ஜியா ஸ்டார்ட் பண்ணலாம்!` };
+    return { lang: 'ta', text: `காலை வணக்கம் ${firstName}! சீக்கிரம் எந்திரிங்க, முதல்ல ஒரு டம்ளர் தண்ணி குடிச்சிட்டு இன்னைக்கு நாளை புத்துணர்ச்சியோட ஸ்டார்ட் பண்ணலாம்!` };
   }
-  if (mode === 'tanglish') {
-    return {
-      lang: 'en',
-      text: `Morning ${firstName}! சீக்கிரம் எந்திரிங்க... First drink a glass of water and let's get energized for the day!`,
-      tanglishChunks: [
-        { lang: 'en-IN', text: `Good morning ${firstName}! Time to wake up and get moving!` },
-        { lang: 'ta-IN', text: `முதல்ல ஒரு கிளாஸ் தண்ணி குடிச்சிட்டு இன்னைக்கு நாளை புத்துணர்ச்சியோட தொடங்குங்க!` },
-      ],
-    };
-  }
-  // Both
+  // Tanglish
   return {
-    lang: 'en',
-    text: `Good morning ${firstName}! Time to wake up. காலை வணக்கம், இன்னைக்கு நாளை எனர்ஜியா தொடங்குங்க!`,
-    tanglishChunks: [
-      { lang: 'en-IN', text: `Good morning ${firstName}! It is time to wake up, hydrate, and start your day energized. Have a wonderful day ahead!` },
-      { lang: 'ta-IN', text: `காலை வணக்கம் ${firstName}! சீக்கிரம் எந்திரிங்க, முதல்ல ஒரு கிளாஸ் தண்ணி குடிச்சிட்டு இன்னைக்கு நாளை எனர்ஜியா ஸ்டார்ட் பண்ணலாம்!` },
-    ],
+    lang: 'ta',
+    text: `குட் மார்னிங் ${firstName}! சீக்கிரம் எந்திரிங்க ப்ரோ... முதல்ல ஒரு கிளாஸ் தண்ணி குடிச்சிட்டு, இன்னைக்கு டேவை எனர்ஜியா ஸ்டார்ட் பண்ணலாம்!`,
   };
 }
 
