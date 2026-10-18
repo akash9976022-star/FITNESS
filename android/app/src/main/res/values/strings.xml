@@ -4,6 +4,7 @@
     <string name="title_activity_main">FitMaintenance AI</string>
     <string name="package_name">com.fitmaintenance.ai</string>
     <string name="custom_url_scheme">com.fitmaintenance.ai</string>
+    <string name="client_id">346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com</string>
     <string name="server_client_id">346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com</string>
     <string name="default_web_client_id">346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com</string>
 </resources>

@@ -174,15 +174,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (Capacitor.isNativePlatform()) {
         // Native One-Tap Google Account Picker on Android APK
-        GoogleAuth.initialize({
+        await GoogleAuth.initialize({
           clientId: '346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com',
           scopes: ['profile', 'email'],
-          grantOfflineAccess: true,
+          grantOfflineAccess: false,
         });
         const googleUser = await GoogleAuth.signIn();
-        const idToken = googleUser?.authentication?.idToken;
+        const idToken = googleUser?.authentication?.idToken || (googleUser as any)?.idToken;
         if (!idToken) {
-          throw new Error('Native Google sign-in was cancelled or did not return a valid token.');
+          throw new Error('Google sign-in was cancelled or did not return a valid ID token.');
         }
         const credential = GoogleAuthProvider.credential(idToken);
         const result = await signInWithCredential(auth, credential);
@@ -210,15 +210,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       }
     } catch (err: unknown) {
-      const firebaseErr = err as { code?: string; message?: string };
-      let friendlyMessage = firebaseErr?.message || 'Failed to sign in with Google';
+      console.error('Google Sign-In caught error:', err);
+      const errorObj = err as { code?: string | number; message?: string; error?: string };
+      const rawMessage = errorObj?.message || errorObj?.error || (typeof err === 'string' ? err : '');
+      const rawCode = String(errorObj?.code ?? '');
 
-      if (firebaseErr?.code === 'auth/unauthorized-domain') {
+      let friendlyMessage = rawMessage || 'Failed to sign in with Google';
+
+      if (rawCode === '10' || rawMessage.toLowerCase().includes('something went wrong')) {
+        friendlyMessage =
+          'Google Sign-In Error (Code 10): Ensure SHA-1 fingerprint (22:42:11:A7:15:FD:87:E4:AF:50:E9:F6:91:5B:9E:C2:F9:9B:DC:65) is registered in Firebase Console -> Project Settings -> Android App, and Google provider is enabled.';
+      } else if (rawCode === '12501' || rawMessage.toLowerCase().includes('cancel')) {
+        friendlyMessage = 'Google sign-in was canceled.';
+      } else if (rawCode === '12500') {
+        friendlyMessage = 'Google Play Services sign-in failed (Code 12500). Please check your internet connection.';
+      } else if (errorObj?.code === 'auth/unauthorized-domain') {
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'your-domain';
         friendlyMessage = `Google Sign-In Domain Not Authorized: Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`;
-      } else if (firebaseErr?.code === 'auth/popup-blocked') {
+      } else if (errorObj?.code === 'auth/popup-blocked') {
         friendlyMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site.';
-      } else if (firebaseErr?.code === 'auth/popup-closed-by-user') {
+      } else if (errorObj?.code === 'auth/popup-closed-by-user') {
         friendlyMessage = 'Google Sign-In was closed before completing.';
       }
 
