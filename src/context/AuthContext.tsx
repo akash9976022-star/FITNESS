@@ -3,12 +3,16 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
   signInAnonymously,
   signOut,
   onAuthStateChanged,
   updateProfile,
   type User,
 } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
 import { ensureUserProfileExists } from '../services/firestoreService';
 
@@ -168,14 +172,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('Firebase Auth is not initialized. Please verify your .env credentials.');
     }
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      setCurrentUser({
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName || result.user.email?.split('@')[0] || 'Athlete',
-        photoURL: result.user.photoURL,
-        isAnonymous: result.user.isAnonymous,
-      });
+      if (Capacitor.isNativePlatform()) {
+        // Native One-Tap Google Account Picker on Android APK
+        GoogleAuth.initialize({
+          clientId: '346245120541-webclientid.apps.googleusercontent.com',
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: true,
+        });
+        const googleUser = await GoogleAuth.signIn();
+        const idToken = googleUser?.authentication?.idToken;
+        if (!idToken) {
+          throw new Error('Native Google sign-in was cancelled or did not return a valid token.');
+        }
+        const credential = GoogleAuthProvider.credential(idToken);
+        const result = await signInWithCredential(auth, credential);
+        setCurrentUser({
+          uid: result.user.uid,
+          email: result.user.email,
+          displayName:
+            result.user.displayName ||
+            googleUser?.name ||
+            result.user.email?.split('@')[0] ||
+            'Athlete',
+          photoURL: result.user.photoURL || googleUser?.imageUrl || null,
+          isAnonymous: result.user.isAnonymous,
+        });
+      } else {
+        // Web Fallback: Standard browser popup
+        const result = await signInWithPopup(auth, googleProvider);
+        setCurrentUser({
+          uid: result.user.uid,
+          email: result.user.email,
+          displayName:
+            result.user.displayName || result.user.email?.split('@')[0] || 'Athlete',
+          photoURL: result.user.photoURL,
+          isAnonymous: result.user.isAnonymous,
+        });
+      }
     } catch (err: unknown) {
       const firebaseErr = err as { code?: string; message?: string };
       let friendlyMessage = firebaseErr?.message || 'Failed to sign in with Google';
@@ -184,9 +217,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'your-domain';
         friendlyMessage = `Google Sign-In Domain Not Authorized: Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`;
       } else if (firebaseErr?.code === 'auth/popup-blocked') {
-        friendlyMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site or use email sign-in.';
+        friendlyMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site.';
       } else if (firebaseErr?.code === 'auth/popup-closed-by-user') {
-        friendlyMessage = 'Google Sign-In popup was closed before completing.';
+        friendlyMessage = 'Google Sign-In was closed before completing.';
       }
 
       setError(friendlyMessage);
