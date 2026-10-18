@@ -20,6 +20,12 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
     hour12: true,
   });
 
+  const compactTimeString = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
   const englishDateString = now.toLocaleDateString('en-US', {
     weekday: 'short',
     day: 'numeric',
@@ -31,20 +37,21 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
 
   return (
     <div
-      className={`inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm backdrop-blur-md select-none transition-all duration-200 ${className}`}
+      className={`inline-flex items-center gap-1.5 sm:gap-2.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm backdrop-blur-md select-none transition-all duration-200 flex-shrink-0 ${className}`}
       title={`Live System Clock & Tamil Calendar Engine: ${tamilDetails.tamilYearName} ஆண்டு, ${tamilDetails.tamilMonthName} ${tamilDetails.tamilDate}`}
     >
       {/* Live Ticking Time with Glowing Pulse */}
-      <div className="flex items-center gap-1.5 font-mono text-xs sm:text-sm font-black tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+      <div className="flex items-center gap-1 font-mono text-[11px] sm:text-sm font-black tracking-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
         <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 hidden xs:inline" />
-        <span>{timeString}</span>
+        <span className="hidden sm:inline">{timeString}</span>
+        <span className="sm:hidden">{compactTimeString}</span>
       </div>
 
-      <div className="hidden xs:block h-3.5 w-px bg-slate-300 dark:bg-slate-800" />
+      <div className="h-3 w-px bg-slate-300 dark:bg-slate-800" />
 
       {/* English Date */}
       <div className="hidden md:flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
@@ -55,9 +62,9 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
       <div className="hidden md:block h-3.5 w-px bg-slate-300 dark:bg-slate-800" />
 
       {/* Tamil Month & Date Pill */}
-      <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-lg border border-amber-500/25">
+      <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 sm:px-2 rounded-lg border border-amber-500/25">
         <span className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-500 font-extrabold hidden sm:inline">தமிழ்:</span>
-        <span className="tracking-tight">
+        <span className="tracking-tight whitespace-nowrap">
           {tamilDetails.tamilMonthName} {tamilDetails.tamilDate}
         </span>
         <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80 font-medium hidden lg:inline">

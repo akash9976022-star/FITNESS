@@ -106,7 +106,13 @@ export const Login: React.FC = () => {
   const isNative = isNativeApp();
 
   return (
-    <div className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+    <div
+      className="min-h-screen w-full flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-200"
+      style={{
+        paddingTop: 'calc(2rem + var(--safe-top))',
+        paddingBottom: 'calc(2rem + var(--safe-bottom))',
+      }}
+    >
       {/* Background ambient glow */}
       <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-500/15 dark:bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-teal-500/15 dark:bg-teal-600/10 rounded-full blur-3xl pointer-events-none" />

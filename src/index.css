@@ -11,6 +11,12 @@
     color-scheme: light dark;
   }
 
+  /* When running as native Android/iOS APK, provide calibrated status-bar and navigation-bar insets */
+  html.is-native {
+    --safe-top: max(env(safe-area-inset-top, 0px), 36px);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+  }
+
   :root.dark {
     color-scheme: dark;
   }

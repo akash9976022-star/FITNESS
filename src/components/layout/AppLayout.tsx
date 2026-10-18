@@ -234,92 +234,102 @@ export const AppLayout: React.FC = () => {
       {/* ================= MAIN CONTENT WRAPPER ================= */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between flex-shrink-0 z-20 shadow-sm">
-          <div className="flex items-center gap-3">
-            {/* Mobile menu trigger */}
-            <button
-              onClick={() => setMobileDrawerOpen(true)}
-              className="md:hidden p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 btn-tactile"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+        <header
+          className="border-b border-slate-200/80 dark:border-slate-800/80 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl px-3 sm:px-6 flex flex-col justify-center flex-shrink-0 z-20 shadow-sm transition-all"
+          style={{
+            paddingTop: 'var(--safe-top)',
+          }}
+        >
+          <div className="h-14 sm:h-16 flex items-center justify-between w-full gap-2 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {/* Mobile menu trigger */}
+              <button
+                onClick={() => setMobileDrawerOpen(true)}
+                className="md:hidden p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 btn-tactile flex-shrink-0"
+                aria-label="Open navigation menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
 
-            {/* Mobile Brand Header */}
-            <div className="flex items-center gap-2 md:hidden">
-              <img
-                src="./logo.png"
-                alt="FitMaintenance AI Logo"
-                className="w-7 h-7 rounded-lg object-cover shadow-sm"
-              />
-              <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">FitMaintenance</span>
-            </div>
-
-            {/* Desktop breadcrumb / Page title */}
-            <div className="hidden md:block">
-              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                {getPageTitle()}
-              </h1>
-            </div>
-          </div>
-
-          {/* Right Header Actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Real-time Live Clock & Date Display */}
-            <LiveClockHeader />
-
-            {/* Theme Toggle in Header */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 shadow-xs btn-tactile"
-              aria-label="Toggle Light and Dark Mode"
-              title={`Switch to ${resolvedTheme === 'dark' ? 'Light' : 'Dark'} mode`}
-            >
-              {resolvedTheme === 'dark' ? (
-                <Sun className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 text-indigo-500" />
-              )}
-            </button>
-
-            {/* Live Synced Status Badge (Eliminated white box bug) */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 shadow-sm backdrop-blur-md">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span>Live Synced</span>
-            </div>
-
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition shadow-xs text-xs font-bold btn-tactile"
-              title="6:00 AM Max-Volume Alarm & Video Songs Library"
-            >
-              <Bell className="w-3.5 h-3.5 fill-current text-amber-500 animate-pulse" />
-              <span className="hidden sm:inline">Alarm & Songs</span>
-            </button>
-
-            {/* User Avatar Chip */}
-            <div
-              onClick={() => navigate('/profile')}
-              className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/90 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 cursor-pointer transition shadow-xs btn-tactile"
-              title="View & Edit Profile"
-            >
-              <span className="hidden sm:inline text-xs font-bold text-slate-700 dark:text-slate-200 pl-1">
-                {currentUser?.displayName?.split(' ')[0] || (currentUser?.isAnonymous ? 'Guest' : 'Athlete')}
-              </span>
-              {currentUser?.photoURL ? (
+              {/* Mobile Brand Header */}
+              <div className="flex items-center gap-1.5 md:hidden min-w-0">
                 <img
-                  src={currentUser.photoURL}
-                  alt="Avatar"
-                  className="w-7 h-7 rounded-full object-cover border border-emerald-500/40"
+                  src="./logo.png"
+                  alt="FitMaintenance AI Logo"
+                  className="w-7 h-7 rounded-lg object-cover shadow-sm flex-shrink-0"
                 />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 text-slate-950 flex items-center justify-center font-bold text-xs shadow-inner">
-                  {currentUser?.displayName ? currentUser.displayName[0] : 'A'}
-                </div>
-              )}
+                <span className="font-bold text-xs sm:text-sm tracking-tight text-slate-900 dark:text-white truncate max-w-[85px] xs:max-w-[120px]">
+                  FitMaintenance
+                </span>
+              </div>
+
+              {/* Desktop breadcrumb / Page title */}
+              <div className="hidden md:block">
+                <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                  {getPageTitle()}
+                </h1>
+              </div>
+            </div>
+
+            {/* Right Header Actions */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+              {/* Real-time Live Clock & Date Display */}
+              <LiveClockHeader />
+
+              {/* Theme Toggle in Header */}
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 shadow-xs btn-tactile flex-shrink-0"
+                aria-label="Toggle Light and Dark Mode"
+                title={`Switch to ${resolvedTheme === 'dark' ? 'Light' : 'Dark'} mode`}
+              >
+                {resolvedTheme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-indigo-500" />
+                )}
+              </button>
+
+              {/* Live Synced Status Badge (Eliminated white box bug) */}
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 shadow-sm backdrop-blur-md">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>Live Synced</span>
+              </div>
+
+              {/* Alarm & Video Songs Button */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}
+                className="hidden xs:flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition shadow-xs text-xs font-bold btn-tactile flex-shrink-0"
+                title="6:00 AM Max-Volume Alarm & Video Songs Library"
+              >
+                <Bell className="w-3.5 h-3.5 fill-current text-amber-500 animate-pulse" />
+                <span className="hidden sm:inline">Alarm & Songs</span>
+              </button>
+
+              {/* User Avatar Chip (Desktop / Tablet) */}
+              <div
+                onClick={() => navigate('/profile')}
+                className="hidden sm:flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/90 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 cursor-pointer transition shadow-xs btn-tactile flex-shrink-0"
+                title="View & Edit Profile"
+              >
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 pl-1">
+                  {currentUser?.displayName?.split(' ')[0] || (currentUser?.isAnonymous ? 'Guest' : 'Athlete')}
+                </span>
+                {currentUser?.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt="Avatar"
+                    className="w-7 h-7 rounded-full object-cover border border-emerald-500/40"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 text-slate-950 flex items-center justify-center font-bold text-xs shadow-inner">
+                    {currentUser?.displayName ? currentUser.displayName[0] : 'A'}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -379,7 +389,13 @@ export const AppLayout: React.FC = () => {
           />
 
           {/* Drawer content */}
-          <div className="relative w-4/5 max-w-xs bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full flex flex-col p-5 shadow-2xl z-10">
+          <div
+            className="relative w-4/5 max-w-xs bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full flex flex-col p-5 shadow-2xl z-10"
+            style={{
+              paddingTop: 'calc(1.25rem + var(--safe-top))',
+              paddingBottom: 'calc(1.25rem + var(--safe-bottom))',
+            }}
+          >
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <img
