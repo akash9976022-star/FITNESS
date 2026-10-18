@@ -71,6 +71,14 @@ export const Login: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setLocalError(null);
     clearError();
+
+    if (isNative) {
+      setLocalError(
+        '📱 Android Phone App Notice: Google popup sign-in requires an external web browser. To sign in with your Gmail on this phone, please enter your Gmail address and password in the fields above, or tap "Instant Guest Session" below for 1-tap direct access!'
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       await loginWithGoogle();
@@ -285,8 +293,14 @@ export const Login: React.FC = () => {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          <span>Sign In with Google</span>
+          <span>{isNative ? 'Sign In with Google (Web Only)' : 'Sign In with Google'}</span>
         </button>
+
+        {isNative && (
+          <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
+            💡 On Android APK: Enter your Gmail & password above, or tap Instant Guest below.
+          </p>
+        )}
 
         {/* Instant Guest Access */}
         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
