@@ -3194,6 +3194,17 @@ export const saveAlarmSettings = async (
 
 /* ==================== STREAK MAINTENANCE & CONSISTENCY ENGINE ==================== */
 
+export interface ActivePenance {
+  id: string;
+  missedDate: string; // YYYY-MM-DD
+  reason: 'missed_post_workout_checkin' | 'missed_daily_checkin';
+  penanceType: 'burpees' | 'pushups' | 'squats' | 'steps';
+  targetReps: number;
+  completed: boolean;
+  assignedAt: number;
+  completedAt?: number;
+}
+
 export interface UserStreak {
   currentStreak: number;
   longestStreak: number;
@@ -3201,6 +3212,8 @@ export interface UserStreak {
   historyDates: string[]; // List of YYYY-MM-DD when a maintenance goal was completed
   shieldsRemaining: number;
   shieldUsedToday?: boolean;
+  activePenance?: ActivePenance | null;
+  penanceHistory?: ActivePenance[];
   updatedAt?: unknown;
 }
 
@@ -3210,6 +3223,8 @@ export const DEFAULT_USER_STREAK: UserStreak = {
   lastActiveDate: '',
   historyDates: [],
   shieldsRemaining: 1,
+  activePenance: null,
+  penanceHistory: [],
 };
 
 /**
@@ -3246,6 +3261,8 @@ export const subscribeUserStreak = (
           historyDates: Array.isArray(data.historyDates) ? data.historyDates : [],
           shieldsRemaining: data.shieldsRemaining !== undefined ? Number(data.shieldsRemaining) : 1,
           shieldUsedToday: Boolean(data.shieldUsedToday),
+          activePenance: data.activePenance || null,
+          penanceHistory: Array.isArray(data.penanceHistory) ? data.penanceHistory : [],
           updatedAt: data.updatedAt,
         };
         localStorage.setItem(`fit_user_streak_${userId}`, JSON.stringify(merged));
@@ -3401,6 +3418,127 @@ export const recordStreakActivity = async (
   }
 
   return updatedStreak;
+};
+
+/**
+ * Assigns an active disciplinary penalty to the user's streak document for a missed check-in
+ */
+export const assignCheckInPenance = async (
+  userId: string,
+  penance: {
+    missedDate: string;
+    reason: 'missed_post_workout_checkin' | 'missed_daily_checkin';
+    penanceType: 'burpees' | 'pushups' | 'squats' | 'steps';
+    targetReps: number;
+  }
+): Promise<ActivePenance | null> => {
+  if (!db || !userId) return null;
+  const newPenance: ActivePenance = {
+    ...penance,
+    id: `penance-${Date.now()}`,
+    completed: false,
+    assignedAt: Date.now(),
+  };
+
+  const streakDocRef = doc(db, 'users', userId, 'streak', 'current');
+  await setDoc(
+    streakDocRef,
+    {
+      activePenance: newPenance,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return newPenance;
+};
+
+/**
+ * Marks an active disciplinary penalty as completed and archives it into penanceHistory
+ */
+export const completeCheckInPenance = async (
+  userId: string,
+  penanceId: string
+): Promise<void> => {
+  if (!db || !userId) return;
+  const streakDocRef = doc(db, 'users', userId, 'streak', 'current');
+  const snap = await getDoc(streakDocRef);
+  if (!snap.exists()) return;
+
+  const data = snap.data() as UserStreak;
+  if (!data.activePenance || data.activePenance.id !== penanceId) return;
+
+  const completedPenance: ActivePenance = {
+    ...data.activePenance,
+    completed: true,
+    completedAt: Date.now(),
+  };
+
+  const history = Array.isArray(data.penanceHistory) ? [...data.penanceHistory, completedPenance] : [completedPenance];
+
+  await setDoc(
+    streakDocRef,
+    {
+      activePenance: null,
+      penanceHistory: history,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+/**
+ * Detects if the user has missed their post-workout check-in or daily check-in
+ */
+export const detectMissedCheckIn = (
+  checkIns: CheckInItem[],
+  todayWorkoutMinutes = 0,
+  activeSession: unknown = null,
+  completedWorkouts: CompletedWorkout[] = []
+): { isMissed: boolean; missedDate: string; reason: 'missed_post_workout_checkin' | 'missed_daily_checkin'; description: string } | null => {
+  const todayStr = getTodayDateString();
+  const hasCheckedInToday = (checkIns || []).some((c) => c.date === todayStr);
+
+  // Check 1: User completed a gym workout today, but has not logged post-workout check-in
+  const hasCompletedWorkoutToday = (completedWorkouts || []).some((w) => {
+    try {
+      if (!w.completedAt) return false;
+      let d: Date | null = null;
+      if (typeof (w.completedAt as { toDate?: () => Date }).toDate === 'function') {
+        d = (w.completedAt as { toDate: () => Date }).toDate();
+      } else if (w.completedAt instanceof Date) {
+        d = w.completedAt;
+      } else if (typeof w.completedAt === 'string' || typeof w.completedAt === 'number') {
+        d = new Date(w.completedAt);
+      }
+      return d ? d.toISOString().split('T')[0] === todayStr : false;
+    } catch {
+      return false;
+    }
+  });
+
+  if ((todayWorkoutMinutes > 0 || hasCompletedWorkoutToday) && !hasCheckedInToday && !activeSession) {
+    return {
+      isMissed: true,
+      missedDate: todayStr,
+      reason: 'missed_post_workout_checkin',
+      description: 'You completed your gym workout today, but skipped your post-workout daily check-in! Disciplinary penance is required.',
+    };
+  }
+
+  // Check 2: Check yesterday if check-in was omitted completely
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const hasCheckedInYesterday = (checkIns || []).some((c) => c.date === yesterday);
+  if (!hasCheckedInYesterday && !hasCheckedInToday) {
+    return {
+      isMissed: true,
+      missedDate: yesterday,
+      reason: 'missed_daily_checkin',
+      description: `Daily check-in for yesterday (${yesterday}) was omitted. Complete your disciplinary penance to restore athlete honor!`,
+    };
+  }
+
+  return null;
 };
 
 /**

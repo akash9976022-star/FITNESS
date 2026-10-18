@@ -32,7 +32,9 @@ import {
   HeartPulse,
   Clock,
   Play,
+  ShieldAlert,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   subscribeCheckIns,
@@ -51,6 +53,9 @@ import {
   saveDailyFasting,
   calculateBmbScore,
   getTodayDateString,
+  detectMissedCheckIn,
+  assignCheckInPenance,
+  completeCheckInPenance,
   BADGE_DEFINITIONS,
   DEFAULT_USER_STREAK,
   DEFAULT_DAILY_FASTING,
@@ -77,11 +82,13 @@ import {
 import GhostOverlayCamera from '../components/camera/GhostOverlayCamera';
 import BadgeUnlockModal from '../components/rewards/BadgeUnlockModal';
 import { StreakBadge } from '../components/streak/StreakBadge';
+import DisciplinaryPenanceModal from '../components/checkin/DisciplinaryPenanceModal';
 
 type CheckInTab = 'checkin' | 'end_of_day' | 'gallery' | 'rewards';
 
 export const CheckIn: React.FC = () => {
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<CheckInTab>('checkin');
@@ -96,6 +103,19 @@ export const CheckIn: React.FC = () => {
   const [dailyActivity, setDailyActivity] = useState<DailyActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isPenanceModalOpen, setIsPenanceModalOpen] = useState(false);
+
+  // Detect missed post-workout or daily check-ins
+  const missedCheckInNotice = useMemo(() => {
+    return detectMissedCheckIn(checkIns, 0, null, []);
+  }, [checkIns]);
+
+  // Automatically open post-workout modal if navigated with ?postWorkout=true
+  useEffect(() => {
+    if (searchParams.get('postWorkout') === 'true') {
+      setShowCheckInModal(true);
+    }
+  }, [searchParams]);
 
   // Morning Check-In Form State (Streamlined: Weight, Photo, Fasting, Experience, Energy)
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -349,6 +369,11 @@ export const CheckIn: React.FC = () => {
 
       setUserStreak(updatedStreak);
 
+      // Clear any pending disciplinary penance upon check-in completion
+      if (userStreak?.activePenance) {
+        await completeCheckInPenance(currentUser.uid, userStreak.activePenance.id);
+      }
+
       // Instant optimistic UI close!
       setShowCheckInModal(false);
       setCheckInPhotoBlob(null);
@@ -356,7 +381,11 @@ export const CheckIn: React.FC = () => {
       setAiAnalysisPreview(null);
       setSorenessNotes('');
       inFlightAnalysisRef.current = null;
-      setStatusMessage('Morning check-in saved! Streak maintained.');
+      setStatusMessage(
+        userStreak?.activePenance
+          ? 'Post-workout check-in saved! Disciplinary record cleared & honor restored.'
+          : 'Post-workout check-in saved! Recovery logged & streak maintained.'
+      );
       setTimeout(() => setStatusMessage(null), 3500);
 
       // Evaluate badges in background (non-blocking)
@@ -635,10 +664,50 @@ export const CheckIn: React.FC = () => {
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition active:scale-[0.98] cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Morning Check-In</span>
+            <span>Post-Workout Check-In</span>
           </button>
         </div>
       </div>
+
+      {/* 🚨 Disciplinary Penalty Active Card for Missed Post-Workout Daily Check-In */}
+      {(missedCheckInNotice || userStreak?.activePenance) && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-slate-900/90 to-amber-950/30 border-2 border-rose-500/60 shadow-xl shadow-rose-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 shadow-md shadow-rose-500/20 animate-pulse">
+              <ShieldAlert className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500 text-slate-950 shadow-xs">
+                  🚨 DISCIPLINARY PENALTY ACTIVE
+                </span>
+                <span className="text-[10px] font-bold text-rose-300">
+                  {userStreak?.activePenance?.missedDate || missedCheckInNotice?.missedDate || 'Today'}
+                </span>
+              </div>
+              <h4 className="text-sm sm:text-base font-black text-white">
+                {userStreak?.activePenance?.reason === 'missed_post_workout_checkin' || missedCheckInNotice?.reason === 'missed_post_workout_checkin'
+                  ? 'Missed Post-Gym Workout Recovery Check-In'
+                  : 'Missed Daily Recovery Check-In'}
+              </h4>
+              <p className="text-xs text-rose-200/90 font-medium">
+                {userStreak?.activePenance
+                  ? `Assigned Penance: ${userStreak.activePenance.targetReps} ${userStreak.activePenance.penanceType.toUpperCase()}. Serve your punishment to clear your record and restore your streak!`
+                  : missedCheckInNotice?.description || 'You completed your gym workout, but missed your post-workout recovery check-in. Complete your physical penance now!'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsPenanceModalOpen(true)}
+            className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-500 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition btn-tactile animate-pulse shrink-0"
+          >
+            <Flame className="w-4 h-4 fill-white" />
+            <span>Serve Punishment Penance</span>
+          </button>
+        </div>
+      )}
 
       {/* Real-time Streak Maintenance & Consistency Engine Badge */}
       <StreakBadge
@@ -1713,10 +1782,16 @@ export const CheckIn: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  <span>Morning Check-In</span>
+                  <span>
+                    {searchParams.get('postWorkout') === 'true'
+                      ? 'Post-Gym Workout Recovery Check-In'
+                      : 'Daily Check-In & AI Physique'}
+                  </span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Track weight, fatigue, and posture with ghost alignment
+                  {searchParams.get('postWorkout') === 'true'
+                    ? 'Log your post-workout fatigue, muscle soreness/pump, weight, and recovery'
+                    : 'Track post-workout weight, fatigue, readiness, and ghost posture alignment'}
                 </p>
               </div>
               <button
@@ -1747,7 +1822,7 @@ export const CheckIn: React.FC = () => {
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Morning Weight (kg)
+                    {searchParams.get('postWorkout') === 'true' ? 'Post-Workout Weight (kg)' : 'Current Weight (kg)'}
                   </label>
                   <input
                     type="number"
@@ -2310,6 +2385,33 @@ export const CheckIn: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* DISCIPLINARY PENANCE MODAL */}
+      <DisciplinaryPenanceModal
+        isOpen={isPenanceModalOpen}
+        onClose={() => setIsPenanceModalOpen(false)}
+        missedDate={userStreak?.activePenance?.missedDate || missedCheckInNotice?.missedDate || getTodayDateString()}
+        reason={userStreak?.activePenance?.reason || missedCheckInNotice?.reason || 'missed_post_workout_checkin'}
+        userName={currentUser?.displayName || 'Champion'}
+        onCompletePenance={async (penanceType, reps) => {
+          if (!currentUser?.uid) return;
+          if (userStreak?.activePenance) {
+            await completeCheckInPenance(currentUser.uid, userStreak.activePenance.id);
+          } else if (missedCheckInNotice) {
+            const p = await assignCheckInPenance(currentUser.uid, {
+              missedDate: missedCheckInNotice.missedDate,
+              reason: missedCheckInNotice.reason,
+              penanceType,
+              targetReps: reps,
+            });
+            if (p) await completeCheckInPenance(currentUser.uid, p.id);
+          }
+        }}
+        onProceedToCheckIn={() => {
+          setIsPenanceModalOpen(false);
+          setShowCheckInModal(true);
+        }}
+      />
     </div>
   );
 };

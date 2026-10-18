@@ -2099,6 +2099,7 @@ export const Workouts: React.FC = () => {
         onClose={handleCloseCompletionModal}
         metrics={completionMetrics}
         onShareSuccess={showToast}
+        onLogCheckIn={() => navigate('/checkin?postWorkout=true')}
       />
 
       {/* FORMAL REST LEAVE REQUEST APPLICATION MODAL */}

@@ -29,6 +29,7 @@ interface WorkoutCompletionModalProps {
   onClose: () => void;
   metrics: WorkoutCompletionMetrics | null;
   onShareSuccess?: (message: string) => void;
+  onLogCheckIn?: () => void;
 }
 
 export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
@@ -36,6 +37,7 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
   onClose,
   metrics,
   onShareSuccess,
+  onLogCheckIn,
 }) => {
   const [tilt, setTilt] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [copied, setCopied] = useState(false);
@@ -278,6 +280,21 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
             {/* Motivational Banner */}
             <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent border-l-4 border-emerald-500 text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-semibold">
               &ldquo;Progress is forged one disciplined session at a time. Your body composition equilibrium has been fortified today.&rdquo;
+            </div>
+
+            {/* Primary Action: Post-Workout Check-In */}
+            <div style={{ transform: 'translateZ(30px)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onLogCheckIn) onLogCheckIn();
+                }}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition btn-tactile"
+              >
+                <Sparkles className="w-4 h-4 fill-current animate-pulse" />
+                <span>📝 Log Post-Workout Check-In (Avoid Penalty)</span>
+              </button>
             </div>
 
             {/* User Action Buttons */}
