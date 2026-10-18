@@ -941,7 +941,9 @@ export interface CheckInItem {
   fatigueRating: number; // 1 (exhausted) to 5 (peak readiness)
   fatigueLevel?: number;
   sorenessNotes?: string;
-  photoUrl: string;
+  photoUrl?: string;
+  photoSkipped?: boolean;
+  photoExemptionReason?: string;
   aiPhysiqueAnalysis?: AiPhysiqueAnalysis;
   restingHeartRateBpm?: number;
   sleepHours?: number;
@@ -3214,6 +3216,8 @@ export interface UserStreak {
   shieldUsedToday?: boolean;
   activePenance?: ActivePenance | null;
   penanceHistory?: ActivePenance[];
+  lastResetAt?: number;
+  autoResetReason?: string;
   updatedAt?: unknown;
 }
 
@@ -3229,6 +3233,7 @@ export const DEFAULT_USER_STREAK: UserStreak = {
 
 /**
  * Subscribes in real-time to user's consistency streak stored at users/{userId}/streak/current
+ * Automatically resets streak to 0 if delayed above 2 days without check-in.
  */
 export const subscribeUserStreak = (
   userId: string,
@@ -3238,7 +3243,17 @@ export const subscribeUserStreak = (
     const cached = localStorage.getItem(`fit_user_streak_${userId}`);
     if (cached) {
       try {
-        callback({ ...DEFAULT_USER_STREAK, ...JSON.parse(cached) });
+        const parsed = JSON.parse(cached) as UserStreak;
+        let effCur = Number(parsed.currentStreak) || 0;
+        if (parsed.lastActiveDate && effCur > 0) {
+          const lastDate = new Date(parsed.lastActiveDate + 'T00:00:00');
+          const todayDate = new Date(getTodayDateString() + 'T00:00:00');
+          const diffDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > 2) {
+            effCur = 0;
+          }
+        }
+        callback({ ...DEFAULT_USER_STREAK, ...parsed, currentStreak: effCur });
       } catch {
         callback(DEFAULT_USER_STREAK);
       }
@@ -3254,8 +3269,26 @@ export const subscribeUserStreak = (
     (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as UserStreak;
+        let effCurrent = Number(data.currentStreak) || 0;
+        let autoResetTriggered = false;
+
+        // Auto-Reset Protocol: If delayed above 2 days without check-in
+        if (data.lastActiveDate && effCurrent > 0) {
+          try {
+            const lastDate = new Date(data.lastActiveDate + 'T00:00:00');
+            const todayDate = new Date(getTodayDateString() + 'T00:00:00');
+            const diffDays = Math.round((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 2) {
+              effCurrent = 0;
+              autoResetTriggered = true;
+            }
+          } catch {
+            // Ignored
+          }
+        }
+
         const merged: UserStreak = {
-          currentStreak: Number(data.currentStreak) || 0,
+          currentStreak: effCurrent,
           longestStreak: Number(data.longestStreak) || 0,
           lastActiveDate: data.lastActiveDate || '',
           historyDates: Array.isArray(data.historyDates) ? data.historyDates : [],
@@ -3263,8 +3296,23 @@ export const subscribeUserStreak = (
           shieldUsedToday: Boolean(data.shieldUsedToday),
           activePenance: data.activePenance || null,
           penanceHistory: Array.isArray(data.penanceHistory) ? data.penanceHistory : [],
+          lastResetAt: data.lastResetAt,
+          autoResetReason: autoResetTriggered ? 'delayed_above_2_days' : data.autoResetReason,
           updatedAt: data.updatedAt,
         };
+
+        if (autoResetTriggered) {
+          setDoc(
+            streakDocRef,
+            {
+              currentStreak: 0,
+              autoResetReason: 'delayed_above_2_days',
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          ).catch((e) => console.warn('Auto-reset streak error:', e));
+        }
+
         localStorage.setItem(`fit_user_streak_${userId}`, JSON.stringify(merged));
         callback(merged);
       } else {
@@ -3339,7 +3387,8 @@ export const recordStreakActivity = async (
   if (!wasAlreadyActiveToday) {
     historySet.add(dateStr);
 
-    if (!currentStreakData.lastActiveDate) {
+    if (currentStreakData.currentStreak === 0 || !currentStreakData.lastActiveDate) {
+      // First check-in starts streak right here from Day 1!
       newCurrent = 1;
       newLongest = Math.max(1, newLongest);
     } else {
@@ -3356,7 +3405,8 @@ export const recordStreakActivity = async (
         shieldUsed = true;
         newCurrent = currentStreakData.currentStreak + 1;
         newLongest = Math.max(newCurrent, newLongest);
-      } else if (diffDays > 1) {
+      } else {
+        // Delayed above 2 days (or 2 days with 0 shields): automatically resets to start from Day 1 on this check-in!
         newCurrent = 1;
       }
     }
@@ -3418,6 +3468,58 @@ export const recordStreakActivity = async (
   }
 
   return updatedStreak;
+};
+
+/**
+ * Manually resets the user's streak back to Day 1 (or 0 pending first check-in).
+ * Preserves personal longest record unless explicitly specified.
+ */
+export const resetUserStreak = async (
+  userId: string,
+  resetPersonalRecord = false
+): Promise<UserStreak> => {
+  if (!userId) return DEFAULT_USER_STREAK;
+
+  let prevLongest = 0;
+  if (db) {
+    try {
+      const streakDocRef = doc(db, 'users', userId, 'streak', 'current');
+      const snap = await getDoc(streakDocRef);
+      if (snap.exists()) {
+        prevLongest = Number((snap.data() as UserStreak).longestStreak) || 0;
+      }
+    } catch {
+      // Ignored
+    }
+  }
+
+  const resetStreakData: UserStreak = {
+    currentStreak: 0,
+    longestStreak: resetPersonalRecord ? 0 : prevLongest,
+    lastActiveDate: '',
+    historyDates: [],
+    shieldsRemaining: 1,
+    shieldUsedToday: false,
+    activePenance: null,
+    penanceHistory: [],
+    lastResetAt: Date.now(),
+    autoResetReason: 'manual_user_reset',
+    updatedAt: serverTimestamp(),
+  };
+
+  localStorage.setItem(`fit_user_streak_${userId}`, JSON.stringify(resetStreakData));
+
+  if (db) {
+    try {
+      const streakDocRef = doc(db, 'users', userId, 'streak', 'current');
+      await setDoc(streakDocRef, resetStreakData, { merge: true });
+      await setDoc(doc(db, 'users', userId), { streak: resetStreakData }, { merge: true });
+    } catch (err) {
+      console.warn('Error resetting user streak in Firestore:', err);
+    }
+  }
+
+  return resetStreakData;
 };
 
 /**

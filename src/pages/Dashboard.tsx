@@ -522,6 +522,7 @@ export const Dashboard: React.FC = () => {
       {/* Real-time Streak Maintenance & Consistency Engine Badge */}
       <StreakBadge
         streak={userStreak}
+        onStreakReset={(updated) => setUserStreak(updated)}
         todayCompleted={
           todayCalories > 0 ||
           (completedWorkouts || []).some((w) => isToday(w.completedAt)) ||
