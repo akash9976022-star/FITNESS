@@ -293,7 +293,11 @@ export const WorkoutCompletionModal: React.FC<WorkoutCompletionModalProps> = ({
                 className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition btn-tactile"
               >
                 <Sparkles className="w-4 h-4 fill-current animate-pulse" />
-                <span>📝 Log Post-Workout Check-In (Avoid Penalty)</span>
+                <span>
+                  {metrics.streakCount > 0
+                    ? '📝 Log Post-Workout Check-In (Avoid Penalty)'
+                    : '📝 Log Post-Workout Check-In (Start Your Streak!)'}
+                </span>
               </button>
             </div>
 

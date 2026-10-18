@@ -245,9 +245,11 @@ export const Dashboard: React.FC = () => {
   }, [completedWorkouts]);
 
   // Disciplinary Penance for Missed Check-Ins (Specifically Post-Gym Workout Recovery)
+  // RULE: Only active when user's streak is activated (> 0). If streak is 0, punishment is not activated.
   const missedCheckInNotice = useMemo(() => {
-    return detectMissedCheckIn(checkIns, todayWorkoutMinutes, activeSession, completedWorkouts);
-  }, [checkIns, todayWorkoutMinutes, activeSession, completedWorkouts]);
+    if (!userStreak?.currentStreak || userStreak.currentStreak <= 0) return null;
+    return detectMissedCheckIn(checkIns, todayWorkoutMinutes, activeSession, completedWorkouts, userStreak.currentStreak);
+  }, [checkIns, todayWorkoutMinutes, activeSession, completedWorkouts, userStreak?.currentStreak]);
 
   // Real today's calories from Firestore nutrition_logs (Zero Mock Data)
   const todaysNutritionLogs = useMemo(() => {
@@ -468,7 +470,7 @@ export const Dashboard: React.FC = () => {
       </Card3D>
 
       {/* 🚨 Disciplinary Penalty Active Card for Missed Post-Workout Daily Check-In */}
-      {(missedCheckInNotice || userStreak?.activePenance) && (
+      {userStreak?.currentStreak > 0 && (missedCheckInNotice || userStreak?.activePenance) && (
         <Card3D
           glowColor="rose"
           intensity={8}
