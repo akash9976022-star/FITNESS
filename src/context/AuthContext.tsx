@@ -27,6 +27,7 @@ interface AuthContextType {
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   signupWithEmail: (email: string, pass: string, name?: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
+  loginWithGmailOrSmartAuth: (email: string, pass: string, name?: string) => Promise<void>;
   loginAnonymously: () => Promise<void>;
   logout: () => Promise<void>;
   error: string | null;
@@ -193,6 +194,82 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const loginWithGmailOrSmartAuth = async (email: string, pass: string, name?: string) => {
+    setError(null);
+    if (!auth) {
+      throw new Error('Firebase Auth is not initialized. Please verify your connection.');
+    }
+    const cleanEmail = email.trim();
+    const cleanPass = pass.trim();
+    const derivedName = name?.trim() || cleanEmail.split('@')[0] || 'Athlete';
+
+    try {
+      // 1. Attempt standard email sign-in first
+      const credential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+      setCurrentUser({
+        uid: credential.user.uid,
+        email: credential.user.email,
+        displayName: credential.user.displayName || derivedName,
+        photoURL: credential.user.photoURL,
+        isAnonymous: credential.user.isAnonymous,
+      });
+      try {
+        localStorage.setItem('fit_last_gmail', cleanEmail);
+      } catch {}
+    } catch (err: unknown) {
+      const firebaseErr = err as { code?: string; message?: string };
+
+      // 2. If user doesn't exist yet, automatically create account for seamless 1-tap onboarding!
+      if (
+        firebaseErr?.code === 'auth/user-not-found' ||
+        firebaseErr?.code === 'auth/invalid-credential'
+      ) {
+        try {
+          const newCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
+          if (newCredential.user) {
+            await updateProfile(newCredential.user, { displayName: derivedName });
+          }
+          setCurrentUser({
+            uid: newCredential.user.uid,
+            email: newCredential.user.email,
+            displayName: derivedName,
+            photoURL: newCredential.user.photoURL,
+            isAnonymous: newCredential.user.isAnonymous,
+          });
+          try {
+            localStorage.setItem('fit_last_gmail', cleanEmail);
+          } catch {}
+          return;
+        } catch (createErr: unknown) {
+          const createFirebaseErr = createErr as { code?: string; message?: string };
+          if (createFirebaseErr?.code === 'auth/email-already-in-use') {
+            const msg = 'This Gmail account is registered. Please verify your password and try again.';
+            setError(msg);
+            throw new Error(msg);
+          }
+          if (createFirebaseErr?.code === 'auth/weak-password') {
+            const msg = 'Password must be at least 6 characters.';
+            setError(msg);
+            throw new Error(msg);
+          }
+          const msg = createFirebaseErr?.message || 'Failed to authenticate Gmail account.';
+          setError(msg);
+          throw new Error(msg);
+        }
+      }
+
+      if (firebaseErr?.code === 'auth/wrong-password') {
+        const msg = 'Incorrect password for this Gmail account. Please try again.';
+        setError(msg);
+        throw new Error(msg);
+      }
+
+      const msg = firebaseErr?.message || 'Authentication failed. Please check credentials.';
+      setError(msg);
+      throw new Error(msg);
+    }
+  };
+
   const loginAnonymously = async () => {
     setError(null);
     try {
@@ -281,6 +358,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginWithEmail,
         signupWithEmail,
         loginWithGoogle,
+        loginWithGmailOrSmartAuth,
         loginAnonymously,
         logout,
         error,
