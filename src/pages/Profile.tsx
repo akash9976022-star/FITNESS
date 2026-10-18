@@ -44,7 +44,7 @@ export const DEFAULT_PROFILE: UserProfile = {
 };
 
 export const Profile: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, updateDisplayName, deleteAccount } = useAuth();
 
   // Firestore profile state with guaranteed safe default fallback
   const navigate = useNavigate();
@@ -55,11 +55,19 @@ export const Profile: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Editable Athlete Name State
+  const [athleteName, setAthleteName] = useState<string>(currentUser?.displayName || '');
+
   // Flush / Reset App Data States
   const [isFlushModalOpen, setIsFlushModalOpen] = useState<boolean>(false);
   const [confirmTextInput, setConfirmTextInput] = useState<string>('');
   const [isFlushing, setIsFlushing] = useState<boolean>(false);
   const [flushProgress, setFlushProgress] = useState<FlushDataProgress | null>(null);
+
+  // Permanently Delete Account States
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
 
   // Form edit states
   const [gender, setGender] = useState<'male' | 'female'>('male');
@@ -121,6 +129,13 @@ export const Profile: React.FC = () => {
     return () => unsub();
   }, [currentUser?.uid]);
 
+  // Keep athleteName in sync when currentUser changes
+  useEffect(() => {
+    if (currentUser?.displayName) {
+      setAthleteName(currentUser.displayName);
+    }
+  }, [currentUser?.displayName]);
+
   // Live Mifflin-St Jeor Calculation with strictly sanitized numeric parsing
   const { bmr, calculatedTdee } = useMemo(() => {
     const safeAge = parseInt(String(age), 10) || 25;
@@ -153,6 +168,7 @@ export const Profile: React.FC = () => {
 
   const handleCancelEdit = () => {
     const source = profile || DEFAULT_PROFILE;
+    setAthleteName(currentUser?.displayName || '');
     setGender(source.gender || 'male');
     setAge(Number(source.age) || 25);
     setHeightCm(Number(source.heightCm) || 175);
@@ -216,6 +232,16 @@ export const Profile: React.FC = () => {
 
     setSaving(true);
     try {
+      // 1. Update athlete display name if changed
+      const trimmedName = athleteName.trim();
+      if (trimmedName && trimmedName !== (currentUser?.displayName || '')) {
+        try {
+          await updateDisplayName(trimmedName);
+        } catch (nameErr) {
+          console.warn('Failed to update display name:', nameErr);
+        }
+      }
+
       const updatedProfile: UserProfile = {
         gender,
         age: safeAge,
@@ -278,6 +304,28 @@ export const Profile: React.FC = () => {
       const msg = err instanceof Error ? err.message : 'Error flushing data from Firestore.';
       setErrorMessage(`Flush Error: ${msg}`);
       setIsFlushing(false);
+    }
+  };
+
+  const handleExecuteDeleteAccount = async () => {
+    if (!currentUser?.uid || deleteConfirmInput.trim() !== 'DELETE') return;
+
+    setIsDeletingAccount(true);
+    setErrorMessage(null);
+    try {
+      await deleteAccount();
+      showToast('Account and all data permanently deleted.');
+
+      setTimeout(() => {
+        setIsDeleteModalOpen(false);
+        setIsDeletingAccount(false);
+        navigate('/login', { replace: true });
+      }, 1000);
+    } catch (err: unknown) {
+      console.error('Error during account deletion:', err);
+      const msg = err instanceof Error ? err.message : 'Error deleting account.';
+      setErrorMessage(`Delete Account Error: ${msg}`);
+      setIsDeletingAccount(false);
     }
   };
 
@@ -378,16 +426,33 @@ export const Profile: React.FC = () => {
             </div>
           )}
 
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {currentUser?.displayName || 'Active Athlete'}
-              </h1>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30">
-                Firestore Synced
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <div className="flex-1 min-w-[200px]">
+            {isEditing ? (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Athlete Name
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={athleteName}
+                    onChange={(e) => setAthleteName(e.target.value)}
+                    placeholder="Enter athlete name"
+                    className="w-full max-w-xs px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {currentUser?.displayName || 'Active Athlete'}
+                </h1>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30">
+                  Firestore Synced
+                </span>
+              </div>
+            )}
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {currentUser?.email || (currentUser?.isAnonymous ? 'Live Guest Session' : 'Authenticated Athlete')}
             </p>
             <p className="text-[11px] text-slate-400 font-mono mt-0.5">
@@ -1043,9 +1108,10 @@ export const Profile: React.FC = () => {
         )}
       </div>
 
-      {/* ==================== DANGER ZONE: FLUSH / RESET APP DATA ==================== */}
-      <div className="p-5 sm:p-7 rounded-3xl bg-rose-50/50 dark:bg-rose-950/20 border-2 border-rose-200 dark:border-rose-900/40 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ==================== DANGER ZONE: DATA RESET & ACCOUNT DELETION ==================== */}
+      <div className="p-5 sm:p-7 rounded-3xl bg-rose-50/50 dark:bg-rose-950/20 border-2 border-rose-200 dark:border-rose-900/40 shadow-sm space-y-5">
+        {/* Row 1: Reset App Data */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-rose-200/60 dark:border-rose-900/40">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0 shadow-xs border border-rose-200 dark:border-rose-800">
               <AlertTriangle className="w-5 h-5" />
@@ -1077,9 +1143,43 @@ export const Profile: React.FC = () => {
             <span>Flush / Reset App Data</span>
           </button>
         </div>
+
+        {/* Row 2: Permanently Delete Account */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-red-600/30">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-rose-950 dark:text-rose-200">
+                  Permanently Delete Account
+                </h3>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-red-600 text-white border border-red-700">
+                  Eradication
+                </span>
+              </div>
+              <p className="text-xs text-rose-700/90 dark:text-rose-400/90 font-medium pt-0.5 max-w-xl">
+                Permanently delete your profile, authentication credentials, and all synchronized cloud records. Requires typing <span className="font-mono font-bold text-red-600 dark:text-red-400">DELETE</span> to confirm.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteConfirmInput('');
+              setIsDeleteModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-black transition-all shadow-lg shadow-red-600/25 active:scale-[0.98] self-start sm:self-auto shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete Account</span>
+          </button>
+        </div>
       </div>
 
-      {/* ==================== SECURE TYPE-TO-CONFIRM DELETION MODAL ==================== */}
+      {/* ==================== SECURE TYPE-TO-CONFIRM DELETION MODAL (DATA FLUSH) ==================== */}
       {isFlushModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative">
@@ -1211,6 +1311,120 @@ export const Profile: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== SECURE TYPE-TO-CONFIRM ACCOUNT DELETION MODAL ==================== */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-red-300 dark:border-red-900/60 shadow-2xl overflow-hidden relative">
+            {/* Top Danger Gradient Stripe */}
+            <div className="h-2.5 w-full bg-gradient-to-r from-red-700 via-rose-600 to-red-700" />
+
+            {/* Close Button */}
+            {!isDeletingAccount && (
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+
+            <div className="p-6 sm:p-7 space-y-5">
+              {/* Warning Icon & Heading */}
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0 shadow-lg shadow-red-500/20">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Permanently Delete Account?
+                  </h3>
+                  <p className="text-xs text-red-600 dark:text-red-400 font-bold uppercase tracking-wider">
+                    Total Account Eradication
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Checklist */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                <div className="font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5 pb-1 border-b border-slate-200 dark:border-slate-800">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                  <span>The following actions will be carried out immediately:</span>
+                </div>
+                <ul className="space-y-1.5 text-[11px] sm:text-xs">
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
+                    <span><strong>Authentication Account:</strong> Your login credentials and user ID will be completely deleted.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
+                    <span><strong>Cloud Database:</strong> All workout logs, meal plans, body metrics, photos, alarms, and routines will be destroyed.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
+                    <span><strong>Google Session:</strong> Android device credentials session will be disconnected and revoked.</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Type to Confirm Form */}
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-900 dark:text-white block">
+                    Type <span className="font-mono text-red-600 dark:text-red-400 font-extrabold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-800">DELETE</span> to confirm:
+                  </label>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    To prevent accidental deletion, type the exact word DELETE in capital letters.
+                  </p>
+                </div>
+
+                <input
+                  type="text"
+                  autoFocus
+                  disabled={isDeletingAccount}
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-sm font-mono font-bold tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 placeholder:text-slate-400 uppercase"
+                />
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    disabled={isDeletingAccount}
+                    onClick={() => setIsDeleteModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={deleteConfirmInput.trim() !== 'DELETE' || isDeletingAccount}
+                    onClick={handleExecuteDeleteAccount}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-black shadow-lg shadow-red-600/25 transition active:scale-[0.98]"
+                  >
+                    {isDeletingAccount ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Deleting Account...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        <span>Permanently Delete Account</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

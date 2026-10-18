@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getPlatform, isNativeApp } from '../utils/platform';
+import { auth } from '../config/firebase';
+import { ensureUserProfileExists } from '../services/firestoreService';
 
 export const Login: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -37,6 +39,27 @@ export const Login: React.FC = () => {
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
 
+  // Smart routing: if it is a new account or onboarding is pending, guide user to profile entry
+  const navigateAfterAuth = async (isNewAccount = false) => {
+    if (isNewAccount) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
+    const uid = auth?.currentUser?.uid;
+    if (uid) {
+      try {
+        const profile = await ensureUserProfileExists(uid);
+        if (profile && profile.onboardingCompleted === false) {
+          navigate('/onboarding', { replace: true });
+          return;
+        }
+      } catch (e) {
+        console.warn('Profile check notice:', e);
+      }
+    }
+    navigate(from, { replace: true });
+  };
+
   // 1. Email & Password Authentication Handler
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,10 +81,11 @@ export const Login: React.FC = () => {
     try {
       if (isSignUp) {
         await signupWithEmail(cleanEmail, password, name.trim());
+        await navigateAfterAuth(true);
       } else {
         await loginWithEmail(cleanEmail, password);
+        await navigateAfterAuth(false);
       }
-      navigate(from, { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Authentication failed';
       setLocalError(msg);
@@ -77,7 +101,7 @@ export const Login: React.FC = () => {
     setSubmitting(true);
     try {
       await loginWithGoogle();
-      navigate(from, { replace: true });
+      await navigateAfterAuth(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google sign-in failed';
       setLocalError(msg);
@@ -93,7 +117,7 @@ export const Login: React.FC = () => {
     setSubmitting(true);
     try {
       await loginAnonymously();
-      navigate(from, { replace: true });
+      await navigateAfterAuth(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Guest access failed';
       setLocalError(msg);

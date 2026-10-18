@@ -9,12 +9,13 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  deleteUser,
   type User,
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
-import { ensureUserProfileExists } from '../services/firestoreService';
+import { ensureUserProfileExists, flushUserAppData } from '../services/firestoreService';
 
 export interface AppUser {
   uid: string;
@@ -34,6 +35,8 @@ interface AuthContextType {
   loginWithGmailOrSmartAuth: (email: string, pass: string, name?: string) => Promise<void>;
   loginAnonymously: () => Promise<void>;
   logout: () => Promise<void>;
+  updateDisplayName: (newName: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   error: string | null;
   clearError: () => void;
 }
@@ -383,6 +386,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.removeItem('fit_guest_session');
       localStorage.removeItem('fit_guest_uid');
     } catch {}
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await GoogleAuth.signOut();
+      } catch (err) {
+        console.warn('Native GoogleAuth sign out notice:', err);
+      }
+    }
     if (auth) {
       try {
         await signOut(auth);
@@ -391,6 +401,67 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     }
     setCurrentUser(null);
+  };
+
+  const updateDisplayName = async (newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error('Athlete name cannot be empty.');
+
+    if (auth?.currentUser) {
+      await updateProfile(auth.currentUser, { displayName: trimmed });
+    }
+
+    setCurrentUser((prev) => (prev ? { ...prev, displayName: trimmed } : null));
+
+    try {
+      const stored = localStorage.getItem('fit_guest_session');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.displayName = trimmed;
+        localStorage.setItem('fit_guest_session', JSON.stringify(parsed));
+      }
+    } catch {}
+  };
+
+  const deleteAccount = async () => {
+    setError(null);
+    const user = auth?.currentUser;
+    const uid = currentUser?.uid;
+
+    try {
+      // 1. Flush all Firestore collections for this user
+      if (uid) {
+        await flushUserAppData(uid);
+      }
+
+      // 2. Delete user from Firebase Auth
+      if (user) {
+        try {
+          await deleteUser(user);
+        } catch (authErr) {
+          console.warn('Firebase Auth user deletion note:', authErr);
+        }
+      }
+
+      // 3. Clear native Google sign-in session
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await GoogleAuth.signOut();
+        } catch {}
+      }
+
+      // 4. Clear all local storage caches
+      try {
+        localStorage.clear();
+      } catch {}
+
+      setCurrentUser(null);
+    } catch (err: unknown) {
+      console.error('Failed to delete account:', err);
+      const msg = err instanceof Error ? err.message : 'Failed to delete account';
+      setError(msg);
+      throw err;
+    }
   };
 
   return (
@@ -405,6 +476,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginWithGmailOrSmartAuth,
         loginAnonymously,
         logout,
+        updateDisplayName,
+        deleteAccount,
         error,
         clearError,
       }}

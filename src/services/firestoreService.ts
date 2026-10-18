@@ -124,16 +124,23 @@ export const ensureUserProfileExists = async (
     const userDocRef = doc(db, 'users', userId);
     const snap = await getDoc(userDocRef);
     if (!snap.exists()) {
+      const newProfile: UserProfile = {
+        ...cachedProfile,
+        onboardingCompleted: false, // Brand-new account needs to enter profile data
+      };
       await setDoc(
         userDocRef,
         {
-          ...cachedProfile,
+          ...newProfile,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
-      return cachedProfile;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(newProfile));
+      } catch {}
+      return newProfile;
     }
     const data = snap.data() as UserProfile;
     try {
