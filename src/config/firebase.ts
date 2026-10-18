@@ -5,13 +5,13 @@ import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCYJGM0nxhkDODuAG8gJUc5MjAijQYSnrc',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'fitmaintenance-ai-614ac.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'fitmaintenance-ai-614ac',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'fitmaintenance-ai-614ac.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '346245120541',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:346245120541:web:792b2fec6a8f4219c23cf4',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-BJ9QFCLEWS',
 };
 
 // Check if critical Firebase keys are present

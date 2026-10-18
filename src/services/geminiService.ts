@@ -5,11 +5,10 @@ const getApiKey = (): string => {
   if (envKey) return envKey;
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      return (
+      const stored =
         localStorage.getItem('VITE_GEMINI_API_KEY')?.trim() ||
-        localStorage.getItem('gemini_api_key')?.trim() ||
-        ''
-      );
+        localStorage.getItem('gemini_api_key')?.trim();
+      if (stored) return stored;
     }
   } catch {
     // ignore

@@ -176,9 +176,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAnonymous: result.user.isAnonymous,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to sign in with Google';
-      setError(message);
-      throw err;
+      const firebaseErr = err as { code?: string; message?: string };
+      let friendlyMessage = firebaseErr?.message || 'Failed to sign in with Google';
+
+      if (firebaseErr?.code === 'auth/unauthorized-domain') {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'your-domain';
+        friendlyMessage = `Google Sign-In Domain Not Authorized: Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`;
+      } else if (firebaseErr?.code === 'auth/popup-blocked') {
+        friendlyMessage = 'Google Sign-In popup was blocked by your browser. Please allow popups for this site or use email sign-in.';
+      } else if (firebaseErr?.code === 'auth/popup-closed-by-user') {
+        friendlyMessage = 'Google Sign-In popup was closed before completing.';
+      }
+
+      setError(friendlyMessage);
+      throw new Error(friendlyMessage);
     }
   };
 
