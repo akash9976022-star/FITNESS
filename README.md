@@ -1,6 +1,22 @@
 # FitMaintenance AI 🏋️‍♂️⚡
 
-A production-ready React, Tailwind CSS, and Vite progressive fitness web and mobile application configured for **GitHub Web hosting** and **Capacitor Android** compatibility.
+A production-ready React, Tailwind CSS, and Vite progressive fitness web and mobile application with automated **GitHub Pages Web deployment** and cloud-built **Android APK Release**.
+
+---
+
+### 🌐 Live Web Application & 📱 Android APK
+- **Live Web App Link:** [https://akash9976022-star.github.io/FITNESS/](https://akash9976022-star.github.io/FITNESS/)
+- **Download Android APK:** [GitHub Releases - FitMaintenance-AI.apk](https://github.com/akash9976022-star/FITNESS/releases)
+- **GitHub Actions Workflows:** [View Automatic Builds & Releases](https://github.com/akash9976022-star/FITNESS/actions)
+
+---
+
+### ⚡ 1-Step GitHub Pages Activation
+To enable the live weblink on GitHub:
+1. Open your repository on GitHub: [https://github.com/akash9976022-star/FITNESS](https://github.com/akash9976022-star/FITNESS)
+2. Click **Settings** (top menu) ➔ **Pages** (left sidebar).
+3. Under **Build and deployment** ➔ **Source**, select **GitHub Actions**.
+4. That's it! GitHub will automatically deploy your live web app to `https://akash9976022-star.github.io/FITNESS/` and compile the `FitMaintenance-AI.apk` on every push.
 
 ---
 

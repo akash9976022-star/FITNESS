@@ -1,0 +1,136 @@
+name: Deploy Web App & Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'deploy-and-build'
+  cancel-in-progress: false
+
+jobs:
+  # ==========================================
+  # 1. DEPLOY LIVE WEB APP TO GITHUB PAGES
+  # ==========================================
+  deploy-web:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Create 404 Fallback for SPA Routing
+        run: cp dist/index.html dist/404.html
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ==========================================
+  # 2. BUILD ANDROID APK & CREATE GITHUB RELEASE
+  # ==========================================
+  build-android-apk:
+    runs-on: ubuntu-latest
+    needs: deploy-web
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Prepare APK Asset
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk FitMaintenance-AI.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FitMaintenance-AI-APK
+          path: FitMaintenance-AI.apk
+          retention-days: 90
+
+      - name: Create / Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: v1.0.0
+          name: 'FitMaintenance AI v1.0.0 (Web & Android APK)'
+          body: |
+            ## 🚀 FitMaintenance AI - Release v1.0.0
+            
+            ### 🌐 Live Web Application
+            - **Web Link:** [https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)
+            
+            ### 📱 Android APK Download
+            - Download `FitMaintenance-AI.apk` from the **Assets** section below to install directly on your Android phone or tablet.
+            
+            ### 🌟 Included Modules:
+            - **Athlete Dashboard:** Live BMB dial, BMI spectrum gauge, hydration & steps widgets.
+            - **Workout System:** Day split selector, rest day vs active workout toggle, sequential rest timers.
+            - **Daily Check-In:** Photo skip with official permission letter, streak engine (activation on 1st check-in, 2-day auto-reset).
+            - **Tamil Panchangam & Fasting:** Viratham calendar sync, calibrated fasting pacing.
+            - **Dual-Language Routine Reminders:** Wake-up alarm with video songs, 9:00 PM bilingual AI Coach debrief, OLED sleep blackout.
+          files: |
+            FitMaintenance-AI.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
