@@ -175,7 +175,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (Capacitor.isNativePlatform()) {
         // Native One-Tap Google Account Picker on Android APK
         GoogleAuth.initialize({
-          clientId: '346245120541-webclientid.apps.googleusercontent.com',
+          clientId: '346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com',
           scopes: ['profile', 'email'],
           grantOfflineAccess: true,
         });

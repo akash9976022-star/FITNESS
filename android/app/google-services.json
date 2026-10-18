@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "346245120541",
+    "project_id": "fitmaintenance-ai-614ac",
+    "storage_bucket": "fitmaintenance-ai-614ac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:346245120541:android:bfd7dbce409f6c5ac23cf4",
+        "android_client_info": {
+          "package_name": "com.fitmaintenance.ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTD7-ClMFNd51cMbBJrN4YiKOJg-GsILo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "346245120541-lsk3baiqqbhefr07j0ja2s75bipamq9d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
