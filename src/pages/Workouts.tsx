@@ -329,12 +329,28 @@ export const Workouts: React.FC = () => {
     dayId: DayOfWeek,
     updated: Partial<DayRoutineTemplate>
   ) => {
-    if (!currentUser?.uid) return;
-    try {
-      await saveDailyRoutine(currentUser.uid, dayId, updated);
-    } catch (err) {
-      console.error('Failed to update daily routine:', err);
-      showToast('Error saving routine changes.');
+    // 1. Instant 0ms optimistic update for weekly calendar chips & routine card
+    setDailyRoutines((prev) => {
+      const existing = prev[dayId] || DEFAULT_WEEKLY_SPLIT[dayId];
+      const mergedDay: DayRoutineTemplate = {
+        ...existing,
+        ...updated,
+        dayId,
+      };
+      return {
+        ...prev,
+        [dayId]: mergedDay,
+      };
+    });
+
+    // 2. Persist to Firestore in the background
+    if (currentUser?.uid) {
+      try {
+        await saveDailyRoutine(currentUser.uid, dayId, updated);
+      } catch (err) {
+        console.error('Failed to update daily routine in cloud:', err);
+        showToast('Error syncing routine changes to cloud.');
+      }
     }
   };
 

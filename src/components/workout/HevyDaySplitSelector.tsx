@@ -386,14 +386,15 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
     await onUpdateRoutine(activeDay, {
       ...generated,
       isRestDay: false,
+      splitCategory: catId,
       dayId: activeDay,
     });
 
     const isRemovingLastRest = currentDayTemplate.isRestDay && restDayCount <= 1;
     showToast?.(
       isRemovingLastRest
-        ? `Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}! (Tip: Keep 1–3 rest days per week for optimal recovery).`
-        : `Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}!`
+        ? `Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}! Weekly calendar updated. (Tip: Keep 1–3 rest days per week for optimal recovery).`
+        : `Assigned ${catId.toUpperCase()} split to ${currentDayTemplate.dayName}! Weekly calendar updated.`
     );
   };
 
@@ -417,26 +418,27 @@ export const HevyDaySplitSelector: React.FC<HevyDaySplitSelectorProps> = ({
         routineName: `${currentDayTemplate.dayName} - ${isFasting ? 'Sacred Fasting Rest & Recovery' : 'Rest & Muscle Rebuild'}`,
         exercises: [],
       });
-      showToast?.(`Marked ${currentDayTemplate.dayName} as a Rest & Active Recovery day.`);
+      showToast?.(`Marked ${currentDayTemplate.dayName} as a Rest & Active Recovery day. Weekly calendar updated.`);
     } else {
       // Switching from Rest to Active Training Day: generate complete exercises & timing
       const targetCategory =
         currentDayTemplate.splitCategory && currentDayTemplate.splitCategory !== 'rest'
           ? currentDayTemplate.splitCategory
-          : 'full_body';
+          : 'legs'; // smart default to legs split
       const generated = getTemplateForCategory(targetCategory, activeDay, currentDayTemplate.dayName, isFasting);
 
       await onUpdateRoutine(activeDay, {
         ...generated,
         isRestDay: false,
+        splitCategory: targetCategory,
         dayId: activeDay,
       });
 
       const isRemovingLastRest = restDayCount <= 1;
       showToast?.(
         isRemovingLastRest
-          ? `Marked ${currentDayTemplate.dayName} as an active training day! (Tip: Keep 1–3 rest days per week for optimal recovery).`
-          : `Marked ${currentDayTemplate.dayName} as an active training day.`
+          ? `Switched ${currentDayTemplate.dayName} to ${targetCategory.toUpperCase()} workout! Weekly calendar updated. (Tip: Keep 1–3 rest days per week).`
+          : `Switched ${currentDayTemplate.dayName} to ${targetCategory.toUpperCase()} workout! Weekly calendar updated.`
       );
     }
   };
