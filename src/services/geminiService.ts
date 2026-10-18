@@ -7,7 +7,8 @@ const getApiKey = (): string => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const storedKey =
         localStorage.getItem('VITE_GEMINI_API_KEY')?.trim() ||
-        localStorage.getItem('gemini_api_key')?.trim();
+        localStorage.getItem('gemini_api_key')?.trim() ||
+        '';
       if (storedKey) return storedKey;
     }
   } catch {
