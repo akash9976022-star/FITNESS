@@ -42,7 +42,6 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   // Speech State
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [activeLanguage, setActiveLanguage] = useState<'en' | 'ta'>('en');
-  const [activeSegment, setActiveSegment] = useState<'english' | 'tamil'>('english');
   const [isSpeechSpeaking, setIsSpeechSpeaking] = useState(false);
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
   const [speechCompleted, setSpeechCompleted] = useState(false);
@@ -76,7 +75,6 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
 
     setActiveSectionIndex(0);
     setActiveLanguage(briefingLanguage === 'ta' ? 'ta' : 'en');
-    setActiveSegment(briefingLanguage === 'ta' ? 'tamil' : 'english');
     setSpeechCompleted(false);
     setIsSpeechSpeaking(true);
     setIsSpeechPaused(false);
@@ -87,11 +85,10 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
     speechBriefingEngine.startBriefing(
       sections,
       {
-        onSectionStart: (idx, lang, segment) => {
+        onSectionStart: (idx, lang) => {
           if (!isSubscribed) return;
           setActiveSectionIndex(idx);
           setActiveLanguage(lang);
-          if (segment) setActiveSegment(segment);
         },
         onSectionComplete: () => {
           // Progressively highlight completion

@@ -546,7 +546,7 @@ function pcmToWavBlob(pcmData: Uint8Array, sampleRate: number = 24000): Blob {
   writeStr(36, 'data');
   view.setUint32(40, dataSize, true);
 
-  return new Blob([wavHeader, pcmData], { type: 'audio/wav' });
+  return new Blob([new Uint8Array(wavHeader), pcmData], { type: 'audio/wav' });
 }
 
 /**
@@ -582,7 +582,7 @@ export async function synthesizeGeminiSpeech(
           : `Read aloud the following message in a warm, enthusiastic, friendly Indian English coach voice with natural morning energy. Speak clearly and smoothly. Output audio directly:\n\n${text}`;
 
       // 2200ms strict timeout to avoid delaying morning briefing
-      const generatePromise = ai.models.generateContent({
+      const generatePromise = (ai.models as any).generateContent({
         model,
         contents: [
           {
@@ -599,15 +599,15 @@ export async function synthesizeGeminiSpeech(
               },
             },
           },
-        },
+        } as any,
       });
 
       const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2200));
-      const response = await Promise.race([generatePromise, timeoutPromise]);
+      const response: any = await Promise.race([generatePromise, timeoutPromise]);
 
-      if (!response || !('candidates' in response)) continue;
+      if (!response) continue;
 
-      const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      const inlineData = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
       const base64Data = inlineData?.data;
       if (!base64Data) continue;
 
