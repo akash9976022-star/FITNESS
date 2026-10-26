@@ -1,8 +1,45 @@
-export {};
-
 // Ambient type declarations for IDE module resolution when node_modules is not installed locally.
 
-declare global {
+declare namespace JSX {
+  interface Element {
+    [key: string]: any;
+  }
+  interface IntrinsicElements {
+    [elemName: string]: any;
+  }
+  interface ElementChildrenAttribute {
+    children: {};
+  }
+}
+
+declare namespace React {
+  type FC<P = Record<string, unknown>> = (props: P) => any;
+  type FunctionComponent<P = Record<string, unknown>> = (props: P) => any;
+  type ReactNode = any;
+  type ReactElement<P = any, T = any> = any;
+  type ComponentType<P = any> = any;
+  type ChangeEvent<T = any> = any;
+  type FormEvent<T = any> = any;
+  type MouseEvent<T = any> = any;
+  type TouchEvent<T = any> = any;
+  type KeyboardEvent<T = any> = any;
+  type Dispatch<A> = (value: A) => void;
+  type SetStateAction<S> = S | ((prevState: S) => S);
+  type RefObject<T> = { current: T };
+  type MutableRefObject<T> = { current: T };
+
+  function useState<T>(initialState: T | (() => T)): [T, Dispatch<SetStateAction<T>>];
+  function useState<T = any>(initialState?: any): [T, Dispatch<SetStateAction<T>>];
+  function useEffect(effect: () => void | (() => void), deps?: any[]): void;
+  function useLayoutEffect(effect: () => void | (() => void), deps?: any[]): void;
+  function useRef<T>(initialValue: T): RefObject<T>;
+  function useRef<T = any>(initialValue?: any): RefObject<T>;
+  function useMemo<T>(factory: () => T, deps?: any[]): T;
+  function useCallback<T extends (...args: any[]) => any>(callback: T, deps?: any[]): T;
+  function createContext<T>(defaultValue: T): any;
+  function useContext<T>(context: any): T;
+  function useReducer<R extends (...args: any[]) => any>(reducer: R, initialState: any, init?: any): any;
+
   namespace JSX {
     interface Element {
       [key: string]: any;
@@ -12,47 +49,6 @@ declare global {
     }
     interface ElementChildrenAttribute {
       children: {};
-    }
-  }
-
-  namespace React {
-    type FC<P = Record<string, unknown>> = (props: P) => any;
-    type FunctionComponent<P = Record<string, unknown>> = (props: P) => any;
-    type ReactNode = any;
-    type ReactElement<P = any, T = any> = any;
-    type ComponentType<P = any> = any;
-    type ChangeEvent<T = any> = any;
-    type FormEvent<T = any> = any;
-    type MouseEvent<T = any> = any;
-    type TouchEvent<T = any> = any;
-    type KeyboardEvent<T = any> = any;
-    type Dispatch<A> = (value: A) => void;
-    type SetStateAction<S> = S | ((prevState: S) => S);
-    type RefObject<T> = { current: T };
-    type MutableRefObject<T> = { current: T };
-
-    function useState<T>(initialState: T | (() => T)): [T, Dispatch<SetStateAction<T>>];
-    function useState<T = any>(initialState?: any): [T, Dispatch<SetStateAction<T>>];
-    function useEffect(effect: () => void | (() => void), deps?: any[]): void;
-    function useLayoutEffect(effect: () => void | (() => void), deps?: any[]): void;
-    function useRef<T>(initialValue: T): RefObject<T>;
-    function useRef<T = any>(initialValue?: any): RefObject<T>;
-    function useMemo<T>(factory: () => T, deps?: any[]): T;
-    function useCallback<T extends (...args: any[]) => any>(callback: T, deps?: any[]): T;
-    function createContext<T>(defaultValue: T): any;
-    function useContext<T>(context: any): T;
-    function useReducer<R extends (...args: any[]) => any>(reducer: R, initialState: any, init?: any): any;
-
-    namespace JSX {
-      interface Element {
-        [key: string]: any;
-      }
-      interface IntrinsicElements {
-        [elemName: string]: any;
-      }
-      interface ElementChildrenAttribute {
-        children: {};
-      }
     }
   }
 }

@@ -481,7 +481,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                 {/* Audio Progress Bar */}
                 <div className="space-y-1.5 pt-2">
                   <div
-                    onClick={(e) => {
+                    onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const percent = (e.clientX - rect.left) / rect.width;
                       devotionalPlayer.seek(percent * duration);
@@ -558,7 +558,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                       max="1"
                       step="0.05"
                       value={isMuted ? 0 : volume}
-                      onChange={(e) => {
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         const val = parseFloat(e.target.value);
                         setVolume(val);
                         setIsMuted(false);
