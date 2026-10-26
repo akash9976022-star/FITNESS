@@ -239,10 +239,10 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col my-6 transition-colors duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] transition-colors duration-200">
         {/* ================= MODAL HEADER ================= */}
-        <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between">
+        <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-400 flex items-center justify-center shadow-md shadow-amber-500/20">
               <Bell className="w-5 h-5 text-slate-950" />
@@ -644,7 +644,7 @@ export const AlarmSettingsModal: React.FC<AlarmSettingsModalProps> = ({
         </div>
 
         {/* ================= MODAL FOOTER ================= */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+        <div className="px-4 sm:px-6 py-3.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             <span>Settings sync automatically across devices via Firestore</span>

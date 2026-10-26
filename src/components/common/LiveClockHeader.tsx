@@ -51,7 +51,7 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
         <span className="sm:hidden">{compactTimeString}</span>
       </div>
 
-      <div className="h-3 w-px bg-slate-300 dark:bg-slate-800" />
+      <div className="hidden sm:block h-3 w-px bg-slate-300 dark:bg-slate-800" />
 
       {/* English Date */}
       <div className="hidden md:flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
@@ -61,8 +61,8 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
 
       <div className="hidden md:block h-3.5 w-px bg-slate-300 dark:bg-slate-800" />
 
-      {/* Tamil Month & Date Pill */}
-      <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 sm:px-2 rounded-lg border border-amber-500/25">
+      {/* Tamil Month & Date Pill (Hidden on narrow mobile screens to avoid header overlap) */}
+      <div className="hidden sm:flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 sm:px-2 rounded-lg border border-amber-500/25">
         <span className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-500 font-extrabold hidden sm:inline">தமிழ்:</span>
         <span className="tracking-tight whitespace-nowrap">
           {tamilDetails.tamilMonthName} {tamilDetails.tamilDate}
@@ -76,4 +76,3 @@ export const LiveClockHeader: React.FC<{ className?: string }> = ({ className = 
 };
 
 export default LiveClockHeader;
-

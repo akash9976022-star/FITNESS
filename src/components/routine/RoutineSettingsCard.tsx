@@ -284,18 +284,25 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     try {
       if (editingRoutine) {
         // Update existing routine
-        await updateCustomRoutine(currentUser.uid, editingRoutine.id, {
+        const updatedData = {
           name: formName.trim(),
           time: formTime,
           repeat: formRepeat,
           voicePrompt: formPrompt.trim(),
           icon: formIcon,
           category: formCategory,
-        });
+        };
+        await updateCustomRoutine(currentUser.uid, editingRoutine.id, updatedData);
+        // Optimistic state update immediately
+        setRoutines((prev) =>
+          prev
+            .map((r) => (r.id === editingRoutine.id ? { ...r, ...updatedData, updatedAt: new Date().toISOString() } : r))
+            .sort((a, b) => a.time.localeCompare(b.time))
+        );
         showToast(`Updated "${formName.trim()}" successfully!`);
       } else {
         // Add new routine
-        await addCustomRoutine(currentUser.uid, {
+        const newRoutineData = {
           name: formName.trim(),
           time: formTime,
           repeat: formRepeat,
@@ -303,6 +310,19 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
           icon: formIcon,
           category: formCategory,
           enabled: true,
+        };
+        const newId = await addCustomRoutine(currentUser.uid, newRoutineData);
+        // Optimistic state update immediately
+        const newItem: CustomRoutineItem = {
+          id: newId || `routine_${Date.now()}`,
+          ...newRoutineData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setRoutines((prev) => {
+          const list = prev.filter((r) => r.id !== newItem.id);
+          list.push(newItem);
+          return list.sort((a, b) => a.time.localeCompare(b.time));
         });
         showToast(`Created new routine "${formName.trim()}"!`);
       }
@@ -321,6 +341,10 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
   const handleToggleRoutine = async (item: CustomRoutineItem) => {
     if (!currentUser?.uid) return;
     const nextState = !item.enabled;
+    // Optimistic toggle
+    setRoutines((prev) =>
+      prev.map((r) => (r.id === item.id ? { ...r, enabled: nextState } : r))
+    );
     try {
       await updateCustomRoutine(currentUser.uid, item.id, { enabled: nextState });
       showToast(`${item.name} is now ${nextState ? 'enabled' : 'paused'}.`);
@@ -332,6 +356,12 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
   // Inline Time Change
   const handleInlineTimeChange = async (item: CustomRoutineItem, newTime: string) => {
     if (!currentUser?.uid || !newTime) return;
+    // Optimistic time update
+    setRoutines((prev) =>
+      prev
+        .map((r) => (r.id === item.id ? { ...r, time: newTime } : r))
+        .sort((a, b) => a.time.localeCompare(b.time))
+    );
     try {
       await updateCustomRoutine(currentUser.uid, item.id, { time: newTime });
       showToast(`Updated time for ${item.name} to ${newTime}`);
@@ -345,7 +375,9 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     if (!currentUser?.uid || !routineToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteCustomRoutine(currentUser.uid, routineToDelete.id);
+      const delId = routineToDelete.id;
+      setRoutines((prev) => prev.filter((r) => r.id !== delId));
+      await deleteCustomRoutine(currentUser.uid, delId);
       showToast(`Deleted "${routineToDelete.name}".`);
       setRoutineToDelete(null);
     } catch (err) {
@@ -547,7 +579,10 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
     >
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900 text-white dark:bg-emerald-600 shadow-xl border border-white/10 text-xs font-bold animate-in slide-in-from-top-2 duration-200">
+        <div
+          className="fixed inset-x-4 sm:inset-x-auto sm:right-6 z-[80] flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900 text-white dark:bg-emerald-600 shadow-xl border border-white/10 text-xs font-bold animate-in slide-in-from-top-2 duration-200"
+          style={{ top: 'calc(var(--safe-top) + 1rem)' }}
+        >
           <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-white" />
           <span>{toastMessage}</span>
         </div>
@@ -1349,35 +1384,36 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
 
       {/* ==================== ADD / EDIT ROUTINE MODAL ==================== */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative max-h-[92vh] flex flex-col">
             {/* Modal Ambient Top Header */}
-            <div className="h-2 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600" />
+            <div className="h-2 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 shrink-0" />
 
-            <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
-              {/* Modal Title & Close */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
-                    {formIcon}
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                      {editingRoutine ? 'Edit Routine & Voice Reminder' : 'Add New Daily Routine'}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Personalized schedule & natural spoken voice prompt
-                    </p>
-                  </div>
+            {/* Modal Title & Close (Sticky Header) */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
+                  {formIcon}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    {editingRoutine ? 'Edit Routine & Voice Reminder' : 'Add New Daily Routine'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Personalized schedule & natural spoken voice prompt
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
 
               {/* Quick Template Suggestions (Shown when creating new) */}
               {!editingRoutine && (
@@ -1584,8 +1620,8 @@ export const RoutineSettingsCard: React.FC<RoutineSettingsCardProps> = ({
                   </div>
                 </div>
 
-                {/* Submit & Cancel Buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
+                {/* Submit & Cancel Buttons (Sticky Footer) */}
+                <div className="sticky bottom-0 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 p-4 sm:p-5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5 mt-4 z-10">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}

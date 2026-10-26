@@ -302,7 +302,7 @@ export const AppLayout: React.FC = () => {
               {/* Alarm & Video Songs Button */}
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('OPEN_ALARM_SETTINGS'))}
-                className="hidden xs:flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition shadow-xs text-xs font-bold btn-tactile flex-shrink-0"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition shadow-xs text-xs font-bold btn-tactile flex-shrink-0"
                 title="6:00 AM Max-Volume Alarm & Video Songs Library"
               >
                 <Bell className="w-3.5 h-3.5 fill-current text-amber-500 animate-pulse" />
@@ -335,7 +335,7 @@ export const AppLayout: React.FC = () => {
         </header>
 
         {/* Scrollable View Area with Zero Mobile Horizontal Overflow */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6 md:pb-8 pb-24">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-4 md:pb-8" style={{ paddingBottom: 'calc(5.5rem + var(--safe-bottom))' }}>
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>

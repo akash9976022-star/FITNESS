@@ -32,6 +32,9 @@ import {
   buildNightDebriefScript,
   type DebriefScript,
 } from '../../utils/nightDebriefEngine';
+import { syncNativeRoutines } from '../../services/nativeAlarmService';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { isNativeApp } from '../../utils/platform';
 import RoutineReminderModal from './RoutineReminderModal';
 import NightDebriefModal from './NightDebriefModal';
 
@@ -78,7 +81,6 @@ export const RoutineManager: React.FC = () => {
     if (!currentUser?.uid) return;
     try {
       const perfData = await fetchTodayPerformanceData(currentUser.uid);
-      // Instantly generate personalized human conversational debrief script (zero network delay)
       const script = buildNightDebriefScript(perfData, userName);
       setDebriefScript(script);
       setIsDebriefModalOpen(true);
@@ -115,6 +117,41 @@ export const RoutineManager: React.FC = () => {
       unsubProfile();
     };
   }, [currentUser?.uid]);
+
+  // 2b. Sync Native Alarms for all enabled routines so they wake Samsung phone even when app is closed
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    syncNativeRoutines(customRoutines);
+  }, [customRoutines]);
+
+  // 2c. Listen for Native Routine Notification tap actions from phone lockscreen/background
+  useEffect(() => {
+    if (!isNativeApp()) return;
+
+    const listenerPromise = LocalNotifications.addListener(
+      'localNotificationActionPerformed',
+      (action) => {
+        if (action.notification.extra?.action === 'OPEN_ROUTINE_REMINDER') {
+          const routineId = action.notification.extra.routineId;
+          const found = customRoutinesRef.current.find((r) => r.id === routineId);
+          if (found) {
+            setActiveRoutine(found);
+            if (settingsRef.current.voiceRemindersEnabled) {
+              speakRoutineVoiceReminder(found, userName, {
+                language: settingsRef.current.routineLanguage || 'tanglish',
+                rate: settingsRef.current.voiceRate,
+                playChimeFirst: true,
+              });
+            }
+          }
+        }
+      }
+    );
+
+    return () => {
+      listenerPromise.then((handle) => handle.remove()).catch(() => {});
+    };
+  }, [userName]);
 
   // 3. Global Event Listener for Manual Test Triggers
   useEffect(() => {
@@ -174,7 +211,7 @@ export const RoutineManager: React.FC = () => {
     };
   }, [launchNightDebrief]);
 
-  // 4. Background Routine Clock Monitor (Runs every second)
+  // 4. Background Routine Clock Monitor (Runs every second while app is open)
   useEffect(() => {
     const checkRoutineTimes = () => {
       if (activeRoutineRef.current !== null || isDebriefModalOpen) return; // Modal already active
@@ -304,9 +341,12 @@ export const RoutineManager: React.FC = () => {
 
   return (
     <>
-      {/* Top Floating Toast Notification Alert */}
+      {/* Top Floating Toast Notification Alert (Positioned below safe-area status bar so no camera cutout overlap) */}
       {activeToast && (
-        <div className="fixed top-4 inset-x-0 z-50 flex justify-center px-4 pointer-events-none animate-in slide-in-from-top-4 duration-300">
+        <div
+          className="fixed inset-x-0 z-[90] flex justify-center px-4 pointer-events-none animate-in slide-in-from-top-4 duration-300"
+          style={{ top: 'calc(var(--safe-top) + 0.75rem)' }}
+        >
           <div className="w-full max-w-lg rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-cyan-300 dark:border-cyan-700/80 shadow-2xl shadow-cyan-500/20 p-3.5 sm:p-4 flex items-center justify-between gap-3 pointer-events-auto">
             {/* Icon & Details */}
             <div className="flex items-center gap-3 min-w-0">
@@ -432,5 +472,3 @@ export const RoutineManager: React.FC = () => {
 };
 
 export default RoutineManager;
-
-

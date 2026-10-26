@@ -6274,7 +6274,17 @@ export const subscribeCustomRoutines = (
   const routinesRef = collection(db, 'users', userId, 'custom_routines');
   const q = query(routinesRef, orderBy('time', 'asc'));
 
-  return onSnapshot(
+  const handleOptimisticUpdate = (e: Event) => {
+    const customEvt = e as CustomEvent<CustomRoutineItem[]>;
+    if (customEvt.detail && Array.isArray(customEvt.detail)) {
+      callback(customEvt.detail);
+    }
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('FITNESS_ROUTINES_UPDATED', handleOptimisticUpdate);
+  }
+
+  const unsubSnapshot = onSnapshot(
     q,
     async (snapshot) => {
       if (snapshot.empty) {
@@ -6327,6 +6337,13 @@ export const subscribeCustomRoutines = (
       callback(DEFAULT_CUSTOM_ROUTINES.map((item, idx) => ({ id: `default-${idx + 1}`, ...item })));
     }
   );
+
+  return () => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('FITNESS_ROUTINES_UPDATED', handleOptimisticUpdate);
+    }
+    unsubSnapshot();
+  };
 };
 
 /**
@@ -6354,6 +6371,9 @@ export const addCustomRoutine = async (
     list.push(newItem);
     list.sort((a, b) => a.time.localeCompare(b.time));
     localStorage.setItem(cacheKey, JSON.stringify(list));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('FITNESS_ROUTINES_UPDATED', { detail: list }));
+    }
   } catch {
     // Ignored
   }
@@ -6397,6 +6417,9 @@ export const updateCustomRoutine = async (
       );
       updatedList.sort((a, b) => a.time.localeCompare(b.time));
       localStorage.setItem(cacheKey, JSON.stringify(updatedList));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('FITNESS_ROUTINES_UPDATED', { detail: updatedList }));
+      }
     }
   } catch {
     // Ignored
@@ -6437,6 +6460,9 @@ export const deleteCustomRoutine = async (
       const list: CustomRoutineItem[] = JSON.parse(cached);
       const updatedList = list.filter((item) => item.id !== routineId);
       localStorage.setItem(cacheKey, JSON.stringify(updatedList));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('FITNESS_ROUTINES_UPDATED', { detail: updatedList }));
+      }
     }
   } catch {
     // Ignored

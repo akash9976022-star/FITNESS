@@ -1,8 +1,10 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import type { CustomRoutineItem } from './firestoreService';
 
 export const ALARM_NOTIFICATION_ID = 9901;
 export const SNOOZE_NOTIFICATION_ID = 9902;
+export const ROUTINE_NOTIFICATION_BASE_ID = 2000;
 export const ALARM_CHANNEL_ID = 'fitness_alarm_channel';
 
 /**
@@ -162,3 +164,63 @@ export const cancelNativeAlarm = async (id: number = ALARM_NOTIFICATION_ID): Pro
   }
 };
 
+/**
+ * Synchronize all custom routines as native exact Android alarms.
+ * Guarantees routine timings (wake-up, walks, hydration, workouts) fire
+ * even when the app is completely closed or screen is turned off.
+ */
+export const syncNativeRoutines = async (routines: CustomRoutineItem[]): Promise<void> => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    const hasPermission = await requestAlarmPermissions();
+    if (!hasPermission) return;
+
+    await initAlarmChannel();
+
+    // Cancel previously scheduled routine notifications (IDs 2000 to 2099)
+    const existingIds = Array.from({ length: 100 }, (_, i) => ({ id: ROUTINE_NOTIFICATION_BASE_ID + i }));
+    await LocalNotifications.cancel({ notifications: existingIds }).catch(() => {});
+
+    const now = new Date();
+    const scheduledNotifications = [];
+    const enabledRoutines = (routines || []).filter((r) => r.enabled && r.time);
+
+    for (let i = 0; i < Math.min(enabledRoutines.length, 50); i++) {
+      const routine = enabledRoutines[i];
+      const [hours, minutes] = routine.time.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) continue;
+
+      const schedDate = new Date();
+      schedDate.setHours(hours, minutes, 0, 0);
+
+      // If routine time has already passed today, schedule for next day
+      if (schedDate.getTime() <= now.getTime()) {
+        schedDate.setDate(schedDate.getDate() + 1);
+      }
+
+      scheduledNotifications.push({
+        id: ROUTINE_NOTIFICATION_BASE_ID + i,
+        title: `⏰ ${routine.icon || '⏰'} ${routine.name}`,
+        body: routine.voicePrompt?.replace('{name}', 'Athlete') || `Time for your scheduled ${routine.name} routine!`,
+        schedule: {
+          at: schedDate,
+          allowWhileIdle: true,
+        },
+        channelId: ALARM_CHANNEL_ID,
+        extra: {
+          action: 'OPEN_ROUTINE_REMINDER',
+          routineId: routine.id,
+          routineName: routine.name,
+        },
+      });
+    }
+
+    if (scheduledNotifications.length > 0) {
+      await LocalNotifications.schedule({ notifications: scheduledNotifications });
+      console.log(`[NativeAlarm] Scheduled ${scheduledNotifications.length} native routine reminders`);
+    }
+  } catch (error) {
+    console.error('[NativeAlarm] Failed to sync native routines:', error);
+  }
+};
