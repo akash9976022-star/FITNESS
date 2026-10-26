@@ -38,7 +38,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   onClose,
   autoStartDevotionals = true,
   initialLanguage,
-}) => {
+}: MorningBriefingModalProps) => {
   // Speech State
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [activeLanguage, setActiveLanguage] = useState<'en' | 'ta'>('en');
