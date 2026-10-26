@@ -235,6 +235,7 @@ export const AlarmManager: React.FC = () => {
         sections={briefingSections}
         onClose={() => setIsBriefingModalOpen(false)}
         autoStartDevotionals={alarmSettings.playDevotionals}
+        initialLanguage={alarmSettings.briefingLanguage}
       />
 
       {/* 3. Alarm & Video Song Library Settings Modal */}

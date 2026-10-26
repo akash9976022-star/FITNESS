@@ -11,7 +11,7 @@
 
 import type { TamilDateInfo } from './tamilCalendar';
 import { GoogleGenAI } from '@google/genai';
-import { getBestNaturalVoice, loadVoices, speakChunk } from './voiceSynthesisHelper';
+import { getBestNaturalVoice, loadVoices, speakChunk, stopAllVoiceSpeech, playGoogleNeuralTTS } from './voiceSynthesisHelper';
 import type { VoiceLanguageMode } from '../services/firestoreService';
 
 export interface BriefingSection {
@@ -253,8 +253,8 @@ interface BriefingParams {
 }
 
 /**
- * Builds the comprehensive 5-pillar morning briefing with every single section
- * translated completely into authentic native Tamil alongside natural English.
+ * Builds the comprehensive 5-pillar morning briefing with warm, motivating human coach
+ * persona speaking fluent conversational Indian English and authentic spoken Tamil (Peccu Tamil).
  */
 export const buildMorningBriefingContent = ({
   userName = 'Athlete',
@@ -288,6 +288,10 @@ export const buildMorningBriefingContent = ({
   const carbsGrams = Math.round((calories * 0.45) / 4);
   const fatsGrams = Math.round((calories * 0.25) / 9);
 
+  // Friendly name extraction
+  const firstName = (userName || 'Akash').trim().split(' ')[0];
+  const tamilGreetingName = firstName.toLowerCase() === 'athlete' ? 'நண்பா' : `${firstName} ப்ரோ`;
+
   // Helper to convert English AM/PM time strings into natural spoken Tamil
   const formatTamilTimeRange = (timeStr: string): string => {
     if (!timeStr || timeStr === 'None') return 'இல்லை';
@@ -312,14 +316,26 @@ export const buildMorningBriefingContent = ({
     return timeStr;
   };
 
+  const formatEnglishTimeRange = (timeStr: string): string => {
+    if (!timeStr || timeStr === 'None') return 'None';
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (match) {
+      const [, h1, m1, p1, h2, m2, p2] = match;
+      const t1 = parseInt(m1, 10) === 0 ? `${parseInt(h1, 10)} ${p1}` : `${parseInt(h1, 10)}:${m1} ${p1}`;
+      const t2 = parseInt(m2, 10) === 0 ? `${parseInt(h2, 10)} ${p2}` : `${parseInt(h2, 10)}:${m2} ${p2}`;
+      return `${t1} to ${t2}`;
+    }
+    return timeStr;
+  };
+
   // Section 1: Greeting & Calendar Date
   const section1: BriefingSection = {
     id: 'section-1-greeting',
     category: 'greeting',
     titleEn: 'Morning Greeting & Calendar',
     titleTa: 'காலை வணக்கம் & தமிழ் நாட்காட்டி',
-    textEn: `Good morning, ${userName}! Today is ${dateStrEn}. In the traditional Tamil calendar, today is ${dateStrEnTamilCal}. May your day begin with clear focus, peace, and boundless vitality.`,
-    textTa: `இனிய காலை வணக்கம் ${userName}! உங்கள் காலைப் பொழுது மகிழ்ச்சியாகவும் அமைதியாகவும் அமையட்டும். இன்று ${dayOfWeekTa}, ${tamilMonthName} மாதம் ${tamilDate}-ஆம் நாள். புதிய உற்சாகத்தோடும், அசாத்திய ஆற்றலோடும் இந்த இனிய நாளை தொடங்குங்கள்!`,
+    textEn: `Good morning, ${firstName}! Rise and shine, champion! Today is ${dateStrEn}. In our Tamil calendar, today is ${dateStrEnTamilCal}. Take a deep breath, shake off the sleep, and let's start this day with full positive energy and focus!`,
+    textTa: `இனிய காலை வணக்கம் ${tamilGreetingName}! புதிய விடியல், புதிய உற்சாகம்! இன்று ${dayOfWeekTa}, ${tamilMonthName} மாதம் ${tamilDate}-ஆம் நாள். ஒரு ஆழமான மூச்சு விட்டு, புத்துணர்ச்சியோடும் பாசிட்டிவ் எனர்ஜியோடும் இந்த நாளை தொடங்குங்க. இன்னைக்கு நம்ம கலக்குறோம்!`,
   };
 
   // Section 2: Fitness & Nutrition Targets (Today's Nutrients)
@@ -328,23 +344,23 @@ export const buildMorningBriefingContent = ({
     category: 'fitness',
     titleEn: 'Daily Nutrients & Fitness Targets',
     titleTa: 'இன்றைய ஊட்டச்சத்து & உடற்பயிற்சி',
-    textEn: `Here is your daily nutrition and fitness target: Aim for ${calories} kilocalories today, with a target of ${proteinGrams} grams of protein, ${carbsGrams} grams of carbohydrates, and ${fatsGrams} grams of healthy fats. Remember to stay well hydrated with at least 3 liters of water. Working towards your target weight of ${targetWeightKg} kilograms requires daily consistency, discipline, and hitting your protein split. Your routine is loaded and ready.`,
-    textTa: `இன்றைய ஊட்டச்சத்து மற்றும் உடற்பயிற்சி வழிகாட்டல். உங்கள் உடலை கட்டுக்கோப்பாகவும் வலிமையாகவும் வைக்க, இன்று ${calories} கலோரிகள் மற்றும் ${proteinGrams} கிராம் புரதச்சத்து எடுத்துக்கொள்ள இலக்கு வையுங்கள். மறக்காமல் குறைந்தது மூன்று லிட்டர் தண்ணீர் அருந்துங்கள். திட்டமிட்ட உடற்பயிற்சியை தவறாமல் செய்து, உங்கள் இலக்கு எடையை நோக்கி உற்சாகமாக முன்னேறுங்கள்!`,
+    textEn: `Here is your fitness game plan for today, ${firstName}: Aim for around ${calories} calories to keep your metabolism fired up. Let's make sure you hit ${proteinGrams} grams of protein to feed and rebuild those muscles, alongside ${carbsGrams} grams of clean carbs and ${fatsGrams} grams of healthy fats. Keep your water bottle right beside you and drink at least 3 liters today. Your workout routine is loaded and ready—let's show up with full power!`,
+    textTa: `இன்னைக்கு நம்ம ஃபிட்னஸ் டார்கெட் பாத்துடலாம்: உங்கள் உடலை கட்டுக்கோப்பாக வைக்க, இன்று ${calories} கலோரிகள் எடுத்துக்க இலக்கு வையுங்கள். தசை வளர்ச்சிக்கு குறைந்தது ${proteinGrams} கிராம் புரோட்டீன் கண்டிப்பா வேணும். மறக்காமல் ஒரு நாளைக்கு குறைந்தது 3 லிட்டர் தண்ணீர் குடியுங்கள். நமது ஒர்க்அவுட் செட் ரெடியா இருக்கு, முழு எனர்ஜியோடு வெறித்தனமாக முடிச்சிடுங்க!`,
   };
 
   // Section 3: Motivational Quote of the Day
   const quotes = [
     {
-      en: 'Thought for the day: Consistency and discipline forge the unbreakable athlete. Rise with conviction, conquer your training, and honor your vessel.',
-      ta: 'தினசரி செய்யும் தொடர் பயிற்சியும் ஒழுக்கமும்தான் உங்களை எவராலும் வெல்ல முடியாத சாதனையாளராக மாற்றும். தன்னம்பிக்கையோடு எழுந்து இந்த நாளை வென்றிடுங்கள்!',
+      en: 'Thought for today: Small daily disciplines, repeated every single day, create miraculous transformations. What hurts today builds your strength tomorrow. Step onto the floor with courage and passion!',
+      ta: 'இன்றைய தன்னம்பிக்கை சிந்தனை: சிறு துளி பெருவெள்ளம் போல, நாம் தினசரி செய்யும் அர்ப்பணிப்பான உழைப்புதான் நாளை வியக்கத்தக்க வெற்றியை தரும். சும்மா யோசிச்சிட்டே இருக்காம, களத்தில் இறங்கி சாதியுங்கள்!',
     },
     {
-      en: 'Thought for the day: Small daily disciplines accumulated over time lead to miraculous transformations. You hold the power today.',
-      ta: 'சிறு துளி பெருவெள்ளம் போல, தினசரி செய்யும் அர்ப்பணிப்பான உழைப்பே வியக்கத்தக்க மாற்றத்திற்கு வித்திடும். உங்கள் லட்சியத்தில் எப்போதும் உறுதியாக இருங்கள்!',
+      en: 'Thought for today: Real champions are built on the days they don’t feel like showing up. Consistency and discipline beat motivation every single time. Rise with conviction and conquer your training!',
+      ta: 'இன்றைய தன்னம்பிக்கை சிந்தனை: தொடர் பயிற்சியும் ஒழுக்கமும்தான் உங்களை எவராலும் வெல்ல முடியாத சாதனையாளராக மாற்றும். கஷ்டங்கள் எல்லாமே தற்காலிகம்தான், உங்கள் மன உறுதி மட்டுமே நிரந்தரம். தன்னம்பிக்கையோடு களத்தில் இறங்குங்க!',
     },
     {
-      en: 'Thought for the day: What hurts today makes you stronger tomorrow. Step onto the floor with courage and passion.',
-      ta: 'இன்று நீங்கள் சிந்துகிற வியர்வைதான், நாளை உங்கள் வெற்றியாக மாறும். அச்சமின்றி களத்தில் இறங்கி சாதியுங்கள்!',
+      en: 'Thought for today: Energy flows where your attention goes. Focus on your growth, nourish your body with wholesome care, and make every hour of this morning count!',
+      ta: 'இன்றைய தன்னம்பிக்கை சிந்தனை: இன்று நீங்கள் சிந்துகிற ஒவ்வொரு துளி வியர்வையும், நாளை உங்கள் வெற்றியாக மாறும். அச்சமின்றி களத்தில் இறங்கி உங்கள் இலக்கை நோக்கி நடைபோடுங்கள்!',
     },
   ];
   const selectedQuote = quotes[date.getDate() % quotes.length];
@@ -355,14 +371,14 @@ export const buildMorningBriefingContent = ({
     titleEn: 'Thought of the Day & Motivation',
     titleTa: 'இன்றைய சிந்தனை & பொன்மொழி',
     textEn: selectedQuote.en,
-    textTa: `இன்றைய ஊக்கமளிக்கும் சிந்தனை. ${selectedQuote.ta}`,
+    textTa: selectedQuote.ta,
   };
 
   // Section 4: Panchangam & Auspicious Timings
   const nallaNeramStrEn = panchangam.nallaNeramMorning !== 'None'
-    ? `${panchangam.nallaNeramMorning} in the morning`
-    : panchangam.nallaNeramEvening;
-  const ragukalamStrEn = panchangam.ragukalam;
+    ? `${formatEnglishTimeRange(panchangam.nallaNeramMorning)} in the morning`
+    : `${formatEnglishTimeRange(panchangam.nallaNeramEvening)} in the evening`;
+  const ragukalamStrEn = formatEnglishTimeRange(panchangam.ragukalam);
   const primaryFestival = festivals[0] || null;
   const festivalMentionEn = primaryFestival
     ? `Today is celebrated as ${primaryFestival.nameEnglish}. ${primaryFestival.significance}`
@@ -381,8 +397,8 @@ export const buildMorningBriefingContent = ({
     category: 'panchangam',
     titleEn: 'Panchangam & Auspicious Timings',
     titleTa: 'பஞ்சாங்கம் & நல்ல நேர வழிகாட்டுதல்',
-    textEn: `Today's traditional Panchangam: The prevailing Thithi is ${panchangam.thithi.nameEnglish}, with ${panchangam.nakshatram.nameEnglish} Nakshatram and ${panchangam.yogam.nameEnglish} Yogam. Auspicious Nalla Neram is ${nallaNeramStrEn}. Inauspicious Ragukalam is observed at ${ragukalamStrEn}. ${festivalMentionEn}`,
-    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம். இன்று திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, மற்றும் ${panchangam.yogam.nameTamil}. இன்றைய நல்ல நேரம், காலையில் ${nallaMorningTa}, மாலையில் ${nallaEveningTa}. ராகு காலம், ${raguTa}. எமகண்டம், ${yemaTa}. ${festivalMentionTa}`,
+    textEn: `Looking at this morning's traditional Panchangam: Today carries the good energy of ${panchangam.thithi.nameEnglish} Thithi, with ${panchangam.nakshatram.nameEnglish} Nakshatram, and ${panchangam.yogam.nameEnglish} Yogam. Auspicious Nalla Neram is ${nallaNeramStrEn}—an ideal window to begin your most important tasks. Take care during Ragukalam between ${ragukalamStrEn}. ${festivalMentionEn}`,
+    textTa: `இன்றைய மங்களகரமான பஞ்சாங்க விபரம்: இன்று திதி ${panchangam.thithi.nameTamil}, நட்சத்திரம் ${panchangam.nakshatram.nameTamil}, மற்றும் ${panchangam.yogam.nameTamil}. நல்ல காரியங்களை தொடங்க காலை நல்ல நேரம் ${nallaMorningTa}, மாலை நல்ல நேரம் ${nallaEveningTa}. ராகு காலம் ${raguTa}. எமகண்டம் ${yemaTa}. ${festivalMentionTa}`,
   };
 
   // Section 5: Rasipalan Outlook
@@ -390,74 +406,74 @@ export const buildMorningBriefingContent = ({
     mesham: {
       nameEn: 'Aries (Mesham)',
       nameTa: 'மேஷ ராசி',
-      en: 'Mesham: Fire energy is high. Channel your determination into progressive strength training. Stay well hydrated and maintain calm composure.',
-      ta: 'இன்று உங்கள் ஆற்றலும் தைரியமும் அதிகமாக இருக்கும் நாள். கடினமான பயிற்சிகளையும் உற்சாகமாக செய்து முடிக்கலாம். போதுமான நீர் அருந்தி நிதானம் காக்கவும்.',
+      en: 'For Aries today: Your natural fire energy is at its peak! Channel that drive straight into your workout, lift with confidence, and stay cool and hydrated throughout the day.',
+      ta: 'மேஷ ராசி நண்பர்களுக்கு: இன்று உங்கள் உடலிலும் மனதிலும் தைரியமும் உற்சாகமும் பொங்கும். ஒர்க்அவுட்ல முழு உழைப்பை செலுத்துங்க. போதுமான தண்ணீர் குடிச்சு அமைதியா இருங்க.',
     },
     rishabam: {
       nameEn: 'Taurus (Rishabam)',
       nameTa: 'ரிஷப ராசி',
-      en: 'Rishabam: Grounded endurance supports compound lifts today. Prioritize healthy dietary fats and restorative recovery.',
-      ta: 'இன்று உங்கள் பொறுமையும் சகிப்புத்தன்மையும் மேலோங்கும். கனமான பயிற்சிகளை கவனமாகச் செய்யுங்கள். ஆரோக்கியமான சத்தான உணவுகளுக்கு முன்னுரிமை கொடுங்கள்.',
+      en: 'For Taurus today: Your endurance and strength are rock solid. Prioritize good lifting form, eat clean nutrient-dense food, and give yourself quality recovery.',
+      ta: 'ரிஷப ராசி நண்பர்களுக்கு: இன்று உங்கள் பொறுமையும் தாங்கும் திறனும் மிகச் சிறப்பா இருக்கும். உடற்பயிற்சிகளை சரியான முறையில் செய்து, ஆரோக்கியமான சத்தான உணவை உட்கொள்ளுங்கள்.',
     },
     mithunam: {
       nameEn: 'Gemini (Mithunam)',
       nameTa: 'மிதுன ராசி',
-      en: 'Mithunam: Mental sharpness and metabolic agility are heightened. Dynamic functional movements and HIIT will yield great results.',
-      ta: 'இன்று சுறுசுறுப்பும் புத்தி கூர்மையும் மிளிரும் நாள். விரைவான செயல்பாடுகளும் கார்டியோ பயிற்சிகளும் உங்களுக்கு சிறந்த பலனைத் தரும்.',
+      en: 'For Gemini today: Sharp focus and quick agility are on your side. High energy functional movements or dynamic cardio will make you feel amazing today.',
+      ta: 'மிதுன ராசி நண்பர்களுக்கு: இன்று புத்துணர்ச்சியும் சுறுசுறுப்பும் மிளிரும் நாள். விரைவான செயல்பாடுகளும் கார்டியோ பயிற்சிகளும் உங்களுக்கு அருமையான எனர்ஜி தரும்.',
     },
     kadagam: {
       nameEn: 'Cancer (Kadagam)',
       nameTa: 'கடக ராசி',
-      en: 'Kadagam: Listen attentively to your joints and central nervous system. Focus on core stability, mobility, and peaceful breathing.',
-      ta: 'இன்று உள்ளுணர்வும் மன அமைதியும் தேவைப்படும் நாள். மூச்சுப்பயிற்சி மற்றும் இதமான பயிற்சிகள் உங்கள் உடலையும் மனதையும் புத்துணர்ச்சியாக வைக்கும்.',
+      en: 'For Cancer today: Tune into your body and mind. Focus on mindful breathing, core stability, and staying centered. Peace of mind is your superpower today.',
+      ta: 'கடக ராசி நண்பர்களுக்கு: இன்று மன அமைதியும் உள்ளுணர்வும் கூடும் நாள். இதமான மூச்சுப்பயிற்சிகளும் யோகாவும் உங்கள் உடலை புத்துணர்ச்சியாக வைக்கும்.',
     },
     simmam: {
       nameEn: 'Leo (Simmam)',
       nameTa: 'சிம்ம ராசி',
-      en: 'Simmam: Solar vigor is unmatched today. Lift with pride, hit your protein goals, and set the standard for discipline.',
-      ta: 'சூரியனின் நேர்மறை ஆற்றலால் உங்கள் கம்பீரமும் தன்னம்பிக்கையும் கூடும். திட்டமிட்ட உடற்பயிற்சியை வெற்றிகரமாக முடித்து உடலை வலிமையாக்குங்கள்.',
+      en: 'For Leo today: Powerful solar vigor is backing you up today! Walk tall, conquer your nutrition targets, and inspire everyone around you with your dedication.',
+      ta: 'சிம்ம ராசி நண்பர்களுக்கு: இன்று கம்பீரமும் தன்னம்பிக்கையும் கூடும் நாள். திட்டமிட்ட உடற்பயிற்சிகளை கம்பீரமாக முடித்து, உங்கள் இலக்கை நோக்கி நடைபோடுங்கள்.',
     },
     kanni: {
       nameEn: 'Virgo (Kanni)',
       nameTa: 'கன்னி ராசி',
-      en: 'Kanni: Precision in form and micronutrient intake will reward you. Fine-tune your exercise technique and recovery window.',
-      ta: 'நுணுக்கமான திட்டமிடல் வெற்றி தரும் நாள். சரியான பயிற்சி முறைகளையும், அளவான சரிவிகித உணவையும் தவறாமல் பின்பற்றுங்கள்.',
+      en: 'For Virgo today: Your eye for precision will yield great results. Pay close attention to your lifting technique and hit your macronutrient split with pride.',
+      ta: 'கன்னி ராசி நண்பர்களுக்கு: நுணுக்கமான திட்டமிடல் வெற்றி தரும் நாள். உடற்பயிற்சி முறைகளை சரியாக கவனித்து செய்து, நேரத்திற்கு சத்தான உணவை சாப்பிடுங்கள்.',
     },
     thulaam: {
       nameEn: 'Libra (Thulaam)',
       nameTa: 'துலாம் ராசி',
-      en: 'Thulaam: Strive for equilibrium between physical exertion and mental serenity. Unilateral exercises bring optimal symmetry.',
-      ta: 'சமநிலையே உங்கள் பலம். தீவிர உடற்பயிற்சியுடன் போதுமான ஓய்வையும் சமமாக கடைப்பிடித்து உடல் ஆரோக்கியத்தை பாதுகாத்துக் கொள்ளுங்கள்.',
+      en: 'For Libra today: Balance is your greatest strength. Balance hard training with deep hydration and restorative sleep, keeping your physical and mental wellness in harmony.',
+      ta: 'துலாம் ராசி நண்பர்களுக்கு: சமநிலையே உங்கள் பலம். தீவிர உடற்பயிற்சியோடு போதிய ஓய்வையும் சமமாக எடுத்து, உங்கள் ஆரோக்கியத்தை பேணுங்கள்.',
     },
     viruchigam: {
       nameEn: 'Scorpio (Viruchigam)',
       nameTa: 'விருச்சிக ராசி',
-      en: 'Viruchigam: Unrelenting willpower is at your command. Break through training plateaus with unwavering focus.',
-      ta: 'அசாத்திய மன உறுதி உண்டாகும். எத்தகைய கடினமான உடற்பயிற்சி சவால்களையும் எளிதாக வென்றிடுவீர்கள். போதுமான ஓய்வும் நீராகாரமும் அவசியம்.',
+      en: 'For Scorpio today: Unstoppable willpower is on your side. Break through training barriers, stay locked onto your goals, and let nothing distract you.',
+      ta: 'விருச்சிக ராசி நண்பர்களுக்கு: அசாத்திய மன உறுதி உண்டாகும். எத்தகைய சவாலான உடற்பயிற்சிகளையும் எளிதாக முடித்து, வெற்றியை உங்கள் வசமாக்குங்கள்.',
     },
     dhanusu: {
       nameEn: 'Sagittarius (Dhanusu)',
       nameTa: 'தனுசு ராசி',
-      en: 'Dhanusu: Optimism powers your morning. Outdoor conditioning or expansive mobility flows will elevate your mood.',
-      ta: 'புதிய உற்சாகமும் நேர்மறை சிந்தனைகளும் பிறக்கும் நாள். நடைபயிற்சியும் திறந்தவெளி உடற்பயிற்சிகளும் உங்கள் புத்துணர்ச்சியை அதிகரிக்கும்.',
+      en: 'For Sagittarius today: Pure optimism and fresh enthusiasm will power your morning. An outdoor walk or a brisk run will elevate your spirits to the next level.',
+      ta: 'தனுசு ராசி நண்பர்களுக்கு: புதிய உற்சாகமும் நேர்மறை சிந்தனைகளும் பிறக்கும் நாள். நடைபயிற்சியும் திறந்தவெளி உடற்பயிற்சிகளும் உங்கள் புத்துணர்ச்சியை இரட்டிப்பாக்கும்.',
     },
     makaram: {
       nameEn: 'Capricorn (Makaram)',
       nameTa: 'மகர ராசி',
-      en: 'Makaram: Consistent structure is your greatest asset. Execute your progressive overload methodically without rush.',
-      ta: 'விடாமுயற்சியும் ஒழுக்கமும் உங்கள் அடையாளம். திட்டமிட்ட உடற்பயிற்சி அட்டவணையை அமைதியாக செய்து முடித்து இலக்கை அடைந்திடுங்கள்.',
+      en: 'For Capricorn today: Relentless discipline is your hallmark. Stick to your structured routine step by step, and watch your consistency compound into victory.',
+      ta: 'மகர ராசி நண்பர்களுக்கு: விடாமுயற்சியும் ஒழுக்கமும்தான் உங்கள் அடையாளம். வழக்கமான உடற்பயிற்சி அட்டவணையை அமைதியாக முடித்து இலக்கை அடைந்திடுங்கள்.',
     },
     kumbam: {
       nameEn: 'Aquarius (Kumbam)',
       nameTa: 'கும்ப ராசி',
-      en: 'Kumbam: Innovation in movement is favored. Try variations in grip, stance, or tempo for refreshing stimulus.',
-      ta: 'புதுமையான சிந்தனைகள் தோன்றும் நாள். புதிய உடற்பயிற்சி நுட்பங்களை ஆர்வத்துடன் முயற்சி செய்து உடலை சுறுசுறுப்பாக வைத்திருங்கள்.',
+      en: 'For Aquarius today: Creativity and dynamic movement will inspire you. Try refreshing exercise variations or a new workout flow to keep training fun and stimulating.',
+      ta: 'கும்ப ராசி நண்பர்களுக்கு: புதுமையான எண்ணங்கள் தோன்றும் நாள். புதிய உடற்பயிற்சி முறைகளை ஆர்வத்தோடு முயற்சி செய்து உடலை சுறுசுறுப்பாக வைத்திருங்கள்.',
     },
     meenam: {
       nameEn: 'Pisces (Meenam)',
       nameTa: 'மீன ராசி',
-      en: 'Meenam: Fluid recovery and deep hydration are essential. Engage in stretching, mobility, and restorative contemplation.',
-      ta: 'அமைதியான மனநிலை உதவும். உடலை வருத்தாமல் இதமான உடற்பயிற்சிகளையும் தியானத்தையும் மேற்கொண்டு ஆரோக்கியத்தை மேம்படுத்துங்கள்.',
+      en: 'For Pisces today: Smooth recovery, deep hydration, and peaceful mindset are key. Stretch thoroughly, drink plenty of water, and nourish your body with wholesome care.',
+      ta: 'மீன ராசி நண்பர்களுக்கு: அமைதியான மனநிலை உதவும். உடலை வருத்தாமல் இதமான நீட்சிப் பயிற்சிகளையும் தியானத்தையும் செய்து ஆரோக்கியத்தை கூட்டுங்கள்.',
     },
   };
 
@@ -468,8 +484,8 @@ export const buildMorningBriefingContent = ({
     category: 'rasipalan',
     titleEn: `Rasipalan Outlook - ${rasiData.nameEn}`,
     titleTa: `ராசிபலன் வழிகாட்டுதல் - ${rasiData.nameTa}`,
-    textEn: `Rasipalan guidance for ${rasiData.nameEn}: ${rasiData.en}`,
-    textTa: `இன்றைய ${rasiData.nameTa} வழிகாட்டல். ${rasiData.ta}`,
+    textEn: rasiData.en,
+    textTa: rasiData.ta,
   };
 
   return [section1, section2, section3, section4, section5];
@@ -498,10 +514,46 @@ const getGeminiApiKey = (): string => {
 const geminiAudioCache = new Map<string, string>();
 
 /**
- * Synthesizes studio-grade, natural AI speech via Gemini TTS:
- * - English: Natural, warm, articulate, friendly Indian English speaker with clear conversational cadence
- * - Tamil: Natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence
- * Converts raw WAV audio into an HTML5 Blob URL for seamless browser playback.
+ * Converts 16-bit PCM audio bytes to a valid WAV Blob with a 44-byte RIFF header.
+ * Ensures seamless decoding for Gemini 2.0/2.5 Flash audio output in all browsers.
+ */
+function pcmToWavBlob(pcmData: Uint8Array, sampleRate: number = 24000): Blob {
+  const wavHeader = new ArrayBuffer(44);
+  const view = new DataView(wavHeader);
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const dataSize = pcmData.length;
+
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // Linear PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  return new Blob([wavHeader, pcmData], { type: 'audio/wav' });
+}
+
+/**
+ * Synthesizes studio-grade, natural AI speech via Gemini Audio Generation:
+ * - English: Natural, warm, friendly Indian English coach with lively morning cadence
+ * - Tamil: Natural, warm, fluent native Tamil speaker with cheerful conversational cadence
+ * Converts raw WAV/PCM audio into an HTML5 Blob URL for seamless browser playback.
  */
 export async function synthesizeGeminiSpeech(
   text: string,
@@ -517,39 +569,46 @@ export async function synthesizeGeminiSpeech(
   const apiKey = getGeminiApiKey();
   if (!apiKey) return null;
 
-  const style =
-    lang === 'en'
-      ? 'natural, warm, articulate, friendly Indian English speaker with clear conversational cadence, authentic Indian pronunciation, and cheerful morning energy'
-      : 'natural, warm, fluent, friendly native Tamil speaker with cheerful conversational cadence';
-
-  // Resilient multi-model fallback: try gemini-3.8-flash-tts and gemini-3.8-flash-lite-tts
-  const models = ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'];
+  // Active models that support audio output in @google/genai
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
   for (const model of models) {
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
+
+      const promptInstruction =
+        lang === 'ta'
+          ? `Read aloud the following Tamil message in a warm, friendly, natural human voice with lively morning energy. Speak with authentic spoken Tamil intonation. Output audio directly:\n\n${text}`
+          : `Read aloud the following message in a warm, enthusiastic, friendly Indian English coach voice with natural morning energy. Speak clearly and smoothly. Output audio directly:\n\n${text}`;
+
+      // 2200ms strict timeout to avoid delaying morning briefing
+      const generatePromise = ai.models.generateContent({
         model,
         contents: [
           {
             role: 'user',
-            parts: [
-              {
-                text,
-                speechMetadata: { style },
-              },
-            ],
+            parts: [{ text: promptInstruction }],
           },
         ],
         config: {
           responseModalities: ['AUDIO'],
           speechConfig: {
-            voiceConfig: { voice: 'Aoede' }, // 'Aoede' delivers warm, fluent, human diction
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: 'Aoede', // Aoede: expressive, warm, natural voice
+              },
+            },
           },
         },
       });
 
-      const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2200));
+      const response = await Promise.race([generatePromise, timeoutPromise]);
+
+      if (!response || !('candidates' in response)) continue;
+
+      const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      const base64Data = inlineData?.data;
       if (!base64Data) continue;
 
       // Convert Base64 into Blob URL
@@ -559,7 +618,9 @@ export async function synthesizeGeminiSpeech(
       for (let i = 0; i < len; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
-      const blob = new Blob([bytes], { type: 'audio/wav' });
+
+      const mime = inlineData?.mimeType || 'audio/wav';
+      const blob = mime.includes('pcm') ? pcmToWavBlob(bytes, 24000) : new Blob([bytes], { type: mime });
       const audioUrl = URL.createObjectURL(blob);
       geminiAudioCache.set(cacheKey, audioUrl);
       return audioUrl;
@@ -720,44 +781,24 @@ class SpeechBriefingEngine {
   }
 
   /**
-   * Pre-fetches all briefing audio clips (Indian English & Tamil) asynchronously in background
-   * so every subsequent segment is already in memory with 0 lag.
+   * Pre-fetches briefing audio asynchronously in background if Gemini key is present
    */
   public prefetchBriefingAudio(items: { text: string; lang: 'en' | 'ta' }[]) {
     (async () => {
       for (const item of items) {
         if (this.isCancelled) break;
         const cacheKey = `${item.lang}:${item.text}`;
-
-        // 1. Preload Gemini TTS if not cached
         if (!geminiAudioCache.has(cacheKey)) {
           await synthesizeGeminiSpeech(item.text, item.lang);
-        }
-
-        // 2. Pre-prime Google Studio-Grade TTS chunks in browser HTTP cache
-        try {
-          const norm = item.lang === 'ta' ? normalizeTamilForSpeech(item.text) : normalizeEnglishForSpeech(item.text);
-          const chunks = chunkTextForTTS(norm, 160);
-          const ttsLang = item.lang === 'ta' ? 'ta' : 'en-IN';
-          for (const chunk of chunks) {
-            if (this.isCancelled) break;
-            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${ttsLang}&client=tw-ob`;
-            const preAudio = new Audio();
-            preAudio.preload = 'auto';
-            preAudio.src = url;
-          }
-        } catch {
-          // preloading is best-effort
         }
       }
     })();
   }
 
   /**
-   * High-Fidelity Studio-Grade Google Neural Natural Speech Synthesizer
-   * 100% Free, Unlimited, zero-quota restrictions.
-   * Splits long text into natural breath-sized clauses (<=160 chars) and streams them
-   * seamlessly using HTML5 Audio element with authentic Tamil intonation.
+   * High-Fidelity Studio-Grade Natural Speech Stream via unified helper
+   * Uses safe clauses (<=80 chars), client=gtx, referrerpolicy="no-referrer",
+   * and rapid circuit breaker to ensure zero perceived audio lag.
    */
   private async playGoogleTTSSequence(text: string, lang: 'en' | 'ta'): Promise<boolean> {
     if (typeof window === 'undefined') return false;
@@ -765,105 +806,29 @@ class SpeechBriefingEngine {
 
     try {
       const normalizedText = lang === 'ta' ? normalizeTamilForSpeech(text) : normalizeEnglishForSpeech(text);
-      const chunks = chunkTextForTTS(normalizedText, 160);
-      if (chunks.length === 0) return true;
-
-      const ttsLang = lang === 'ta' ? 'ta' : 'en-IN';
-
-      for (let i = 0; i < chunks.length; i++) {
-        if (this.isCancelled) return false;
-        const chunk = chunks[i];
-        if (!chunk.trim()) continue;
-
-        const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${ttsLang}&client=tw-ob`;
-
-        const chunkSuccess = await new Promise<boolean>((resolve) => {
-          if (this.isCancelled) {
-            resolve(false);
-            return;
-          }
-
-          const audio = new Audio();
-          audio.preload = 'auto';
-          this.activeAudio = audio;
-
-          let connectTimeout: NodeJS.Timeout | null = null;
-          const cleanup = () => {
-            if (connectTimeout) clearTimeout(connectTimeout);
-            audio.onended = null;
-            audio.onerror = null;
-            audio.onplaying = null;
-          };
-
-          // 7-second watchdog connection timeout to detect offline / network block
-          connectTimeout = setTimeout(() => {
-            cleanup();
-            if (this.activeAudio === audio) this.activeAudio = null;
-            resolve(false);
-          }, 7000);
-
-          audio.onplaying = () => {
-            if (connectTimeout) {
-              clearTimeout(connectTimeout);
-              connectTimeout = null;
-            }
-          };
-
-          audio.onended = () => {
-            cleanup();
-            if (this.activeAudio === audio) this.activeAudio = null;
-            resolve(true);
-          };
-
-          audio.onerror = (e) => {
-            cleanup();
-            console.warn(`Google neural TTS notice (${ttsLang}):`, e);
-            if (this.activeAudio === audio) this.activeAudio = null;
-            resolve(false);
-          };
-
-          audio.src = url;
-          audio.play().catch((err) => {
-            cleanup();
-            console.warn(`Google neural TTS play notice (${ttsLang}):`, err);
-            if (this.activeAudio === audio) this.activeAudio = null;
-            resolve(false);
-          });
-        });
-
-        if (!chunkSuccess) {
-          return false;
-        }
-
-        // Natural micro-pause between clauses for authentic human breathing rhythm (160ms)
-        if (i < chunks.length - 1 && !this.isCancelled) {
-          await new Promise((r) => setTimeout(r, 160));
-        }
-      }
-
-      return true;
+      return await playGoogleNeuralTTS(normalizedText, lang);
     } catch (err) {
-      console.warn('Google TTS sequence notice:', err);
+      console.warn('Google natural TTS sequence notice:', err);
       return false;
     }
   }
 
   /**
    * Finds the best matching voice for natural Indian English (en-IN / natural neural)
-   * or authentic native Tamil (Google தமிழ் / ta-IN / Pallavi / Valluvar) for browser fallback.
+   * or authentic native Tamil (Samsung Tamil / Google தமிழ் / ta-IN) for browser fallback.
    */
   public getBestVoice(lang: 'en' | 'ta'): SpeechSynthesisVoice | null {
     return getBestNaturalVoice(lang);
   }
 
   /**
-   * Browser Speech Synthesis Fallback with watchdog timer, voice matching and optimized prosody
+   * Browser Speech Synthesis Fallback with watchdog timer, voice matching and optimized human prosody
    */
   private speakWithBrowserSynthesis(text: string, lang: 'en' | 'ta'): Promise<void> {
     if (this.isCancelled) return Promise.resolve();
     return speakChunk(text, lang, {
-      rate: lang === 'ta' ? 0.94 : 0.96,
-      pitch: lang === 'ta' ? 1.02 : 1.0,
+      rate: lang === 'ta' ? 0.93 : 0.95,
+      pitch: lang === 'ta' ? 1.02 : 1.01,
     });
   }
 
@@ -1131,9 +1096,7 @@ class SpeechBriefingEngine {
     if (this.activeAudio && !this.activeAudio.paused) {
       this.activeAudio.pause();
     }
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.pause();
-    }
+    stopAllVoiceSpeech();
   }
 
   public resume() {
@@ -1153,9 +1116,7 @@ class SpeechBriefingEngine {
       this.activeAudio.currentTime = 0;
       this.activeAudio = null;
     }
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    stopAllVoiceSpeech();
     ambientMusicEngine.stop();
   }
 
@@ -1225,6 +1186,9 @@ class DevotionalAudioPlayer {
 
   public playTrack(index: number = 0, volume: number = 0.8) {
     if (!this.audio) return;
+    // Stop all briefing speech to prevent voice and devotional audio overlap
+    speechBriefingEngine.stop();
+
     this.currentTrackIndex = Math.max(0, Math.min(DEVOTIONAL_TRACKS.length - 1, index));
     const track = this.getCurrentTrack();
 

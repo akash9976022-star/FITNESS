@@ -29,6 +29,7 @@ interface MorningBriefingModalProps {
   sections: BriefingSection[];
   onClose: () => void;
   autoStartDevotionals?: boolean;
+  initialLanguage?: VoiceLanguageMode;
 }
 
 export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
@@ -36,6 +37,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   sections,
   onClose,
   autoStartDevotionals = true,
+  initialLanguage,
 }) => {
   // Speech State
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
@@ -53,7 +55,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
-  const [briefingLanguage, setBriefingLanguage] = useState<VoiceLanguageMode>('tanglish');
+  const [briefingLanguage, setBriefingLanguage] = useState<VoiceLanguageMode>(initialLanguage || 'tanglish');
 
   // Initialize and register devotional callbacks
   useEffect(() => {
@@ -116,7 +118,7 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
       isSubscribed = false;
       speechBriefingEngine.stop();
     };
-  }, [isOpen, briefingLanguage]);
+  }, [isOpen, briefingLanguage, sections]);
 
   if (!isOpen) return null;
 
@@ -228,7 +230,10 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
         <div className="flex-shrink-0 flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 sm:px-6 pt-1 sm:pt-2">
           <button
             type="button"
-            onClick={() => setActiveTab('briefing')}
+            onClick={() => {
+              devotionalPlayer.stop();
+              setActiveTab('briefing');
+            }}
             className={`py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 flex items-center gap-2 transition ${
               activeTab === 'briefing'
                 ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
@@ -245,6 +250,8 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
           <button
             type="button"
             onClick={() => {
+              speechBriefingEngine.stop();
+              setIsSpeechSpeaking(false);
               setActiveTab('devotionals');
               if (!isDevotionalPlaying && speechCompleted) {
                 devotionalPlayer.playTrack(0, volume);
@@ -306,35 +313,35 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition ${
-                          activeSegment === 'english'
+                          activeLanguage === 'en'
                             ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500/50'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                         }`}
                       >
-                        {activeSegment === 'english' && (
+                        {activeLanguage === 'en' && (
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         )}
-                        Phase 1: Indian English (Greeting, Nutrients & Quote)
+                        Indian English Coach Voice
                       </span>
 
                       <span
                         className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition ${
-                          activeSegment === 'tamil'
+                          activeLanguage === 'ta'
                             ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500/50'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                         }`}
                       >
-                        {activeSegment === 'tamil' && (
+                        {activeLanguage === 'ta' && (
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         )}
-                        Phase 2: தமிழ் ஒலிபரப்பு (அனைத்து வழிகாட்டல்கள்)
+                        இயற்கையான தமிழ் ஒலிபரப்பு
                       </span>
                     </div>
 
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       {activeLanguage === 'en'
-                        ? 'Gemini AI Fluent Voice (Indian English)'
-                        : 'Gemini AI Fluent Voice (இயற்கையான தாய்மொழி தமிழ்)'}
+                        ? 'Human-Like Coach Voice (Indian English)'
+                        : 'இயற்கையான தாய்மொழி தமிழ் (Human-Like Speaking)'}
                     </span>
                   </div>
 
@@ -358,8 +365,8 @@ export const MorningBriefingModal: React.FC<MorningBriefingModalProps> = ({
                         Speaking:{' '}
                         <span className="text-emerald-600 dark:text-emerald-400 font-black">
                           {activeLanguage === 'en'
-                            ? 'English Segment (1st)'
-                            : 'தமிழ் ஒலிபரப்பு (2nd)'}
+                            ? 'English Coach Voice'
+                            : 'தமிழ் குரல்'}
                         </span>
                       </span>
                     </div>

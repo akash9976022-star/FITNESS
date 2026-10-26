@@ -92,17 +92,20 @@ export function getBestNaturalVoice(
   if (!voices || voices.length === 0) return null;
 
   if (lang === 'ta') {
-    // 1. Natural / Neural Online Tamil: Google தமிழ், Microsoft Pallavi Online (Natural), Microsoft Valluvar Online (Natural)
+    // 1. Natural / Neural Online Tamil: Samsung Tamil, Google தமிழ், Microsoft Pallavi
     const topTamil = voices.find((v) => {
       const n = v.name.toLowerCase();
       const l = v.lang.toLowerCase().replace('_', '-');
       const isTa = l.startsWith('ta') || n.includes('tamil') || n.includes('தமிழ்');
       const isNaturalOnline =
+        n.includes('samsung') ||
         n.includes('google') ||
         n.includes('pallavi') ||
+        n.includes('valluvar') ||
         n.includes('natural') ||
         n.includes('neural') ||
-        n.includes('online');
+        n.includes('online') ||
+        n.includes('network');
       const isRoboticDesktop = n.includes('desktop') || n.includes('sapi');
       return isTa && isNaturalOnline && !isRoboticDesktop;
     });
@@ -120,19 +123,21 @@ export function getBestNaturalVoice(
     return null;
   } else {
     // English
-    // 1. Prioritize: "Google English (India)" / "Microsoft Neerja Online (Natural)" / "Microsoft Prabhat Online (Natural)" (en-IN)
+    // 1. Prioritize: Samsung English (India) / Google English (India) / Microsoft Neerja Online (Natural) (en-IN)
     const indianEn = voices.find((v) => {
       const l = v.lang.toLowerCase().replace('_', '-');
       const n = v.name.toLowerCase();
       const isEnIn = l === 'en-in';
       return (
         isEnIn &&
-        (n.includes('google') ||
+        (n.includes('samsung') ||
+         n.includes('google') ||
          n.includes('neerja') ||
          n.includes('prabhat') ||
          n.includes('natural') ||
          n.includes('neural') ||
-         n.includes('online'))
+         n.includes('online') ||
+         n.includes('network'))
       );
     }) || voices.find((v) => {
       const l = v.lang.toLowerCase().replace('_', '-');
@@ -148,17 +153,19 @@ export function getBestNaturalVoice(
     });
     if (indianEn) return indianEn;
 
-    // 2. "Google US English" / "Microsoft Aria Online (Natural)" (en-US)
+    // 2. Samsung Natural / Google US English / Microsoft Aria Online (Natural) (en-US / en-GB)
     const usEn = voices.find((v) => {
       const l = v.lang.toLowerCase().replace('_', '-');
       const n = v.name.toLowerCase();
       return (
         (l === 'en-us' || l.startsWith('en')) &&
-        (n.includes('google') ||
+        (n.includes('samsung') ||
+         n.includes('google') ||
          n.includes('aria') ||
          n.includes('natural') ||
          n.includes('neural') ||
          n.includes('online') ||
+         n.includes('network') ||
          n.includes('jenny') ||
          n.includes('guy') ||
          n.includes('samantha'))
@@ -252,6 +259,14 @@ export function splitIntoSafeTTSChunks(text: string, maxChars: number = 80): str
   return result.length > 0 ? result : [trimmed];
 }
 
+// Circuit breaker for Google TTS to avoid any freeze or audio lag when network is unavailable
+let googleTtsConsecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 2;
+
+export function resetGoogleTtsHealth(): void {
+  googleTtsConsecutiveFailures = 0;
+}
+
 /**
  * Plays a single <= 65-character audio chunk from Google Neural TTS
  */
@@ -262,6 +277,11 @@ function playSingleGoogleNeuralTTS(
 ): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     if (typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+
+    if (googleTtsConsecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
       resolve(false);
       return;
     }
@@ -285,8 +305,8 @@ function playSingleGoogleNeuralTTS(
       }
     } catch {}
     audio.preload = 'auto';
-    // Human conversational playback speed: 1.08x for fluid Tamil cadence, 1.04x for natural English
-    audio.playbackRate = lang === 'ta' ? 1.08 : 1.04;
+    // Human conversational playback speed: 1.06x for fluid Tamil cadence, 1.03x for natural English
+    audio.playbackRate = lang === 'ta' ? 1.06 : 1.03;
     activeAudio = audio;
 
     let timeout: any = null;
@@ -302,26 +322,29 @@ function playSingleGoogleNeuralTTS(
       }
     };
 
-    // Watchdog timeout (4.5s per short chunk)
+    // Snappy watchdog timeout (1400ms per short chunk) to prevent any perceived audio freeze
     timeout = setTimeout(() => {
       if (!hasEnded) {
         hasEnded = true;
+        googleTtsConsecutiveFailures++;
         cleanup();
         resolve(false);
       }
-    }, 4500);
+    }, 1400);
 
     audio.onplaying = () => {
       if (timeout) {
         clearTimeout(timeout);
         timeout = null;
       }
+      googleTtsConsecutiveFailures = 0;
       onStart?.();
     };
 
     audio.onended = () => {
       if (!hasEnded) {
         hasEnded = true;
+        googleTtsConsecutiveFailures = 0;
         cleanup();
         resolve(true);
       }
@@ -330,6 +353,7 @@ function playSingleGoogleNeuralTTS(
     audio.onerror = (e) => {
       if (!hasEnded) {
         hasEnded = true;
+        googleTtsConsecutiveFailures++;
         cleanup();
         console.warn(`Google Neural TTS playback notice (${ttsLang}):`, e);
         resolve(false);
@@ -338,10 +362,11 @@ function playSingleGoogleNeuralTTS(
 
     audio.src = url;
     // Re-apply playback rate upon setting source
-    audio.playbackRate = lang === 'ta' ? 1.08 : 1.04;
+    audio.playbackRate = lang === 'ta' ? 1.06 : 1.03;
     audio.play().catch((err) => {
       if (!hasEnded) {
         hasEnded = true;
+        googleTtsConsecutiveFailures++;
         cleanup();
         console.warn(`Google Neural TTS play notice (${ttsLang}):`, err);
         resolve(false);
@@ -464,8 +489,8 @@ export async function speakChunk(
       utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
     }
 
-    utterance.rate = options.rate ?? (lang === 'ta' ? 0.94 : 0.96);
-    utterance.pitch = options.pitch ?? 1.0;
+    utterance.rate = options.rate ?? (lang === 'ta' ? 0.93 : 0.95);
+    utterance.pitch = options.pitch ?? (lang === 'ta' ? 1.02 : 1.01);
     utterance.volume = options.volume ?? 1.0;
 
     let hasResolved = false;
